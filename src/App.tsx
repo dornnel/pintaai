@@ -20,6 +20,7 @@ import { UsersPage } from './pages/admin/UsersPage'
 import { ReviewsPage } from './pages/admin/ReviewsPage'
 import { PermissionsPage } from './pages/admin/PermissionsPage'
 import { CMSPage } from './pages/admin/CMSPage'
+import { LeadsPage } from './pages/admin/LeadsPage'
 import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
 import { CRMBoard } from './pages/crm/CRMBoard'
 import { ColorVisualizerFAB } from './components/ColorVisualizerFAB'
@@ -115,6 +116,7 @@ function AppRoutes() {
         <Route path="permissions" element={<PermissionsPage />} />
         <Route path="cms" element={<CMSPage />} />
         <Route path="crm" element={<CRMBoard />} />
+        <Route path="leads" element={<LeadsPage />} />
         <Route path="agent" element={<AgentConfigPage />} />
         <Route path="conversations" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
         <Route path="settings" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />

@@ -207,15 +207,9 @@ export function LoginPage() {
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Entrar
                   </motion.button>
-                  <div className="text-center text-xs text-gray-400 space-y-1">
-                    <div>
-                      Admin?{' '}
-                      <button type="button" onClick={() => { setEmail('admin@pintae.com.br') }} className="text-brand cursor-pointer font-medium">
-                        admin@pintae.com.br
-                      </button>
-                      {' '}· senha: <code className="bg-gray-100 px-1 rounded text-gray-600">Pintae@2026!</code>
-                    </div>
-                  </div>
+                  <p className="text-center text-xs text-gray-400">
+                    Acesso restrito. Use suas credenciais de administrador.
+                  </p>
                 </motion.form>
               ) : (
                 <motion.form key="register" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}

@@ -213,10 +213,11 @@ export function useChat() {
         generateBriefing(data)
       } else if (nextState === 'painter_done') {
         setCurrentState('painter_done')
-        agentMessage(
-          `Ótimo, **${data.name}**! Cadastro recebido.\n\nNossa equipe vai analisar e te contatar pelo WhatsApp ${data.whatsapp} em breve. Você receberá pedidos alinhados com seus bairros e especialidades. 🎨`,
-        )
-        saveToDatabase(data, 'painter')
+        saveToDatabase(data, 'painter').then(protocol => {
+          agentMessage(
+            `Ótimo, **${data.name}**! Cadastro recebido.\n\nProtocolo: **${protocol}**\n\nNossa equipe vai analisar e te contatar pelo WhatsApp **${data.whatsapp}** em breve. Você receberá pedidos alinhados com seus bairros e especialidades.`,
+          )
+        })
       }
       return
     }
@@ -268,12 +269,12 @@ export function useChat() {
         }
       }
 
-      // Save to DB
-      await saveToDatabase(data, 'client')
+      // Save to DB — returns protocol number
+      const protocol = await saveToDatabase(data, 'client')
 
       setCurrentState('briefing_ready')
       agentMessage(
-        `✅ **Briefing pronto!** Seu pedido foi enviado para pintores próximos ao ${data.neighborhood}.\n\nEles têm até 4 horas para enviar propostas. Vou te notificar no WhatsApp ${data.whatsapp} quando chegar! 🎨`,
+        `✅ **Briefing pronto!**\n\nSeu protocolo: **${protocol}**\n\nSeu pedido foi enviado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vou te notificar pelo WhatsApp **${data.whatsapp}** quando chegar.`,
         undefined,
         { briefing: briefingData ?? undefined },
       )
@@ -285,7 +286,13 @@ export function useChat() {
     }
   }
 
-  async function saveToDatabase(data: CollectedData, role: 'client' | 'painter') {
+  async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<string> {
+    // Generate human-readable protocol: PT-YYYYMMDD-XXXX
+    const now = new Date()
+    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '')
+    const randPart = Math.random().toString(36).slice(2, 6).toUpperCase()
+    const protocol = `PT-${datePart}-${randPart}`
+
     try {
       // Save conversation session
       await supabase.from('conversation_sessions').upsert({
@@ -298,19 +305,44 @@ export function useChat() {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'session_id' })
 
-      // Save messages in bulk
-      const systemMsg = {
-        session_id: sessionId.current,
-        channel: 'web' as const,
-        direction: 'inbound' as const,
-        body: JSON.stringify(data),
-        ai_intent: `lead_captured:${role}`,
-        metadata: { collected: data },
+      // Save as lead in CRM (client flow only)
+      if (role === 'client') {
+        await supabase.from('leads').insert({
+          name: data.name || 'Não informado',
+          phone: data.whatsapp,
+          email: data.email,
+          source: 'chat',
+          source_detail: 'web_chat',
+          service_interest: data.service_type,
+          neighborhood: data.neighborhood,
+          stage: 'new',
+          stage_updated_at: new Date().toISOString(),
+          protocol,
+          notes: JSON.stringify({
+            property_type: data.property_type,
+            wall_condition: data.wall_condition,
+            deadline: data.deadline,
+            material: data.material,
+            media_count: data.media_urls?.length || 0,
+          }),
+          tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
+        })
       }
-      await supabase.from('messages').insert(systemMsg)
+
+      // Save message log
+      await supabase.from('messages').insert({
+        session_id: sessionId.current,
+        channel: 'web',
+        direction: 'inbound',
+        body: JSON.stringify({ ...data, protocol }),
+        ai_intent: `lead_captured:${role}`,
+        metadata: { collected: data, protocol },
+      })
     } catch (err) {
       console.error('DB save error:', err)
     }
+
+    return protocol
   }
 
   // Validate text input (simple, no AI for basic fields)
