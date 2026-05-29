@@ -13,6 +13,7 @@ import { RequestDetailPage } from './pages/admin/RequestDetailPage'
 import { PaintersPage } from './pages/admin/PaintersPage'
 import { ModerationPage } from './pages/admin/ModerationPage'
 import { PaymentsPage } from './pages/admin/PaymentsPage'
+import { AgentConfigPage } from './pages/admin/AgentConfigPage'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="painters" element={<PaintersPage />} />
         <Route path="moderation" element={<ModerationPage />} />
         <Route path="payments" element={<PaymentsPage />} />
+        <Route path="agent" element={<AgentConfigPage />} />
         <Route path="conversations" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
         <Route path="settings" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
       </Route>

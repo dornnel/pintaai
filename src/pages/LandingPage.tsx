@@ -8,8 +8,10 @@ import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, X,
   MapPin, MessageCircle, Paintbrush, Home, Building2,
   Sparkles, TrendingUp, Users, Zap, ShieldCheck, CreditCard, Calendar,
+  ChevronDown,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
+import { useAuth, getRoleHome } from '../lib/auth'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -60,44 +62,75 @@ const stagger: Variants = {
 
 function PaintRevealAnimation() {
   const [progress, setProgress] = useState(0)
-  const dirRef = useRef(1)
+  const stateRef = useRef<'paused_start' | 'forward' | 'paused_end' | 'backward'>('paused_start')
 
   useEffect(() => {
     let frame: number
     let val = 0
+    let pauseTimer: ReturnType<typeof setTimeout> | null = null
 
     function tick() {
-      val += dirRef.current * 0.003
-      if (val >= 1) { val = 1; dirRef.current = -1 }
-      if (val <= 0) { val = 0; dirRef.current = 1 }
-      setProgress(val)
+      if (stateRef.current === 'forward') {
+        val = Math.min(1, val + 0.002) // ~8s to reveal
+        setProgress(val)
+        if (val >= 1) {
+          stateRef.current = 'paused_end'
+          pauseTimer = setTimeout(() => { stateRef.current = 'backward'; frame = requestAnimationFrame(tick) }, 2500)
+          return
+        }
+      } else if (stateRef.current === 'backward') {
+        val = Math.max(0, val - 0.003) // ~5s to go back
+        setProgress(val)
+        if (val <= 0) {
+          stateRef.current = 'paused_start'
+          pauseTimer = setTimeout(() => { stateRef.current = 'forward'; frame = requestAnimationFrame(tick) }, 2000)
+          return
+        }
+      }
       frame = requestAnimationFrame(tick)
     }
-    // Pause 2s at each end
-    const start = setTimeout(() => { frame = requestAnimationFrame(tick) }, 800)
-    return () => { clearTimeout(start); cancelAnimationFrame(frame) }
+
+    // Start after 1.5s pause showing the "before"
+    pauseTimer = setTimeout(() => { stateRef.current = 'forward'; frame = requestAnimationFrame(tick) }, 1500)
+    return () => {
+      if (pauseTimer) clearTimeout(pauseTimer)
+      cancelAnimationFrame(frame)
+    }
   }, [])
 
   const clip = `inset(0 ${((1 - progress) * 100).toFixed(1)}% 0 0)`
 
   return (
     <div className="relative w-full h-full rounded-3xl overflow-hidden shadow-2xl shadow-orange-200/50">
-      {/* BEFORE layer: dull/worn room */}
-      <img
-        src="https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=800&q=80"
-        alt="antes da pintura"
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+      {/* BEFORE: mesma imagem com filtro de parede velha/mofada */}
+      <div className="absolute inset-0">
+        <img
+          src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=900&q=85"
+          alt="antes da pintura"
+          className="w-full h-full object-cover"
+          loading="eager"
+          style={{
+            filter: 'grayscale(60%) brightness(0.6) contrast(1.15) sepia(30%)',
+          }}
+        />
+        {/* Overlay de mancha/mofo */}
+        <div className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse 60% 50% at 30% 40%, rgba(60,40,10,0.45), transparent), radial-gradient(ellipse 40% 35% at 70% 70%, rgba(30,50,20,0.35), transparent)',
+          }}
+        />
+      </div>
 
-      {/* AFTER layer: beautifully painted room, revealed by clip */}
+      {/* AFTER: sala pintada nova e limpa, revelada pelo clip */}
       <div
         className="absolute inset-0"
-        style={{ clipPath: clip, transition: 'clip-path 0.05s linear' }}
+        style={{ clipPath: clip }}
       >
         <img
-          src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80"
+          src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=900&q=85"
           alt="depois da pintura"
           className="w-full h-full object-cover"
+          loading="eager"
         />
         {/* Paint roller effect: vertical line at clip edge */}
         <div
@@ -381,9 +414,46 @@ function HowPaymentWorks() {
   )
 }
 
+// ─── Phone mockup wrapper ─────────────────────────────────────────────────────
+
+function PhoneMockup({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative mx-auto select-none" style={{ width: 280 }}>
+      {/* Shadow glow */}
+      <div className="absolute -inset-4 rounded-[56px] opacity-20 blur-2xl bg-brand pointer-events-none" />
+      {/* Frame */}
+      <div className="relative rounded-[44px] overflow-hidden shadow-2xl"
+        style={{ border: '10px solid #111', background: '#111' }}>
+        {/* Status bar */}
+        <div className="flex items-center justify-between px-5 py-2 bg-white" style={{ background: '#fff' }}>
+          <span className="text-[10px] font-semibold text-gray-900">9:41</span>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-4 bg-[#111] rounded-full z-10" />
+          <div className="flex items-center gap-1">
+            <div className="flex gap-px items-end h-3">
+              {[2, 3, 4, 5].map(h => <div key={h} className="w-0.5 bg-gray-900 rounded-sm" style={{ height: `${h * 2}px` }} />)}
+            </div>
+            <div className="w-4 h-2 border border-gray-900 rounded-sm ml-1 relative">
+              <div className="absolute inset-0.5 bg-gray-900 rounded-sm w-3/4" />
+            </div>
+          </div>
+        </div>
+        {/* Content — scaled down chat */}
+        <div className="overflow-hidden bg-white" style={{ height: 480 }}>
+          {children}
+        </div>
+        {/* Home bar */}
+        <div className="bg-white py-2 flex items-center justify-center">
+          <div className="w-20 h-1 bg-gray-200 rounded-full" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function LandingPage() {
+  const { user, signOut } = useAuth()
   const heroRef = useRef<HTMLElement>(null)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
@@ -408,12 +478,28 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <span className="text-xl font-bold text-brand tracking-tight">Pintaê</span>
           <div className="flex items-center gap-3">
-            <Link to="/login" className="text-sm text-gray-600 hover:text-brand transition-colors px-3 py-1.5">Entrar</Link>
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Link to="/chat" className="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors shadow-md shadow-brand/20">
-                Encontrar pintor
-              </Link>
-            </motion.div>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link to={getRoleHome(user.role)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors">
+                  <div className="w-5 h-5 rounded-full bg-brand flex items-center justify-center text-white text-[10px] font-bold">
+                    {user.name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                  <span className="text-xs font-semibold text-brand hidden sm:block">{user.name?.split(' ')[0]}</span>
+                  <ChevronDown className="w-3 h-3 text-brand" />
+                </Link>
+                <button onClick={signOut} className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">Sair</button>
+              </div>
+            ) : (
+              <>
+                <Link to="/login" className="text-sm text-gray-600 hover:text-brand transition-colors px-3 py-1.5">Entrar</Link>
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                  <Link to="/chat" className="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors shadow-md shadow-brand/20">
+                    Encontrar pintor
+                  </Link>
+                </motion.div>
+              </>
+            )}
           </div>
         </div>
       </motion.nav>
@@ -500,77 +586,134 @@ export function LandingPage() {
             </motion.div>
           </div>
 
-          {/* Right: Paint reveal + floating cards */}
-          <div className="relative flex justify-center lg:justify-end" style={{ minHeight: 480 }}>
+          {/* Right: phone mockup + floating cards */}
+          <div className="relative flex justify-center lg:justify-end items-center" style={{ minHeight: 560 }}>
 
-            {/* Paint reveal animation */}
+            {/* Phone with chat inside */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3, duration: 0.7 }}
-              className="w-full max-w-md h-[380px] lg:h-[420px]"
+              initial={{ opacity: 0, y: 32, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             >
-              <PaintRevealAnimation />
+              <PhoneMockup>
+                {/* Mini chat inside phone — scaled down */}
+                <div className="w-full h-full flex flex-col bg-gray-50" style={{ fontSize: '0.75rem' }}>
+                  {/* Chat header */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-white border-b border-gray-100">
+                    <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center shrink-0">
+                      <Paintbrush className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-900 leading-none">Pintaê Floripa</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
+                        <span className="text-[9px] text-green-500">Online agora</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Messages */}
+                  <div className="flex-1 px-3 py-3 space-y-2 overflow-hidden">
+                    <div className="flex items-end gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-brand shrink-0 flex items-center justify-center">
+                        <Paintbrush className="w-2.5 h-2.5 text-white" />
+                      </div>
+                      <div className="bg-white rounded-xl rounded-bl-sm px-2.5 py-1.5 max-w-[78%] border border-gray-100">
+                        <p className="text-[11px] text-gray-700 leading-relaxed">Olá! Para começar, qual é o seu nome?</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <div className="bg-brand rounded-xl rounded-br-sm px-2.5 py-1.5 max-w-[70%]">
+                        <p className="text-[11px] text-white">João da Silva</p>
+                      </div>
+                    </div>
+                    <div className="flex items-end gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-brand shrink-0 flex items-center justify-center">
+                        <Paintbrush className="w-2.5 h-2.5 text-white" />
+                      </div>
+                      <div className="bg-white rounded-xl rounded-bl-sm px-2.5 py-1.5 max-w-[78%] border border-gray-100">
+                        <p className="text-[11px] text-gray-700">Em qual **bairro** fica o local?</p>
+                      </div>
+                    </div>
+                    {/* Quick replies */}
+                    <div className="flex flex-wrap gap-1 pl-7">
+                      {['Campeche', 'Rio Tavares', 'Armação'].map(r => (
+                        <span key={r} className="text-[9px] px-2 py-1 rounded-full border border-brand/30 text-brand bg-orange-50">{r}</span>
+                      ))}
+                    </div>
+                    {/* Before/after mini */}
+                    <div className="mt-2 rounded-xl overflow-hidden" style={{ height: 80 }}>
+                      <PaintRevealAnimation />
+                    </div>
+                  </div>
+                  {/* Input */}
+                  <div className="px-3 pb-3 pt-1 bg-white border-t border-gray-100">
+                    <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5">
+                      <Paperclip className="w-3 h-3 text-gray-400" />
+                      <span className="flex-1 text-[10px] text-gray-400">Escreva aqui...</span>
+                      <div className="w-5 h-5 rounded-lg bg-brand flex items-center justify-center">
+                        <Send className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </PhoneMockup>
             </motion.div>
 
-            {/* Floating: client review */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.8} factorY={0.6} delay={1.0}
-              className="top-4 -left-4 lg:-left-8 p-3 w-52 z-20">
+            {/* Floating cards */}
+            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.9} factorY={0.6} delay={1.0}
+              className="top-8 -left-6 lg:-left-16 p-3 w-48 z-20">
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-6 h-6 rounded-full bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">JK</div>
                 <div>
                   <p className="text-gray-900 text-xs font-semibold leading-none">Juliana K.</p>
                   <p className="text-gray-400 text-[10px]">Armação</p>
                 </div>
-                <div className="ml-auto flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />)}</div>
+                <div className="ml-auto flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}</div>
               </div>
-              <p className="text-gray-500 text-[11px] leading-relaxed">"Sem sensação de estar sendo enganado no preço."</p>
+              <p className="text-gray-500 text-[10px] leading-relaxed">"Sem sensação de estar sendo enganado."</p>
             </FloatingCard>
 
-            {/* Floating: painter score */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.7} delay={1.2}
-              className="-bottom-2 -left-4 lg:-left-8 p-3 w-44 z-20">
+            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.8} delay={1.2}
+              className="bottom-8 -left-6 lg:-left-16 p-3 w-40 z-20">
               <div className="flex items-center gap-2">
-                <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="Carlos" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                <div className="min-w-0">
+                <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                <div>
                   <p className="text-gray-900 text-xs font-semibold leading-none">Carlos M.</p>
-                  <p className="text-gray-400 text-[10px]">Campeche · 87 jobs</p>
+                  <p className="text-gray-400 text-[9px]">87 jobs · Campeche</p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 mt-2">
-                <div className="flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />)}</div>
-                <span className="text-gray-900 font-bold text-xs ml-1">4.9</span>
+              <div className="flex items-center gap-1 mt-1.5">
+                <div className="flex gap-px">{[1,2,3,4,5].map(i => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}</div>
+                <span className="text-gray-900 font-bold text-[10px] ml-0.5">4.9</span>
               </div>
-              <div className="mt-1.5 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-brand" />
-                <span className="text-brand text-[10px] font-medium">Verificado</span>
-              </div>
-            </FloatingCard>
-
-            {/* Floating: AI badge */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={-0.9} factorY={1.0} delay={1.4}
-              className="top-6 -right-2 lg:-right-6 p-2.5 w-40 z-20">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-brand" />
-                </div>
-                <div>
-                  <p className="text-gray-900 text-[11px] font-semibold leading-tight">Briefing por IA</p>
-                  <p className="text-gray-400 text-[10px]">gerado agora</p>
-                </div>
+              <div className="flex items-center gap-1 mt-1">
+                <ShieldCheck className="w-2.5 h-2.5 text-brand" />
+                <span className="text-brand text-[9px] font-medium">Verificado</span>
               </div>
             </FloatingCard>
 
-            {/* Floating: payment security */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.8} delay={1.6}
-              className="bottom-20 -right-2 lg:-right-6 p-2.5 w-44 z-20">
+            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={-0.8} factorY={1.0} delay={1.4}
+              className="top-10 -right-4 lg:-right-8 p-2.5 w-36 z-20">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
-                  <CreditCard className="w-3.5 h-3.5 text-green-600" />
+                <div className="w-6 h-6 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3 h-3 text-brand" />
                 </div>
                 <div>
-                  <p className="text-gray-900 text-[11px] font-semibold leading-tight">Pagamento seguro</p>
-                  <p className="text-gray-400 text-[10px]">retido até conclusão</p>
+                  <p className="text-gray-900 text-[10px] font-semibold leading-tight">Briefing por IA</p>
+                  <p className="text-gray-400 text-[9px]">gerado agora</p>
+                </div>
+              </div>
+            </FloatingCard>
+
+            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.9} delay={1.6}
+              className="bottom-16 -right-4 lg:-right-8 p-2.5 w-40 z-20">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-xl bg-green-50 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-3 h-3 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-gray-900 text-[10px] font-semibold leading-tight">Pagamento seguro</p>
+                  <p className="text-gray-400 text-[9px]">retido até conclusão</p>
                 </div>
               </div>
             </FloatingCard>

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle, Settings, DollarSign } from 'lucide-react'
+import { LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle, Settings, DollarSign, Bot } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const NAV = [
@@ -7,6 +7,7 @@ const NAV = [
   { to: '/admin/requests', icon: FileText, label: 'Pedidos' },
   { to: '/admin/payments', icon: DollarSign, label: 'Pagamentos' },
   { to: '/admin/painters', icon: Users, label: 'Pintores' },
+  { to: '/admin/agent', icon: Bot, label: 'Agente IA' },
   { to: '/admin/conversations', icon: MessageSquare, label: 'Conversas' },
   { to: '/admin/moderation', icon: AlertTriangle, label: 'Moderação' },
 ]
