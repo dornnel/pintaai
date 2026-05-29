@@ -1,13 +1,21 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle, Settings, DollarSign, Bot } from 'lucide-react'
+import {
+  LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
+  Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/requests', icon: FileText, label: 'Pedidos' },
   { to: '/admin/payments', icon: DollarSign, label: 'Pagamentos' },
+  { to: '/admin/users', icon: Users, label: 'Usuários' },
   { to: '/admin/painters', icon: Users, label: 'Pintores' },
+  { to: '/admin/reviews', icon: Star, label: 'Avaliações' },
+  { to: '/admin/crm', icon: BarChart3, label: 'CRM Global' },
   { to: '/admin/agent', icon: Bot, label: 'Agente IA' },
+  { to: '/admin/permissions', icon: Shield, label: 'Permissões' },
+  { to: '/admin/cms', icon: Layout, label: 'Conteúdo' },
   { to: '/admin/conversations', icon: MessageSquare, label: 'Conversas' },
   { to: '/admin/moderation', icon: AlertTriangle, label: 'Moderação' },
 ]
@@ -15,10 +23,10 @@ const NAV = [
 export function AdminLayout() {
   return (
     <div className="flex h-screen bg-gray-50">
-      <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shrink-0">
-        <div className="h-14 px-5 flex items-center border-b border-gray-100">
-          <span className="text-base font-bold text-brand">Pintaê</span>
-          <span className="ml-2 text-xs bg-orange-100 text-brand px-2 py-0.5 rounded-full font-medium">Admin</span>
+      <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shrink-0 overflow-y-auto">
+        <div className="h-14 px-5 flex items-center border-b border-gray-100 shrink-0">
+          <span className="text-base font-bold text-brand">Pintai</span>
+          <span className="ml-2 text-xs bg-gradient-to-r from-[#FF7A30] to-brand text-white px-2 py-0.5 rounded-full font-medium">Admin</span>
         </div>
         <nav className="flex-1 p-2 space-y-0.5">
           {NAV.map(({ to, icon: Icon, label, end }) => (
@@ -33,7 +41,7 @@ export function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-2 border-t border-gray-100">
+        <div className="p-2 border-t border-gray-100 shrink-0">
           <NavLink to="/admin/settings"
             className={({ isActive }) =>
               cn('flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors',

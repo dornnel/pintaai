@@ -73,7 +73,7 @@ export function ChatInterface() {
           P
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-gray-900">Pintaê Floripa</p>
+          <p className="text-sm font-semibold text-gray-900">Pintai Floripa</p>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
             <p className="text-xs text-green-500">Online agora</p>
@@ -176,7 +176,7 @@ export function ChatInterface() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-1.5">
-          Seus dados são protegidos pela LGPD · Pintaê Floripa
+          Seus dados são protegidos pela LGPD · Pintai Floripa
         </p>
       </div>
     </div>

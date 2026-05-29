@@ -55,7 +55,7 @@ export const REQUEST_STATUSES = {
 export const WHATSAPP_NUMBER = '5548999999999'
 export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`
 
-export const AGENT_INTRO = `Oi! Sou o assistente da **Pintaê Floripa** 🎨
+export const AGENT_INTRO = `Oi! Sou o assistente da **Pintai Floripa** 🎨
 
 Vou te ajudar a receber até **3 orçamentos comparáveis** de pintores próximos ao seu bairro.
 

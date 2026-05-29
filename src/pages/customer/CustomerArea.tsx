@@ -30,7 +30,7 @@ export function CustomerArea() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-brand">Pintaê</Link>
+          <Link to="/" className="text-lg font-bold text-brand">Pintai</Link>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-500 hidden sm:block">{user?.name}</span>
             <button onClick={signOut} className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">Sair</button>

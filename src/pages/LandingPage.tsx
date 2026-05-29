@@ -306,7 +306,7 @@ function HeroChat() {
           <Paintbrush className="w-4 h-4 text-white" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-gray-900">Pintaê Assistente</p>
+          <p className="text-sm font-semibold text-gray-900">Pintai Assistente</p>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
             <span className="text-xs text-green-600">Online agora</span>
@@ -476,7 +476,7 @@ export function LandingPage() {
         className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-b border-gray-100"
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="text-xl font-bold text-brand tracking-tight">Pintaê</span>
+          <span className="text-xl font-bold text-brand tracking-tight">Pintai</span>
           <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-2">
@@ -607,7 +607,7 @@ export function LandingPage() {
                       <Paintbrush className="w-3 h-3 text-white" />
                     </div>
                     <div>
-                      <p className="text-[11px] font-semibold text-gray-900 leading-none">Pintaê Floripa</p>
+                      <p className="text-[11px] font-semibold text-gray-900 leading-none">Pintai Floripa</p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <span className="w-1 h-1 bg-green-400 rounded-full animate-pulse" />
                         <span className="text-[9px] text-green-500">Online agora</span>
@@ -855,7 +855,7 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start justify-between gap-6 mb-8">
             <div>
-              <p className="text-xl font-bold text-white mb-1">Pintaê</p>
+              <p className="text-xl font-bold text-white mb-1">Pintai</p>
               <p className="text-sm">Plataforma de pintura inteligente · Florianópolis</p>
             </div>
             <div className="flex gap-6 text-sm">
@@ -866,7 +866,7 @@ export function LandingPage() {
             </div>
           </div>
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-xs">© {new Date().getFullYear()} Pintaê · Dados protegidos pela LGPD</p>
+            <p className="text-xs">© {new Date().getFullYear()} Pintai · Dados protegidos pela LGPD</p>
             <a href="mailto:oi@pintae.com.br" className="text-xs hover:text-white transition-colors">oi@pintae.com.br</a>
           </div>
         </div>

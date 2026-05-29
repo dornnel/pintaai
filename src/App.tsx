@@ -16,7 +16,13 @@ import { PaintersPage } from './pages/admin/PaintersPage'
 import { ModerationPage } from './pages/admin/ModerationPage'
 import { PaymentsPage } from './pages/admin/PaymentsPage'
 import { AgentConfigPage } from './pages/admin/AgentConfigPage'
+import { UsersPage } from './pages/admin/UsersPage'
+import { ReviewsPage } from './pages/admin/ReviewsPage'
+import { PermissionsPage } from './pages/admin/PermissionsPage'
+import { CMSPage } from './pages/admin/CMSPage'
 import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
+import { CRMBoard } from './pages/crm/CRMBoard'
+import { ColorVisualizerFAB } from './components/ColorVisualizerFAB'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -65,6 +71,8 @@ function NeighborhoodPage() {
 
 function AppRoutes() {
   return (
+    <>
+    <ColorVisualizerFAB />
     <Routes>
       {/* Public */}
       <Route path="/" element={<LandingPage />} />
@@ -102,10 +110,22 @@ function AppRoutes() {
         <Route path="painters" element={<PaintersPage />} />
         <Route path="moderation" element={<ModerationPage />} />
         <Route path="payments" element={<PaymentsPage />} />
+        <Route path="users" element={<UsersPage />} />
+        <Route path="reviews" element={<ReviewsPage />} />
+        <Route path="permissions" element={<PermissionsPage />} />
+        <Route path="cms" element={<CMSPage />} />
+        <Route path="crm" element={<CRMBoard />} />
         <Route path="agent" element={<AgentConfigPage />} />
         <Route path="conversations" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
         <Route path="settings" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
       </Route>
+
+      {/* CRM for painters */}
+      <Route path="/crm" element={
+        <RequireAuth roles={['painter', 'partner', 'admin']}>
+          <CRMBoard />
+        </RequireAuth>
+      } />
 
       {/* Partner marketplace */}
       <Route path="/marketplace/minha-loja" element={
@@ -116,6 +136,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }
 

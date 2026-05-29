@@ -166,7 +166,7 @@ export const PAINT_PRESETS = [
   { hex: '#D4B896', name: 'Bege' },
   { hex: '#C4A882', name: 'Caramelo' },
   { hex: '#8B6914', name: 'Terracota' },
-  { hex: '#E35A1A', name: 'Laranja Pintaê' },
+  { hex: '#E35A1A', name: 'Laranja Pintai' },
   // Blues & greens
   { hex: '#4A90D9', name: 'Azul céu' },
   { hex: '#2E6DA4', name: 'Azul profundo' },

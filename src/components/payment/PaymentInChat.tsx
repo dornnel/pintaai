@@ -44,7 +44,7 @@ export function PaymentInChat({ serviceRequestId, quoteId, amount, painterName, 
         body: {
           service_request_id: serviceRequestId,
           quote_id: quoteId,
-          customer_name: form.name || 'Cliente Pintaê',
+          customer_name: form.name || 'Cliente Pintai',
           customer_email: form.email || 'cliente@pintae.com',
           customer_cpf_cnpj: form.cpf.replace(/\D/g, '') || '00000000000',
           payment_method: method,

@@ -54,7 +54,7 @@ interface CollectedData {
 
 const FLOW: Partial<Record<ChatState, StepConfig>> = {
   lead_name: {
-    question: () => 'Olá! Sou o assistente da **Pintaê Floripa**. Para começar, qual é o seu nome?',
+    question: () => 'Olá! Sou o assistente da **Pintai Floripa**. Para começar, qual é o seu nome?',
     type: 'text',
     field: 'name',
     validate: (v) => ({
