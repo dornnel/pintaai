@@ -14,22 +14,33 @@ import { useAuth, getRoleHome } from '../lib/auth'
 // CTA secondary: emerald-700
 // Rounded: lg (8px) — square to reference walls, not bubbly
 
-// ─── Logo SVG ─────────────────────────────────────────────────────────────────
+// ─── Logo SVG — clean modern wordmark with paint-drop 'i' dot ────────────────
 function PintaiLogo({ white = false }: { white?: boolean }) {
-  const c = white ? '#FFFFFF' : '#E35A1A'
-  const t = white ? '#FFFFFF' : '#111827'
+  const brand = '#E35A1A'
+  const text = white ? '#FFFFFF' : '#0F172A'
   return (
-    <svg width="110" height="32" viewBox="0 0 110 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Paint roller icon */}
-      <rect x="0" y="6" width="18" height="11" rx="2" fill={c} />
-      <rect x="3" y="17" width="3" height="8" fill={c} />
-      <rect x="1" y="4" width="16" height="3" rx="1" fill={c} opacity="0.6" />
-      {/* Wordmark */}
-      <text x="24" y="23" fontFamily='"Plus Jakarta Sans", system-ui, sans-serif' fontWeight="800" fontSize="18" letterSpacing="-0.5" fill={t}>
-        pintai
-      </text>
-      {/* Accent stroke under 'ai' */}
-      <rect x="86" y="26" width="22" height="2.5" rx="0.5" fill={c} />
+    <svg width="96" height="28" viewBox="0 0 96 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Wordmark "pintai" — the dot on the 'i' is an orange paint drop */}
+      <text
+        x="0" y="22"
+        fontFamily='"Plus Jakarta Sans", system-ui, sans-serif'
+        fontWeight="800"
+        fontSize="20"
+        letterSpacing="-0.8"
+        fill={text}
+      >pinta</text>
+      {/* 'i' without dot — positioned after 'pinta' */}
+      <text
+        x="68" y="22"
+        fontFamily='"Plus Jakarta Sans", system-ui, sans-serif'
+        fontWeight="800"
+        fontSize="20"
+        letterSpacing="-0.8"
+        fill={text}
+      >i</text>
+      {/* Paint drop replacing the dot of 'i' */}
+      <ellipse cx="73" cy="4" rx="3.5" ry="3.5" fill={brand} />
+      <path d="M73 7.5 L75.2 3.5 L70.8 3.5 Z" fill={brand} />
     </svg>
   )
 }
@@ -141,8 +152,9 @@ function FloatingCard({ children, className = '', mouseX, mouseY, factorX = 1, f
 
   return (
     <motion.div initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] }} style={{ x, y }}
-      className={`absolute bg-white border border-gray-100 shadow-2xl pointer-events-none select-none rounded ${className}`}>
+      transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      style={{ x, y, boxShadow: '0 4px 20px rgba(0,0,0,0.10)' }}
+      className={`absolute bg-white border border-gray-100 pointer-events-none select-none rounded ${className}`}>
       {children}
     </motion.div>
   )
@@ -262,7 +274,8 @@ function HeroChat() {
     <motion.div
       initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.7, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-2xl overflow-hidden"
+      className="w-full max-w-md bg-white border border-gray-200 rounded-lg overflow-hidden"
+      style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}
     >
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
         {/* White header */}
@@ -425,63 +438,46 @@ export function LandingPage() {
         <div className="relative z-10 max-w-6xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-white/60 rounded px-3 py-1.5 text-xs text-gray-700 font-semibold mb-8 uppercase tracking-widest shadow-sm">
+              className="inline-flex items-center gap-2 bg-white/70 backdrop-blur-sm border border-white/50 rounded px-3 py-1.5 text-xs text-gray-600 font-semibold mb-8 uppercase tracking-widest">
               <MapPin className="w-3 h-3 text-brand" />
               Florianópolis · Sul da Ilha
             </motion.div>
 
             <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.04] tracking-tight mb-6"
-              style={{ color: '#fff', textShadow: '0 2px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.8)' }}>
+              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.04] tracking-tight mb-8"
+              style={{ color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.35)' }}>
               O pintor certo<br />
               para o seu<br />
-              <span style={{ color: '#FF7A30', textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>espaço.</span>
+              <span style={{ color: '#FF7A30' }}>espaço.</span>
             </motion.h1>
-
-            <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
-              className="text-lg mb-8 leading-relaxed max-w-md font-medium"
-              style={{ color: 'rgba(255,255,255,0.88)', textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
-              Pare de contratar às cegas. IA analisa seu projeto,
-              profissionais verificados respondem. Você vê o histórico real.
-            </motion.p>
 
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex flex-wrap gap-2 mb-10">
               {PAIN_POINTS.map(({ text }) => (
                 <motion.span key={text} variants={fadeUp}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-medium"
-                  style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-medium text-white/80"
+                  style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.25)' }}>
                   <X className="w-3 h-3 shrink-0 text-red-400" />{text}
                 </motion.span>
               ))}
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }}
-              className="flex flex-wrap gap-3 mb-12">
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
+              className="flex flex-wrap gap-3">
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <Link to="/chat"
                   className="flex items-center gap-2 px-6 py-3.5 bg-brand text-white font-bold rounded hover:bg-brand-dark transition-colors text-sm"
-                  style={{ boxShadow: '0 8px 24px rgba(227,90,26,0.5)' }}>
+                  style={{ boxShadow: '0 4px 16px rgba(227,90,26,0.4)' }}>
                   Encontrar meu pintor <ArrowRight className="w-4 h-4" />
                 </Link>
               </motion.div>
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <a href="#como-funciona"
-                  className="flex items-center gap-2 px-6 py-3.5 font-semibold rounded text-sm transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.5)', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+                  className="flex items-center gap-2 px-6 py-3.5 font-semibold rounded text-sm transition-colors text-white/80 hover:text-white"
+                  style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.35)' }}>
                   Ver como funciona
                 </a>
               </motion.div>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.8 }}
-              className="flex flex-wrap gap-8">
-              {[{ value: '200+', label: 'pintores ativos' }, { value: '1.200+', label: 'serviços concluídos' }, { value: '4.8★', label: 'avaliação média' }].map(({ value, label }) => (
-                <div key={label}>
-                  <p className="text-2xl font-extrabold leading-none" style={{ color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.7)' }}>{value}</p>
-                  <p className="text-xs mt-0.5 font-medium" style={{ color: 'rgba(255,255,255,0.7)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{label}</p>
-                </div>
-              ))}
             </motion.div>
           </div>
 
