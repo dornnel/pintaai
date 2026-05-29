@@ -4,7 +4,7 @@ import { motion, AnimatePresence, useInView, type Variants, useMotionValue, useS
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, X,
   MapPin, MessageCircle, Paintbrush, Home, Building2,
-  Sparkles, TrendingUp, Users, Zap, ShieldCheck, CreditCard, Calendar, ChevronDown,
+  Sparkles, TrendingUp, Zap, ShieldCheck, CreditCard, Calendar, ChevronDown,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
@@ -53,26 +53,26 @@ const PAINTER_REVIEWS = [
   { name: 'Diego Ramos', location: 'Costeira', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=48&q=70', jobs: 28, rating: 4.8, text: 'Nunca mais tive cliente que não sabia a metragem. Chega com tudo no briefing.' },
 ]
 
-// Before/After using same room with CSS color transformation
+// Before/After: same room image, hue-rotate reveals different wall color on tap
 const BEFORE_AFTER = [
   {
-    img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=85',
-    hue: 0,   // before hue rotation
-    afterHue: 200, // after hue rotation → blue/steel wall
+    // Neutral bright living room — walls clearly visible
+    img: 'https://images.unsplash.com/photo-1600210491892-03d54078f7ef?w=900&q=85',
+    afterHue: 200,
     label: 'Sala · Campeche',
-    afterLabel: 'Azul acinzentado',
+    afterLabel: 'Azul Steel',
   },
   {
-    img: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=85',
-    hue: 0,
-    afterHue: 330,  // → warm rose wall
-    label: 'Sala · Rio Tavares',
-    afterLabel: 'Bege rosado',
+    // Clean white bedroom — easy to see color change
+    img: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=900&q=85',
+    afterHue: 330,
+    label: 'Quarto · Rio Tavares',
+    afterLabel: 'Rosa pálido',
   },
   {
-    img: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?w=800&q=85',
-    hue: 0,
-    afterHue: 90,   // → sage green wall
+    // Modern living room with visible walls
+    img: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?w=900&q=85',
+    afterHue: 100,
     label: 'Sala · Armação',
     afterLabel: 'Verde sálvia',
   },
@@ -122,9 +122,9 @@ function HeroBackground() {
           <img src={src} alt="" className="w-full h-full object-cover" />
         </motion.div>
       ))}
-      {/* Dark overlay for text legibility */}
-      <div className="absolute inset-0 bg-gradient-to-r from-gray-950/85 via-gray-950/65 to-gray-950/30" />
-      <div className="absolute inset-0 bg-gradient-to-b from-gray-950/30 via-transparent to-gray-950/60" />
+      {/* Very light vignette only at edges — keep photo visible */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-white" />
     </div>
   )
 }
@@ -142,7 +142,7 @@ function FloatingCard({ children, className = '', mouseX, mouseY, factorX = 1, f
   return (
     <motion.div initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
       transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] }} style={{ x, y }}
-      className={`absolute bg-white/10 backdrop-blur-xl border border-white/20 shadow-xl pointer-events-none select-none rounded-lg ${className}`}>
+      className={`absolute bg-white border border-gray-100 shadow-2xl pointer-events-none select-none rounded ${className}`}>
       {children}
     </motion.div>
   )
@@ -262,20 +262,21 @@ function HeroChat() {
     <motion.div
       initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.7, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="w-full max-w-md bg-white/10 backdrop-blur-2xl border border-white/20 rounded-lg shadow-2xl overflow-hidden"
+      className="w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-2xl overflow-hidden"
     >
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+        {/* White header */}
         <div className="w-9 h-9 rounded bg-brand flex items-center justify-center shrink-0">
           <Paintbrush className="w-4 h-4 text-white" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-white">Pintai Assistente</p>
+          <p className="text-sm font-semibold text-gray-900">Pintai Assistente</p>
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-            <span className="text-xs text-emerald-400">Online agora</span>
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-xs text-emerald-600">Online agora</span>
           </div>
         </div>
-        <div className="ml-auto flex gap-1">{[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-white/20" />)}</div>
+        <div className="ml-auto flex gap-1">{[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" />)}</div>
       </div>
       <div className="px-5 py-4">
         <div className="flex items-end gap-2 mb-4">
@@ -283,8 +284,8 @@ function HeroChat() {
             <Paintbrush className="w-3.5 h-3.5 text-white" />
           </div>
           <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.9, duration: 0.4 }}
-            className="bg-white/10 border border-white/15 rounded rounded-bl-none px-4 py-3 max-w-xs">
-            <p className="text-sm text-white/90 leading-relaxed">
+            className="bg-gray-50 border border-gray-200 rounded rounded-bl-none px-4 py-3 max-w-xs">
+            <p className="text-sm text-gray-700 leading-relaxed">
               Qual é o seu projeto? Escolha abaixo ou descreva — vou encontrar o profissional certo.
             </p>
           </motion.div>
@@ -294,9 +295,10 @@ function HeroChat() {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
               transition={{ delay: 1.1 }} className="flex flex-wrap gap-2 mb-4">
               {SUGGESTIONS.map((s) => (
-                <motion.button key={s} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                <motion.button key={s} whileHover={{ scale: 1.04, backgroundColor: '#E35A1A', color: '#fff', borderColor: '#E35A1A' }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => { setStarted(true); handleSend(s) }}
-                  className="text-xs px-3 py-1.5 rounded border border-white/30 text-white/80 bg-white/10 hover:bg-brand hover:border-brand transition-colors cursor-pointer">
+                  className="text-xs px-3 py-1.5 rounded border border-brand/30 text-brand bg-orange-50 transition-colors cursor-pointer">
                   {s}
                 </motion.button>
               ))}
@@ -305,18 +307,18 @@ function HeroChat() {
         </AnimatePresence>
       </div>
       <div className="px-4 pb-4">
-        <div className="flex items-center gap-2 bg-white/8 border border-white/15 rounded px-3 py-2">
-          <Paperclip className="w-4 h-4 text-white/40 shrink-0" />
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+          <Paperclip className="w-4 h-4 text-gray-400 shrink-0" />
           <input value={input} onChange={e => { setInput(e.target.value); setStarted(true) }}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="Descreva o que precisa..." className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 outline-none" />
+            placeholder="Descreva o que precisa..." className="flex-1 bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" />
           <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleSend()}
             disabled={!input.trim()}
             className="w-8 h-8 rounded bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer">
             <Send className="w-3.5 h-3.5" />
           </motion.button>
         </div>
-        <p className="text-center text-xs text-white/30 mt-2">Grátis · Sem cadastro</p>
+        <p className="text-center text-xs text-gray-400 mt-2">Grátis · Sem cadastro</p>
       </div>
     </motion.div>
   )
@@ -415,29 +417,31 @@ export function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ── Hero (dark photo bg, animated) ── */}
+      {/* ── Hero (photo visible, light vignette) ── */}
       <section ref={heroRef} onMouseMove={handleMouseMove}
-        className="relative min-h-screen flex items-center pt-14 overflow-hidden bg-gray-950">
+        className="relative min-h-screen flex items-center pt-14 overflow-hidden bg-white">
         <HeroBackground />
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 bg-brand/20 border border-brand/40 rounded px-3 py-1.5 text-xs text-brand font-semibold mb-8 uppercase tracking-widest">
-              <MapPin className="w-3 h-3" />
+              className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm border border-white/60 rounded px-3 py-1.5 text-xs text-gray-700 font-semibold mb-8 uppercase tracking-widest shadow-sm">
+              <MapPin className="w-3 h-3 text-brand" />
               Florianópolis · Sul da Ilha
             </motion.div>
 
             <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white leading-[1.04] tracking-tight mb-6">
+              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.04] tracking-tight mb-6"
+              style={{ color: '#fff', textShadow: '0 2px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.8)' }}>
               O pintor certo<br />
               para o seu<br />
-              <span className="text-brand">espaço.</span>
+              <span style={{ color: '#FF7A30', textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>espaço.</span>
             </motion.h1>
 
             <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
-              className="text-lg text-white/60 mb-8 leading-relaxed max-w-md">
+              className="text-lg mb-8 leading-relaxed max-w-md font-medium"
+              style={{ color: 'rgba(255,255,255,0.88)', textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
               Pare de contratar às cegas. IA analisa seu projeto,
               profissionais verificados respondem. Você vê o histórico real.
             </motion.p>
@@ -445,8 +449,9 @@ export function LandingPage() {
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex flex-wrap gap-2 mb-10">
               {PAIN_POINTS.map(({ text }) => (
                 <motion.span key={text} variants={fadeUp}
-                  className="flex items-center gap-1.5 text-xs text-red-300/80 px-3 py-1.5 rounded bg-red-950/50 border border-red-800/40">
-                  <X className="w-3 h-3 shrink-0" />{text}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-medium"
+                  style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                  <X className="w-3 h-3 shrink-0 text-red-400" />{text}
                 </motion.span>
               ))}
             </motion.div>
@@ -455,13 +460,15 @@ export function LandingPage() {
               className="flex flex-wrap gap-3 mb-12">
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <Link to="/chat"
-                  className="flex items-center gap-2 px-6 py-3.5 bg-white text-gray-950 font-bold rounded hover:bg-gray-100 transition-colors shadow-xl text-sm">
+                  className="flex items-center gap-2 px-6 py-3.5 bg-brand text-white font-bold rounded hover:bg-brand-dark transition-colors text-sm"
+                  style={{ boxShadow: '0 8px 24px rgba(227,90,26,0.5)' }}>
                   Encontrar meu pintor <ArrowRight className="w-4 h-4" />
                 </Link>
               </motion.div>
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <a href="#como-funciona"
-                  className="flex items-center gap-2 px-6 py-3.5 text-white/70 font-medium rounded border border-white/20 hover:bg-white/10 transition-colors text-sm">
+                  className="flex items-center gap-2 px-6 py-3.5 font-semibold rounded text-sm transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.5)', color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
                   Ver como funciona
                 </a>
               </motion.div>
@@ -471,8 +478,8 @@ export function LandingPage() {
               className="flex flex-wrap gap-8">
               {[{ value: '200+', label: 'pintores ativos' }, { value: '1.200+', label: 'serviços concluídos' }, { value: '4.8★', label: 'avaliação média' }].map(({ value, label }) => (
                 <div key={label}>
-                  <p className="text-2xl font-extrabold text-white leading-none">{value}</p>
-                  <p className="text-xs text-white/40 mt-0.5">{label}</p>
+                  <p className="text-2xl font-extrabold leading-none" style={{ color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.7)' }}>{value}</p>
+                  <p className="text-xs mt-0.5 font-medium" style={{ color: 'rgba(255,255,255,0.7)', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{label}</p>
                 </div>
               ))}
             </motion.div>
@@ -485,28 +492,29 @@ export function LandingPage() {
               <HeroChat />
             </motion.div>
 
+            {/* All floating cards now white with dark text for full visibility */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.9} factorY={0.6} delay={1.0}
               className="top-8 -left-4 lg:-left-12 p-3 w-48 z-20">
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-6 h-6 rounded bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">JK</div>
                 <div>
-                  <p className="text-white text-xs font-semibold leading-none">Juliana K.</p>
-                  <p className="text-white/40 text-[10px]">Armação</p>
+                  <p className="text-gray-900 text-xs font-semibold leading-none">Juliana K.</p>
+                  <p className="text-gray-400 text-[10px]">Armação</p>
                 </div>
                 <div className="ml-auto flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}</div>
               </div>
-              <p className="text-white/60 text-[10px] leading-relaxed">"Sem sensação de estar sendo enganado."</p>
+              <p className="text-gray-500 text-[10px] leading-relaxed">"Sem sensação de estar sendo enganado."</p>
             </FloatingCard>
 
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.8} delay={1.2}
               className="bottom-8 -left-4 lg:-left-12 p-3 w-40 z-20">
               <div className="flex items-center gap-2">
                 <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
-                <div><p className="text-white text-xs font-semibold leading-none">Carlos M.</p><p className="text-white/40 text-[9px]">87 jobs · Campeche</p></div>
+                <div><p className="text-gray-900 text-xs font-semibold leading-none">Carlos M.</p><p className="text-gray-400 text-[9px]">87 jobs · Campeche</p></div>
               </div>
               <div className="flex items-center gap-1 mt-2">
                 <div className="flex gap-px">{[1,2,3,4,5].map(i => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}</div>
-                <span className="text-white font-bold text-[10px] ml-0.5">4.9</span>
+                <span className="text-gray-900 font-bold text-[10px] ml-0.5">4.9</span>
               </div>
               <div className="flex items-center gap-1 mt-1"><ShieldCheck className="w-2.5 h-2.5 text-brand" /><span className="text-brand text-[9px] font-bold">Verificado</span></div>
             </FloatingCard>
@@ -514,16 +522,16 @@ export function LandingPage() {
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={-0.8} factorY={1.0} delay={1.4}
               className="top-10 -right-2 lg:-right-6 p-2.5 w-36 z-20">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-brand/20 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 text-brand" /></div>
-                <div><p className="text-white text-[10px] font-semibold leading-tight">Briefing por IA</p><p className="text-white/40 text-[9px]">gerado agora</p></div>
+                <div className="w-6 h-6 rounded bg-orange-100 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 text-brand" /></div>
+                <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Briefing por IA</p><p className="text-gray-400 text-[9px]">gerado agora</p></div>
               </div>
             </FloatingCard>
 
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.9} delay={1.6}
               className="bottom-20 -right-2 lg:-right-6 p-2.5 w-44 z-20">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center shrink-0"><CreditCard className="w-3 h-3 text-emerald-400" /></div>
-                <div><p className="text-white text-[10px] font-semibold leading-tight">Pagamento seguro</p><p className="text-white/40 text-[9px]">retido até conclusão</p></div>
+                <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0"><CreditCard className="w-3 h-3 text-emerald-600" /></div>
+                <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Pagamento seguro</p><p className="text-gray-400 text-[9px]">retido até conclusão</p></div>
               </div>
             </FloatingCard>
           </div>
@@ -541,21 +549,76 @@ export function LandingPage() {
           </motion.div>
           <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {[
-              { icon: MessageCircle, step: '01', title: 'Descreva no chat', desc: 'Envie fotos e diga o bairro. A IA entende o projeto.', color: 'text-blue-600', bg: 'bg-blue-50' },
-              { icon: Sparkles, step: '02', title: 'IA analisa e classifica', desc: 'Metragem, estado da parede, riscos — tudo vira briefing técnico.', color: 'text-violet-600', bg: 'bg-violet-50' },
-              { icon: Users, step: '03', title: 'Match com o profissional', desc: 'Não o mais barato. O mais adequado por especialidade e histórico.', color: 'text-brand', bg: 'bg-orange-50' },
-              { icon: CheckCircle, step: '04', title: 'Pague, agende e acompanhe', desc: 'Pagamento retido, agendamento no chat, liberação por etapas.', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            ].map(({ icon: Icon, step, title, desc, color, bg }) => (
-              <motion.div key={step} variants={fadeUp} whileHover={{ y: -4, boxShadow: '0 12px 32px rgba(0,0,0,0.08)' }}
-                className="bg-white rounded p-6 border border-gray-100">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded ${bg} flex items-center justify-center`}>
-                    <Icon className={`w-5 h-5 ${color}`} />
-                  </div>
-                  <span className="text-xs font-bold text-gray-300 tracking-widest">{step}</span>
+              {
+                step: '01', title: 'Descreva no chat', desc: 'Envie fotos e diga o bairro. A IA entende o projeto.',
+                gradient: 'from-blue-500 to-blue-700',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <rect x="4" y="8" width="40" height="28" rx="4" fill="url(#g1)"/>
+                    <rect x="8" y="16" width="14" height="2.5" rx="1.25" fill="white" opacity="0.9"/>
+                    <rect x="8" y="21" width="22" height="2.5" rx="1.25" fill="white" opacity="0.6"/>
+                    <rect x="8" y="26" width="18" height="2.5" rx="1.25" fill="white" opacity="0.6"/>
+                    <path d="M16 36 L22 44 L28 36" fill="url(#g1)"/>
+                    <circle cx="36" cy="20" r="6" fill="white" opacity="0.25"/>
+                    <path d="M33 20 L35 22 L39 18" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#3B82F6"/><stop offset="1" stopColor="#1D4ED8"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                step: '02', title: 'IA analisa e classifica', desc: 'Metragem, estado da parede, riscos — tudo vira briefing técnico.',
+                gradient: 'from-violet-500 to-purple-700',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <circle cx="24" cy="24" r="20" fill="url(#g2)"/>
+                    <path d="M16 24 Q20 16 24 24 Q28 32 32 24" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.8"/>
+                    <circle cx="24" cy="24" r="3" fill="white"/>
+                    <circle cx="16" cy="24" r="2" fill="white" opacity="0.6"/>
+                    <circle cx="32" cy="24" r="2" fill="white" opacity="0.6"/>
+                    <path d="M24 10 L25.5 14 L30 14.5 L26.5 17.5 L27.5 22 L24 19.5 L20.5 22 L21.5 17.5 L18 14.5 L22.5 14 Z" fill="white" opacity="0.9"/>
+                    <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#8B5CF6"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                step: '03', title: 'Match com o profissional', desc: 'Não o mais barato. O mais adequado por especialidade e histórico.',
+                gradient: 'from-orange-400 to-brand',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <circle cx="24" cy="16" r="8" fill="url(#g3)"/>
+                    <path d="M8 40 C8 32 14 28 24 28 C34 28 40 32 40 40" fill="url(#g3)" opacity="0.85"/>
+                    <circle cx="38" cy="14" r="5" fill="white" opacity="0.25"/>
+                    <path d="M36 14 L37.5 15.5 L41 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="10" cy="14" r="5" fill="white" opacity="0.25"/>
+                    <path d="M8 14 L9.5 15.5 L13 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#FB923C"/><stop offset="1" stopColor="#E35A1A"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                step: '04', title: 'Pague, agende e acompanhe', desc: 'Pagamento retido, agendamento no chat, liberação por etapas.',
+                gradient: 'from-emerald-400 to-emerald-700',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <rect x="6" y="10" width="36" height="28" rx="4" fill="url(#g4)"/>
+                    <rect x="6" y="16" width="36" height="4" fill="white" opacity="0.2"/>
+                    <rect x="12" y="25" width="10" height="2" rx="1" fill="white" opacity="0.8"/>
+                    <rect x="12" y="30" width="14" height="2" rx="1" fill="white" opacity="0.5"/>
+                    <circle cx="36" cy="28" r="6" fill="white" opacity="0.2"/>
+                    <path d="M33 28 L35 30 L39 26" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs><linearGradient id="g4" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#34D399"/><stop offset="1" stopColor="#059669"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+            ].map(({ step, title, desc, icon }) => (
+              <motion.div key={step} variants={fadeUp} whileHover={{ y: -4, boxShadow: '0 16px 40px rgba(0,0,0,0.1)' }}
+                className="bg-white rounded p-6 border border-gray-100 flex gap-5 items-start">
+                <div className="shrink-0">{icon}</div>
+                <div>
+                  <span className="text-xs font-bold text-gray-300 tracking-widest block mb-1">{step}</span>
+                  <h3 className="font-bold text-gray-900 mb-1.5">{title}</h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
                 </div>
-                <h3 className="font-bold text-gray-900 mb-1">{title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
               </motion.div>
             ))}
           </motion.div>
