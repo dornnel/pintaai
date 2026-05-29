@@ -14,34 +14,38 @@ import { useAuth, getRoleHome } from '../lib/auth'
 // CTA secondary: emerald-700
 // Rounded: lg (8px) — square to reference walls, not bubbly
 
-// ─── Logo SVG — clean modern wordmark with paint-drop 'i' dot ────────────────
+// ─── Logo — single span, orange underline accent under "ai" ─────────────────
 function PintaiLogo({ white = false }: { white?: boolean }) {
-  const brand = '#E35A1A'
-  const text = white ? '#FFFFFF' : '#0F172A'
+  const color = white ? '#fff' : '#0F172A'
   return (
-    <svg width="96" height="28" viewBox="0 0 96 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Wordmark "pintai" — the dot on the 'i' is an orange paint drop */}
-      <text
-        x="0" y="22"
-        fontFamily='"Plus Jakarta Sans", system-ui, sans-serif'
-        fontWeight="800"
-        fontSize="20"
-        letterSpacing="-0.8"
-        fill={text}
-      >pinta</text>
-      {/* 'i' without dot — positioned after 'pinta' */}
-      <text
-        x="68" y="22"
-        fontFamily='"Plus Jakarta Sans", system-ui, sans-serif'
-        fontWeight="800"
-        fontSize="20"
-        letterSpacing="-0.8"
-        fill={text}
-      >i</text>
-      {/* Paint drop replacing the dot of 'i' */}
-      <ellipse cx="73" cy="4" rx="3.5" ry="3.5" fill={brand} />
-      <path d="M73 7.5 L75.2 3.5 L70.8 3.5 Z" fill={brand} />
-    </svg>
+    <div
+      className="select-none relative inline-flex items-center"
+      style={{
+        fontFamily: '"Plus Jakarta Sans", system-ui, sans-serif',
+        fontWeight: 800,
+        fontSize: 20,
+        letterSpacing: '-0.5px',
+        color,
+        lineHeight: 1,
+      }}
+    >
+      {/* Full word as one unit */}
+      <span>pint</span>
+      <span style={{ color: '#E35A1A' }}>ai</span>
+      {/* Small orange square accent — like a paint chip */}
+      <span
+        style={{
+          display: 'inline-block',
+          width: 5,
+          height: 5,
+          background: '#E35A1A',
+          borderRadius: 1,
+          marginLeft: 3,
+          marginBottom: 1,
+          flexShrink: 0,
+        }}
+      />
+    </div>
   )
 }
 
@@ -455,9 +459,9 @@ export function LandingPage() {
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex flex-wrap gap-2 mb-10">
               {PAIN_POINTS.map(({ text }) => (
                 <motion.span key={text} variants={fadeUp}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-medium text-white/80"
-                  style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.25)' }}>
-                  <X className="w-3 h-3 shrink-0 text-red-400" />{text}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-semibold"
+                  style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}>
+                  <X className="w-3 h-3 shrink-0" style={{ color: '#f87171' }} />{text}
                 </motion.span>
               ))}
             </motion.div>
@@ -473,24 +477,25 @@ export function LandingPage() {
               </motion.div>
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <a href="#como-funciona"
-                  className="flex items-center gap-2 px-6 py-3.5 font-semibold rounded text-sm transition-colors text-white/80 hover:text-white"
-                  style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.35)' }}>
+                  className="flex items-center gap-2 px-6 py-3.5 font-bold rounded text-sm transition-colors"
+                  style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
                   Ver como funciona
                 </a>
               </motion.div>
             </motion.div>
           </div>
 
-          {/* Right: Chat + floating cards */}
-          <div className="relative flex justify-center lg:justify-end items-center" style={{ minHeight: 460 }}>
+          {/* Right: Chat + floating cards — px-16 gives room for outside cards */}
+          <div className="relative flex justify-center lg:justify-end items-center px-16 lg:px-20" style={{ minHeight: 460 }}>
             <motion.div initial={{ opacity: 0, y: 32, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
               <HeroChat />
             </motion.div>
 
-            {/* All floating cards now white with dark text for full visibility */}
+            {/* Floating cards — positioned OUTSIDE chat widget boundaries */}
+            {/* Top-left: above the chat header */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.9} factorY={0.6} delay={1.0}
-              className="top-8 -left-4 lg:-left-12 p-3 w-48 z-20">
+              className="top-0 -left-4 lg:-left-16 p-3 w-48 z-20">
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-6 h-6 rounded bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">JK</div>
                 <div>
@@ -502,8 +507,9 @@ export function LandingPage() {
               <p className="text-gray-500 text-[10px] leading-relaxed">"Sem sensação de estar sendo enganado."</p>
             </FloatingCard>
 
+            {/* Bottom-left: below chat bottom edge, no overlap with input */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.8} delay={1.2}
-              className="bottom-8 -left-4 lg:-left-12 p-3 w-40 z-20">
+              className="-bottom-4 -left-4 lg:-left-16 p-3 w-40 z-20">
               <div className="flex items-center gap-2">
                 <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
                 <div><p className="text-gray-900 text-xs font-semibold leading-none">Carlos M.</p><p className="text-gray-400 text-[9px]">87 jobs · Campeche</p></div>
@@ -515,16 +521,18 @@ export function LandingPage() {
               <div className="flex items-center gap-1 mt-1"><ShieldCheck className="w-2.5 h-2.5 text-brand" /><span className="text-brand text-[9px] font-bold">Verificado</span></div>
             </FloatingCard>
 
+            {/* Top-right: above chat, right side */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={-0.8} factorY={1.0} delay={1.4}
-              className="top-10 -right-2 lg:-right-6 p-2.5 w-36 z-20">
+              className="top-0 -right-2 lg:-right-8 p-2.5 w-36 z-20">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-orange-100 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 text-brand" /></div>
                 <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Briefing por IA</p><p className="text-gray-400 text-[9px]">gerado agora</p></div>
               </div>
             </FloatingCard>
 
+            {/* Bottom-right: below input, right side */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.9} delay={1.6}
-              className="bottom-20 -right-2 lg:-right-6 p-2.5 w-44 z-20">
+              className="-bottom-4 -right-2 lg:-right-8 p-2.5 w-44 z-20">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0"><CreditCard className="w-3 h-3 text-emerald-600" /></div>
                 <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Pagamento seguro</p><p className="text-gray-400 text-[9px]">retido até conclusão</p></div>
