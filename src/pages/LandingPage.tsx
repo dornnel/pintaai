@@ -492,12 +492,15 @@ export function LandingPage() {
               </div>
             ) : (
               <>
-                <Link to="/login" className="text-sm text-gray-600 hover:text-brand transition-colors px-3 py-1.5">Entrar</Link>
-                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Link to="/chat" className="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors shadow-md shadow-brand/20">
-                    Encontrar pintor
-                  </Link>
-                </motion.div>
+                <Link to="/visualizar-cor" className="hidden sm:flex items-center gap-1 text-sm text-gray-600 hover:text-brand transition-colors px-3 py-1.5">
+                <Paintbrush className="w-3.5 h-3.5" /> Simular cor
+              </Link>
+              <Link to="/login" className="text-sm text-gray-600 hover:text-brand transition-colors px-3 py-1.5">Entrar</Link>
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+                <Link to="/chat" className="px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors shadow-md shadow-brand/20">
+                  Encontrar pintor
+                </Link>
+              </motion.div>
               </>
             )}
           </div>

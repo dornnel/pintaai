@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth, getRoleHome } from './lib/auth'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LandingPage } from './pages/LandingPage'
 import { ChatPage } from './pages/ChatPage'
 import { LoginPage } from './pages/LoginPage'
@@ -14,6 +16,7 @@ import { PaintersPage } from './pages/admin/PaintersPage'
 import { ModerationPage } from './pages/admin/ModerationPage'
 import { PaymentsPage } from './pages/admin/PaymentsPage'
 import { AgentConfigPage } from './pages/admin/AgentConfigPage'
+import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -26,6 +29,24 @@ function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: s
   if (!user) return <Navigate to="/login" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to={getRoleHome(user.role)} replace />
   return <>{children}</>
+}
+
+function AuthCallback() {
+  const navigate = useNavigate()
+  const { user, loading } = useAuth()
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) navigate(getRoleHome(user.role), { replace: true })
+      else navigate('/', { replace: true })
+    }
+  }, [user, loading, navigate])
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
 }
 
 function NeighborhoodPage() {
@@ -50,6 +71,8 @@ function AppRoutes() {
       <Route path="/chat" element={<ChatPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/marketplace" element={<MarketplacePage />} />
+      <Route path="/visualizar-cor" element={<ColorVisualizerPage />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/seja-pintor" element={<LoginPage />} />
       <Route path="/pintura/:neighborhood" element={<NeighborhoodPage />} />
 
