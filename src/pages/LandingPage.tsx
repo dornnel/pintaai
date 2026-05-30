@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
+import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
+  Home, Building2, Droplets, ImagePlus,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
@@ -69,7 +70,6 @@ const DEFAULT_PAINTER_REVIEWS = [
 ]
 
 // ─── Before/after data ───────────────────────────────────────────────────────
-const SUGGESTIONS = ['Pintar sala e quartos', 'Fachada externa', 'Pintura pós-obra', 'Mural artístico']
 
 const VALUE_PROPS = [
   { text: 'Pintores com histórico verificado' },
@@ -200,75 +200,112 @@ function ReviewMarquee() {
 
 // ─── Hero chat widget ─────────────────────────────────────────────────────────
 
+const HERO_CHIPS = [
+  { icon: Home,       label: 'Pintar sala e quartos' },
+  { icon: Building2,  label: 'Fachada externa' },
+  { icon: Paintbrush, label: 'Pintura pós-obra' },
+  { icon: Droplets,   label: 'Parede com mofo' },
+  { icon: Sparkles,   label: 'Mural artístico' },
+  { icon: ImagePlus,  label: 'Enviar fotos' },
+]
+
 function HeroChat() {
   const [input, setInput] = useState('')
-  const [started, setStarted] = useState(false)
+
   function handleSend(text?: string) {
-    const msg = text || input; if (!msg.trim()) return
+    const msg = (text || input).trim()
+    if (!msg) return
     window.location.href = `/chat?q=${encodeURIComponent(msg)}`
   }
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 32, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.7, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="w-full max-w-md bg-white border border-gray-200 rounded-lg overflow-hidden"
-      style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}
+      initial={{ opacity: 0, y: 24, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      className="h-full flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100"
+      style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}
     >
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
-        {/* White header */}
-        <div className="w-9 h-9 rounded bg-brand flex items-center justify-center shrink-0">
-          <Paintbrush className="w-4 h-4 text-white" />
+      {/* Agent header */}
+      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 shrink-0">
+        {/* Avatar — substituir src por imagem real do Koke */}
+        <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-base"
+          style={{ background: 'linear-gradient(135deg, #FF8C42, #E35A1A)' }}>
+          K
         </div>
-        <div>
-          <p className="text-sm font-semibold text-gray-900">Pintai Assistente</p>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-xs text-emerald-600">Online agora</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-900 leading-none">Koke</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+            <span className="text-xs text-emerald-600">Online agora · orçamento grátis</span>
           </div>
         </div>
-        <div className="ml-auto flex gap-1">{[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" />)}</div>
-      </div>
-      <div className="px-5 py-4">
-        <div className="flex items-end gap-2 mb-4">
-          <div className="w-7 h-7 rounded bg-brand flex items-center justify-center shrink-0">
-            <Paintbrush className="w-3.5 h-3.5 text-white" />
-          </div>
-          <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.9, duration: 0.4 }}
-            className="bg-gray-50 border border-gray-200 rounded rounded-bl-none px-4 py-3 max-w-xs">
-            <p className="text-sm text-gray-700 leading-relaxed">
-              Qual é o seu projeto? Escolha abaixo ou descreva — vou encontrar o profissional certo.
-            </p>
-          </motion.div>
+        <div className="flex gap-1 shrink-0">
+          {[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" />)}
         </div>
-        <AnimatePresence>
-          {!started && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-              transition={{ delay: 1.1 }} className="flex flex-wrap gap-2 mb-4">
-              {SUGGESTIONS.map((s) => (
-                <motion.button key={s} whileHover={{ scale: 1.04, backgroundColor: '#E35A1A', color: '#fff', borderColor: '#E35A1A' }}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => { setStarted(true); handleSend(s) }}
-                  className="text-xs px-3 py-1.5 rounded border border-brand/30 text-brand bg-orange-50 transition-colors cursor-pointer">
-                  {s}
-                </motion.button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
-      <div className="px-4 pb-4">
-        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+
+      {/* Welcome message */}
+      <div className="px-4 py-4 shrink-0">
+        <motion.div
+          initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.6, duration: 0.4 }}
+          className="bg-orange-50 rounded-2xl rounded-tl-sm px-4 py-3"
+        >
+          <p className="text-sm text-gray-800 leading-relaxed">
+            Olá! Eu sou o Koke 👋
+          </p>
+          <p className="text-sm text-gray-700 leading-relaxed mt-1">
+            Me conte o que você precisa pintar ou envie <strong>FOTOS</strong> do ambiente.
+          </p>
+          <p className="text-sm text-gray-700 leading-relaxed mt-1">
+            Vou te ajudar a encontrar o pintor certo.
+          </p>
+        </motion.div>
+      </div>
+
+      {/* Service chips grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.85 }}
+        className="flex-1 overflow-y-auto px-4 pb-3 grid grid-cols-2 gap-2 content-start"
+      >
+        {HERO_CHIPS.map(({ icon: Icon, label }) => (
+          <motion.button
+            key={label}
+            whileTap={{ scale: 0.96 }}
+            whileHover={{ borderColor: '#E35A1A', color: '#E35A1A' }}
+            onClick={() => handleSend(label)}
+            className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-white border border-gray-100 text-left text-sm text-gray-700 font-medium transition-colors cursor-pointer"
+            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+          >
+            <Icon className="w-4.5 h-4.5 text-brand shrink-0" style={{ width: 18, height: 18 }} />
+            <span className="leading-tight">{label}</span>
+          </motion.button>
+        ))}
+      </motion.div>
+
+      {/* Input area */}
+      <div className="border-t border-gray-100 px-3 pt-2.5 pb-2 shrink-0">
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
           <Paperclip className="w-4 h-4 text-gray-400 shrink-0" />
-          <input value={input} onChange={e => { setInput(e.target.value); setStarted(true) }}
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="Descreva o que precisa..." className="flex-1 bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none" />
-          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleSend()}
+            placeholder="Ex: quero pintar 2 quartos e a sala"
+            className="flex-1 bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none"
+          />
+          <motion.button
+            whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+            onClick={() => handleSend()}
             disabled={!input.trim()}
-            className="w-8 h-8 rounded bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer">
+            className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer shrink-0"
+          >
             <Send className="w-3.5 h-3.5" />
           </motion.button>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-2">Grátis · Sem cadastro</p>
+        <p className="text-center text-xs text-gray-400 mt-1.5">🛡️ Grátis</p>
       </div>
     </motion.div>
   )
@@ -440,8 +477,8 @@ export function LandingPage() {
               <>
                 <Link to="/login" className="text-sm text-white/60 hover:text-white transition-colors px-3 py-1.5">Entrar</Link>
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Link to="/chat" className="px-4 py-2 bg-brand text-white text-sm font-bold rounded hover:bg-brand-dark transition-colors shadow-lg shadow-brand/30">
-                    Encontrar pintor
+                  <Link to="/login" className="px-4 py-2 border border-white/40 text-white text-sm font-medium rounded hover:bg-white/10 transition-colors">
+                    Inscreva-se
                   </Link>
                 </motion.div>
               </>
@@ -450,12 +487,13 @@ export function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ── Hero mobile: agente conversacional como hero (sem cards flutuantes) ── */}
-      <section className="lg:hidden relative flex flex-col pt-14 overflow-hidden bg-white" style={{ minHeight: 'calc(100dvh - 64px)' }}>
-        <motion.div className="absolute inset-0" style={{ y: heroBgY }}>
-          <HeroBackground />
-        </motion.div>
-        <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 py-8">
+      {/* ── Hero mobile: chat fullscreen (sem foto de fundo) ── */}
+      <section className="lg:hidden flex flex-col bg-gray-50"
+        style={{ height: 'calc(100dvh - 56px)', marginTop: 56 }}>
+        <p className="text-xs text-gray-400 font-medium px-4 pt-3 pb-1 shrink-0">
+          Seja bem-vindo! 👋
+        </p>
+        <div className="flex-1 min-h-0 px-3 pb-3">
           <HeroChat />
         </div>
       </section>

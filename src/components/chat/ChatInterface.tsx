@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { RotateCcw, Send, Paperclip, X, Video } from 'lucide-react'
+import { RotateCcw, Send, Paperclip, X, Video, AlertCircle } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
 import { TypingIndicator } from './TypingIndicator'
-import { MobileHeader } from '../mobile/MobileHeader'
 import { useChat } from '../../hooks/useChat'
+
+// File size limits
+const FILE_LIMITS = {
+  image: 10 * 1024 * 1024,    // 10 MB
+  video: 50 * 1024 * 1024,    // 50 MB
+  document: 5 * 1024 * 1024,  // 5 MB
+}
 
 const SUGGESTIONS = [
   'Quero um orçamento',
@@ -22,6 +28,7 @@ export function ChatInterface() {
   const [text, setText] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [dragging, setDragging] = useState(false)
+  const [sizeError, setSizeError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -51,7 +58,30 @@ export function ChatInterface() {
 
   function handleFiles(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files || [])
-    setFiles((prev) => [...prev, ...picked].slice(0, 5))
+    const valid: File[] = []
+    const rejected: string[] = []
+
+    for (const f of picked) {
+      const limit = f.type.startsWith('video/')
+        ? FILE_LIMITS.video
+        : f.type.startsWith('image/')
+        ? FILE_LIMITS.image
+        : FILE_LIMITS.document
+
+      if (f.size > limit) {
+        rejected.push(f.name)
+      } else {
+        valid.push(f)
+      }
+    }
+
+    if (rejected.length > 0) {
+      const limitLabel = rejected.length === 1 ? 'Arquivo muito grande' : 'Arquivos muito grandes'
+      setSizeError(`${limitLabel}: ${rejected.join(', ')} (imagens ≤10MB, vídeos ≤50MB, docs ≤5MB)`)
+      setTimeout(() => setSizeError(''), 5000)
+    }
+
+    setFiles((prev) => [...prev, ...valid].slice(0, 5))
     e.target.value = ''
   }
 
@@ -72,21 +102,32 @@ export function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      {/* Header — usa MobileHeader padronizado */}
-      <MobileHeader
-        showLogo
-        title="Pintaê Floripa"
-        subtitle="Orçamentos de pintura com IA"
-        rightAction={
+      {/* Header — Koke identity */}
+      <header className="shrink-0 bg-white/95 backdrop-blur-sm border-b border-gray-100" style={{ zIndex: 20 }}>
+        <div className="flex items-center gap-3 px-4" style={{ height: 52 }}>
+          {/* Koke avatar — substituir por <img src="/koke-avatar.png"> quando disponível */}
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shrink-0"
+            style={{ background: 'linear-gradient(135deg, #FF8C42, #E35A1A)' }}
+          >
+            K
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-900 leading-none">Koke</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+              <span className="text-xs text-emerald-600">Online agora · orçamento grátis</span>
+            </div>
+          </div>
           <button
             onClick={reset}
-            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1"
+            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1 shrink-0"
             title="Nova conversa"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
-        }
-      />
+        </div>
+      </header>
 
       {/* Messages */}
       <div
@@ -122,7 +163,7 @@ export function ChatInterface() {
 
       {/* Input area */}
       <div className="px-4 pb-3 pt-2 bg-white border-t border-gray-100 shrink-0">
-        {/* Suggestion chips — aparecem no estado inicial */}
+        {/* Suggestion chips */}
         <AnimatePresence>
           {showSuggestions && (
             <motion.div
@@ -155,6 +196,19 @@ export function ChatInterface() {
           </motion.div>
         )}
 
+        {/* Size error */}
+        <AnimatePresence>
+          {sizeError && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2"
+            >
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{sizeError}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* File previews */}
         {files.length > 0 && (
           <div className="flex gap-2 mb-2 flex-wrap">
@@ -183,7 +237,7 @@ export function ChatInterface() {
           <button
             onClick={() => fileRef.current?.click()}
             className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
-            title="Enviar foto, vídeo ou arquivo"
+            title="Enviar fotos, vídeo ou arquivo"
           >
             <Paperclip className="w-4 h-4" />
           </button>
@@ -217,7 +271,7 @@ export function ChatInterface() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-1.5">
-          Seus dados são protegidos pela LGPD · Pintaê Floripa
+          🛡️ Grátis · dados protegidos pela LGPD
         </p>
       </div>
     </div>
