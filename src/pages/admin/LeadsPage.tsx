@@ -117,7 +117,29 @@ export function LeadsPage() {
   const [sending, setSending] = useState<Lead | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  useEffect(() => { loadLeads() }, [])
+  useEffect(() => {
+    loadLeads()
+
+    // Realtime: auto-update when new lead arrives
+    const channel = supabase.channel('leads-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'pintae',
+        table: 'leads',
+      }, (payload) => {
+        setLeads(prev => [payload.new as Lead, ...prev])
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'pintae',
+        table: 'leads',
+      }, (payload) => {
+        setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new as Lead : l))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   async function loadLeads() {
     const { data } = await supabase.from('leads').select('*').order('created_at', { ascending: false })

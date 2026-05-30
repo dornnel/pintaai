@@ -14,7 +14,10 @@ Tom: Prático, simpático, local e objetivo. Evite mensagens longas. Use markdow
 
 Objetivo: Guiar o usuário até um pedido de pintura completo (cliente) ou cadastro (pintor) com o mínimo de atrito.
 
-Na primeira mensagem do usuário (ou "__init__"), se apresente brevemente e pergunte se é cliente ou pintor.
+IMPORTANTE sobre a primeira mensagem:
+- Se a mensagem for "__init__" OU for um simples cumprimento (oi, olá, bom dia): apresente-se brevemente e diga que vai precisar de alguns dados para ajudar.
+- Se o usuário escreveu algo fora do contexto (provocação, pergunta sobre pintura, comentário criativo): responda brevemente e com boa energia à mensagem ANTES de transicionar para coleta de dados. Ex: "Haha, boa criatividade! 😄 Pra te ajudar direito, preciso de alguns dados." — Nunca ignore o que o usuário disse.
+- NUNCA peça o nome diretamente na sua resposta — o frontend vai fazer isso na próxima mensagem.
 
 Para CLIENTES — colete nesta ordem:
 1. Bairro (ofereça quick_replies: Campeche, Rio Tavares, Armação, Morro das Pedras, Pântano do Sul, Outro)
@@ -56,6 +59,9 @@ interface RequestBody {
   message: string
   history: { role: string; content: string }[]
   media_urls?: string[]
+  metadata?: Record<string, unknown>
+  action?: string
+  collected?: Record<string, unknown>
 }
 
 Deno.serve(async (req: Request) => {
@@ -68,7 +74,17 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = (await req.json()) as RequestBody
-    const { session_id, message, history, media_urls } = body
+    const { session_id, message, history, media_urls, metadata, action, collected } = body
+
+    // Persist conversation session start (async, fire-and-forget)
+    supabase.from('conversation_sessions').upsert({
+      session_id,
+      user_identifier: session_id,
+      channel: 'web',
+      current_state: 'active',
+      collected_data: { _metadata: metadata || {} },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'session_id' }).then(() => {}).catch(console.error)
 
     // Build user content
     let userContent: string = message === '__init__'
@@ -77,6 +93,15 @@ Deno.serve(async (req: Request) => {
 
     if (media_urls && media_urls.length > 0) {
       userContent += `\n[Usuário enviou ${media_urls.length} imagem(ns): ${media_urls.join(', ')}]`
+    }
+
+    // If explicit briefing generation action, skip conversation and generate directly
+    if (action === 'generate_briefing' && collected) {
+      const briefingData = await generateBriefing(collected, history, media_urls)
+      return new Response(
+        JSON.stringify({ message: 'Briefing gerado.', briefing: briefingData }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
 
     // Build messages array from history
@@ -97,7 +122,6 @@ Deno.serve(async (req: Request) => {
 
     const rawText = (response.content[0] as { text: string }).text.trim()
 
-    // Parse JSON response from Claude
     let parsed: {
       message: string
       quick_replies?: string[] | null
@@ -118,7 +142,17 @@ Deno.serve(async (req: Request) => {
       briefingData = await generateBriefing(parsed.collected, history, media_urls)
     }
 
-    // Save moderation check (async, don't block response)
+    // Save message log (async, fire-and-forget)
+    supabase.from('messages').insert({
+      session_id,
+      channel: 'web',
+      direction: 'inbound',
+      body: userContent,
+      ai_intent: parsed.action || 'chat',
+      metadata: { parsed_response: parsed.message, metadata: metadata || {}, browser: metadata || {} },
+    }).then(() => {}).catch(console.error)
+
+    // Moderation check (async, don't block response)
     moderateMessage(session_id, userContent).catch(console.error)
 
     return new Response(
@@ -184,7 +218,7 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
 }
 
 async function moderateMessage(sessionId: string, message: string): Promise<void> {
-  if (message === '__init__' || message.length < 10) return
+  if (message === '__init__' || message.length < 5) return
 
   const resp = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -211,7 +245,6 @@ Severidades: "low" | "medium" | "high"`,
   const result = JSON.parse(match[0])
   if (!result.has_flag) return
 
-  // Save the moderation flag (we'd need message_id here — simplify for now)
   await supabase.from('moderation_flags').insert({
     message_id: `session_${sessionId}_${Date.now()}`,
     flag_type: result.flag_type,

@@ -49,43 +49,41 @@ function PintaiLogo({ white = false }: { white?: boolean }) {
   )
 }
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// ─── Static fallback data (shown while CMS loads, and when DB is empty) ───────
+// NOTE: All of these are managed via /admin/cms → edit freely without code deploy
 
-const CLIENT_REVIEWS = [
-  { name: 'Ana Lúcia', location: 'Campeche', avatar: 'AL', rating: 5, text: 'O Carlos chegou sabendo exatamente o que fazer. Nunca vi um pintor tão bem preparado.' },
-  { name: 'Renato Machado', location: 'Rio Tavares', avatar: 'RM', rating: 5, text: 'Finalmente entendi o que estava pagando. Briefing claro, serviço pontual.' },
-  { name: 'Juliana Koss', location: 'Armação', avatar: 'JK', rating: 5, text: 'Sem aquela sensação de estar sendo enganado no preço. Transparência do início ao fim.' },
-  { name: 'Fábio Dutra', location: 'Campeche', avatar: 'FD', rating: 5, text: 'Nunca contratei serviço com tanto histórico. Vi as avaliações reais antes de escolher.' },
-  { name: 'Marina Luz', location: 'Pântano do Sul', avatar: 'ML', rating: 5, text: 'A IA me ajudou a descrever o problema que eu nem sabia nomear. Incrível.' },
-  { name: 'Carlos Estrela', location: 'Tapera', avatar: 'CE', rating: 4, text: 'Muito mais profissional do que contratar pelo WhatsApp de amigo.' },
+const DEFAULT_CLIENT_REVIEWS = [
+  { name: 'Ana Lúcia', location: 'Campeche', avatar: 'AL', rating: 5, text: 'O Carlos chegou sabendo exatamente o que fazer. Nunca vi um pintor tão bem preparado.', active: true },
+  { name: 'Renato Machado', location: 'Rio Tavares', avatar: 'RM', rating: 5, text: 'Finalmente entendi o que estava pagando. Briefing claro, serviço pontual.', active: true },
+  { name: 'Juliana Koss', location: 'Armação', avatar: 'JK', rating: 5, text: 'Sem aquela sensação de estar sendo enganado no preço. Transparência do início ao fim.', active: true },
+  { name: 'Fábio Dutra', location: 'Campeche', avatar: 'FD', rating: 5, text: 'Nunca contratei serviço com tanto histórico. Vi as avaliações reais antes de escolher.', active: true },
+  { name: 'Marina Luz', location: 'Pântano do Sul', avatar: 'ML', rating: 5, text: 'A IA me ajudou a descrever o problema que eu nem sabia nomear. Incrível.', active: true },
+  { name: 'Carlos Estrela', location: 'Tapera', avatar: 'CE', rating: 4, text: 'Muito mais profissional do que contratar pelo WhatsApp de amigo.', active: true },
 ]
 
-const PAINTER_REVIEWS = [
-  { name: 'Carlos Mendes', location: 'Campeche', avatar: 'https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=48&q=70', jobs: 87, rating: 4.9, text: 'Chego no cliente sabendo tudo. Perco menos tempo, fecho mais serviços.' },
-  { name: 'Roberto Silva', location: 'Rio Tavares', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=48&q=70', jobs: 62, rating: 4.8, text: 'O briefing já me diz o estado da parede antes de eu visitar. Sem surpresa.' },
-  { name: 'Marcos Oliveira', location: 'Armação', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=48&q=70', jobs: 43, rating: 4.7, text: 'Os clientes chegam sabendo o que querem. Muito mais fácil fechar.' },
-  { name: 'Paulo Andrade', location: 'Tapera', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=48&q=70', jobs: 31, rating: 4.6, text: 'Deixei de depender de indicação. Tenho agenda constante agora.' },
-  { name: 'Diego Ramos', location: 'Costeira', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=48&q=70', jobs: 28, rating: 4.8, text: 'Nunca mais tive cliente que não sabia a metragem. Chega com tudo no briefing.' },
+const DEFAULT_PAINTER_REVIEWS = [
+  { name: 'Carlos Mendes', location: 'Campeche', avatar: 'https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=48&q=70', jobs: 87, rating: 4.9, text: 'Chego no cliente sabendo tudo. Perco menos tempo, fecho mais serviços.', active: true },
+  { name: 'Roberto Silva', location: 'Rio Tavares', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=48&q=70', jobs: 62, rating: 4.8, text: 'O briefing já me diz o estado da parede antes de eu visitar. Sem surpresa.', active: true },
+  { name: 'Marcos Oliveira', location: 'Armação', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=48&q=70', jobs: 43, rating: 4.7, text: 'Os clientes chegam sabendo o que querem. Muito mais fácil fechar.', active: true },
+  { name: 'Paulo Andrade', location: 'Tapera', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=48&q=70', jobs: 31, rating: 4.6, text: 'Deixei de depender de indicação. Tenho agenda constante agora.', active: true },
+  { name: 'Diego Ramos', location: 'Costeira', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=48&q=70', jobs: 28, rating: 4.8, text: 'Nunca mais tive cliente que não sabia a metragem. Chega com tudo no briefing.', active: true },
 ]
 
-// Before/After: same room image, hue-rotate reveals different wall color on tap
-const BEFORE_AFTER = [
+// ─── Before/after data ───────────────────────────────────────────────────────
+const BEFORE_AFTER_COMPAT = [
   {
-    // Neutral bright living room — walls clearly visible
     img: 'https://images.unsplash.com/photo-1600210491892-03d54078f7ef?w=900&q=85',
     afterHue: 200,
     label: 'Sala · Campeche',
     afterLabel: 'Azul Steel',
   },
   {
-    // Clean white bedroom — easy to see color change
     img: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=900&q=85',
     afterHue: 330,
     label: 'Quarto · Rio Tavares',
     afterLabel: 'Rosa pálido',
   },
   {
-    // Modern living room with visible walls
     img: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?w=900&q=85',
     afterHue: 100,
     label: 'Sala · Armação',
@@ -166,7 +164,7 @@ function FloatingCard({ children, className = '', mouseX, mouseY, factorX = 1, f
 
 // ─── Before / After card (same image, hue-rotated for after) ─────────────────
 
-function BeforeAfterCard({ item, index }: { item: typeof BEFORE_AFTER[0]; index: number }) {
+function BeforeAfterCard({ item, index }: { item: typeof BEFORE_AFTER_COMPAT[0]; index: number }) {
   const [flipped, setFlipped] = useState(false)
   const ref = useRef(null)
   const inView = useInView(ref, { once: true, amount: 0.3 })
@@ -221,7 +219,7 @@ function ReviewMarquee() {
       </div>
       <div className="relative mb-4">
         <div className="flex gap-4 animate-marquee-left whitespace-nowrap">
-          {[...CLIENT_REVIEWS, ...CLIENT_REVIEWS].map((r, i) => (
+          {[...DEFAULT_CLIENT_REVIEWS, ...DEFAULT_CLIENT_REVIEWS].map((r, i) => (
             <div key={i} className="inline-flex flex-col gap-2 bg-white/5 border border-white/10 rounded p-5 min-w-72 max-w-72 whitespace-normal shrink-0 align-top">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">{r.avatar}</div>
@@ -240,7 +238,7 @@ function ReviewMarquee() {
       </div>
       <div className="relative">
         <div className="flex gap-4 animate-marquee-right whitespace-nowrap">
-          {[...PAINTER_REVIEWS, ...PAINTER_REVIEWS].map((r, i) => (
+          {[...DEFAULT_PAINTER_REVIEWS, ...DEFAULT_PAINTER_REVIEWS].map((r, i) => (
             <div key={i} className="inline-flex flex-col gap-2 bg-white/5 border border-white/10 rounded p-5 min-w-80 max-w-80 whitespace-normal shrink-0 align-top">
               <div className="flex items-center gap-2">
                 <img src={r.avatar} alt={r.name} className="w-8 h-8 rounded object-cover shrink-0" />
@@ -641,7 +639,7 @@ export function LandingPage() {
             <p className="text-gray-500 mt-2 text-sm">Toque para ver a cor aplicada na mesma parede</p>
           </motion.div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {BEFORE_AFTER.map((item, i) => <BeforeAfterCard key={item.label} item={item} index={i} />)}
+            {BEFORE_AFTER_COMPAT.map((item, i) => <BeforeAfterCard key={item.label} item={item} index={i} />)}
           </div>
         </div>
       </section>

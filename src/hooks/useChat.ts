@@ -14,6 +14,22 @@ function getOrCreateSessionId(): string {
   return id
 }
 
+function getBrowserMetadata() {
+  return {
+    user_agent: navigator.userAgent,
+    referrer: document.referrer || null,
+    url: window.location.href,
+    language: navigator.language,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    screen: `${window.screen.width}x${window.screen.height}`,
+    platform: navigator.platform,
+  }
+}
+
+function delay(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
 // ─── Chat flow state machine ──────────────────────────────────────────────────
 
 type ChatState =
@@ -22,6 +38,7 @@ type ChatState =
   | 'role_select'
   | 'neighborhood' | 'property_type' | 'service_type'
   | 'media_upload' | 'wall_condition' | 'deadline' | 'material'
+  | 'confirmation'
   | 'generating_briefing' | 'briefing_ready' | 'waiting_quotes'
   | 'painter_neighborhoods' | 'painter_specialties' | 'painter_experience' | 'painter_done'
   | 'done'
@@ -46,21 +63,36 @@ interface CollectedData {
   wall_condition?: string
   deadline?: string
   material?: string
+  confirmed?: string
   painter_neighborhoods?: string
   painter_specialties?: string
   painter_experience?: string
   media_urls?: string[]
 }
 
+// ─── Name validation: reject phrases, gibberish, questions ───────────────────
+const NAME_NOISE = /\b(voce|você|pinta|pintor|quero|preciso|tenho|sou|como|que|nao|não|eu|me|meu|minha|sim|nao|oi|ola|olá|bom|dia|boa|tarde|noite)\b/i
+
+function validateName(v: string): { ok: boolean; hint?: string } {
+  const t = v.trim()
+  if (t.length < 2) return { ok: false, hint: 'Nome muito curto. Como você se chama?' }
+  if (/[?!@#$%^&*()+=<>{}[\]/\\]/.test(t)) return { ok: false, hint: 'Hmm, isso não parece um nome. Pode me dizer seu nome?' }
+  const words = t.split(/\s+/)
+  if (words.length > 4) return { ok: false, hint: 'Por favor, informe só o seu nome (não uma frase).' }
+  if (NAME_NOISE.test(t) && words.length > 2) {
+    return { ok: false, hint: 'Hmm, isso não parece um nome. Como você se chama de verdade? 😊' }
+  }
+  // Single word with only digits is not a name
+  if (/^\d+$/.test(t)) return { ok: false, hint: 'Por favor, informe seu nome.' }
+  return { ok: true }
+}
+
 const FLOW: Partial<Record<ChatState, StepConfig>> = {
   lead_name: {
-    question: () => 'Olá! Sou o assistente da **Pintai Floripa**. Para começar, qual é o seu nome?',
+    question: () => 'Olá! Sou o assistente da **Pintaê Floripa**. Para começar, qual é o seu nome?',
     type: 'text',
     field: 'name',
-    validate: (v) => ({
-      ok: v.trim().length >= 2,
-      hint: 'Por favor, informe seu nome completo (mínimo 2 letras).',
-    }),
+    validate: (v) => validateName(v),
     next: 'lead_email',
   },
   lead_email: {
@@ -138,7 +170,21 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
     type: 'quick_reply',
     quickReplies: ['Incluso no serviço', 'Vou comprar separado', 'O pintor que indique'],
     field: 'material',
-    next: 'generating_briefing',
+    next: 'confirmation',
+  },
+  // ── CONFIRMAÇÃO LGPD ─────────────────────────────────────────────────────────
+  confirmation: {
+    question: (d) =>
+      `**Resumo do pedido:**\n\n` +
+      `👤 ${d.name}\n📧 ${d.email}\n📱 ${d.whatsapp}\n` +
+      `📍 ${d.neighborhood} · ${d.property_type}\n` +
+      `🎨 ${d.service_type} · Paredes: ${d.wall_condition}\n` +
+      `⏱ ${d.deadline} · Material: ${d.material}\n\n` +
+      `Ao confirmar, você declara que as informações são verídicas e concorda com nossa Política de Privacidade (LGPD). **Podemos enviar para os pintores?**`,
+    type: 'quick_reply',
+    quickReplies: ['✅ Confirmar e enviar', '✏️ Corrigir algum dado'],
+    field: 'confirmed',
+    next: (v) => (v.includes('Confirmar') ? 'generating_briefing' : 'lead_name'),
   },
   // ── PAINTER FLOW ─────────────────────────────────────────────────────────────
   painter_neighborhoods: {
@@ -173,6 +219,7 @@ export function useChat() {
   const [collectedData, setCollectedData] = useState<CollectedData>({})
   const sessionId = useRef(getOrCreateSessionId())
   const dataRef = useRef<CollectedData>({})
+  const metadataRef = useRef(getBrowserMetadata())
 
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg])
@@ -203,9 +250,42 @@ export function useChat() {
     return msg
   }
 
+  // Call edge function for AI responses
+  async function callEdgeFunction(message: string, history: { role: string; content: string }[]) {
+    const { data } = await supabase.functions.invoke('agent-chat', {
+      body: {
+        session_id: sessionId.current,
+        message,
+        history,
+        metadata: metadataRef.current,
+      },
+    })
+    return data as { message: string; quickReplies?: string[] }
+  }
+
+  // Save session to DB (called early, updated as flow progresses)
+  async function saveSessionState(state: string, collected: CollectedData) {
+    try {
+      await supabase.from('conversation_sessions').upsert({
+        session_id: sessionId.current,
+        user_identifier: collected.whatsapp || collected.email || collected.name || sessionId.current,
+        channel: 'web',
+        current_state: state,
+        collected_data: { ...collected, _metadata: metadataRef.current },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'session_id' })
+    } catch (err) {
+      console.error('Session save error:', err)
+    }
+  }
+
   // Advance to next state and ask next question
   function advanceToState(nextState: ChatState, data: CollectedData) {
     const step = FLOW[nextState]
+
+    // Save session progress
+    saveSessionState(nextState, data).catch(console.error)
+
     if (!step) {
       // Terminal states
       if (nextState === 'generating_briefing') {
@@ -244,13 +324,13 @@ export function useChat() {
           media_urls: data.media_urls,
           action: 'generate_briefing',
           collected: data,
+          metadata: metadataRef.current,
         },
       })
 
       if (fnData?.briefing) {
         briefingData = fnData.briefing as BriefingData
       } else {
-        // Fallback briefing
         briefingData = {
           resumo_cliente: `Pintura ${data.service_type?.toLowerCase()} em ${data.property_type?.toLowerCase()} no ${data.neighborhood}.`,
           briefing_tecnico: `Serviço: ${data.service_type}. Local: ${data.property_type} no ${data.neighborhood}. Estado das paredes: ${data.wall_condition}. Prazo: ${data.deadline}. Material: ${data.material}.`,
@@ -269,12 +349,11 @@ export function useChat() {
         }
       }
 
-      // Save to DB — returns protocol number
       const protocol = await saveToDatabase(data, 'client')
 
       setCurrentState('briefing_ready')
       agentMessage(
-        `✅ **Briefing pronto!**\n\nSeu protocolo: **${protocol}**\n\nSeu pedido foi enviado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vou te notificar pelo WhatsApp **${data.whatsapp}** quando chegar.`,
+        `✅ **Pedido enviado com sucesso!**\n\nProtocolo: **${protocol}**\n\nSeu pedido foi encaminhado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vamos te notificar pelo WhatsApp **${data.whatsapp}** assim que chegar.`,
         undefined,
         { briefing: briefingData ?? undefined },
       )
@@ -287,25 +366,23 @@ export function useChat() {
   }
 
   async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<string> {
-    // Generate human-readable protocol: PT-YYYYMMDD-XXXX
     const now = new Date()
     const datePart = now.toISOString().slice(0, 10).replace(/-/g, '')
     const randPart = Math.random().toString(36).slice(2, 6).toUpperCase()
     const protocol = `PT-${datePart}-${randPart}`
 
     try {
-      // Save conversation session
+      // Final session upsert with full collected data
       await supabase.from('conversation_sessions').upsert({
         session_id: sessionId.current,
         user_identifier: data.whatsapp || data.email || sessionId.current,
         channel: 'web',
         role_detected: role,
         current_state: role === 'client' ? 'briefing_ready' : 'painter_registered',
-        collected_data: data,
+        collected_data: { ...data, _metadata: metadataRef.current, protocol },
         updated_at: new Date().toISOString(),
       }, { onConflict: 'session_id' })
 
-      // Save as lead in CRM (client flow only)
       if (role === 'client') {
         await supabase.from('leads').insert({
           name: data.name || 'Não informado',
@@ -324,19 +401,19 @@ export function useChat() {
             deadline: data.deadline,
             material: data.material,
             media_count: data.media_urls?.length || 0,
+            metadata: metadataRef.current,
           }),
           tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
         })
       }
 
-      // Save message log
       await supabase.from('messages').insert({
         session_id: sessionId.current,
         channel: 'web',
         direction: 'inbound',
         body: JSON.stringify({ ...data, protocol }),
         ai_intent: `lead_captured:${role}`,
-        metadata: { collected: data, protocol },
+        metadata: { collected: data, protocol, browser: metadataRef.current },
       })
     } catch (err) {
       console.error('DB save error:', err)
@@ -345,7 +422,6 @@ export function useChat() {
     return protocol
   }
 
-  // Validate text input (simple, no AI for basic fields)
   function validateInput(state: ChatState, value: string): { ok: boolean; hint?: string } {
     const step = FLOW[state]
     if (!step?.validate) return { ok: true }
@@ -354,7 +430,6 @@ export function useChat() {
 
   // Main send function
   const sendMessage = useCallback(async (text: string, files?: File[]) => {
-    // Upload files
     let mediaUrls: string[] = []
     if (files && files.length > 0) {
       setLoading(true)
@@ -363,13 +438,31 @@ export function useChat() {
       setLoading(false)
     }
 
-    // Skip __init__ from user bubble
     if (text !== '__init__') {
       userMessage(text, mediaUrls.length > 0 ? mediaUrls : undefined)
     }
 
-    // Handle init
+    // ── INIT ─────────────────────────────────────────────────────────────────
     if (text === '__init__' || currentState === 'init') {
+      if (text !== '__init__') {
+        // User typed something before being greeted — respond to it naturally first
+        setLoading(true)
+        try {
+          const res = await callEdgeFunction(text, [])
+          agentMessage(res.message, res.quickReplies)
+          await delay(600)
+        } catch {
+          // Fallback if edge function fails
+          agentMessage('Que interessante! 😄 Para te ajudar, preciso de alguns dados básicos.')
+          await delay(600)
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      // Save session start with metadata
+      saveSessionState('lead_name', {}).catch(console.error)
+
       const initState: ChatState = 'lead_name'
       const step = FLOW[initState]!
       setCurrentState(initState)
@@ -380,7 +473,7 @@ export function useChat() {
     const step = FLOW[currentState]
     if (!step) return
 
-    // Handle media upload state
+    // ── MEDIA UPLOAD ─────────────────────────────────────────────────────────
     if (currentState === 'media_upload') {
       const newData = {
         ...dataRef.current,
@@ -395,23 +488,20 @@ export function useChat() {
       return
     }
 
-    // Validate text input
+    // ── VALIDATION ────────────────────────────────────────────────────────────
     if (step.type === 'text') {
       const validation = validateInput(currentState, text)
       if (!validation.ok) {
         setLoading(true)
         setTimeout(() => {
-          agentMessage(
-            `${validation.hint || 'Não entendi.'} Pode tentar de novo?`,
-            undefined,
-          )
+          agentMessage(validation.hint || 'Não entendi. Pode tentar de novo?', undefined)
           setLoading(false)
         }, 500)
         return
       }
     }
 
-    // Save field
+    // ── SAVE FIELD ────────────────────────────────────────────────────────────
     const newData: CollectedData = {
       ...dataRef.current,
       [step.field]: step.field === 'role'
@@ -421,7 +511,6 @@ export function useChat() {
     dataRef.current = newData
     setCollectedData(newData)
 
-    // Determine next state
     const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
 
     setLoading(true)
@@ -434,16 +523,12 @@ export function useChat() {
   const reset = useCallback(() => {
     sessionId.current = generateSessionId()
     localStorage.setItem(SESSION_KEY, sessionId.current)
+    metadataRef.current = getBrowserMetadata()
     dataRef.current = {}
     setCollectedData({})
     setMessages([])
     setCurrentState('init')
   }, [])
-
-  // Current step's quick replies for the input area
-  const currentQuickReplies = currentState !== 'init'
-    ? FLOW[currentState]?.quickReplies
-    : undefined
 
   const currentInputType = currentState !== 'init'
     ? (FLOW[currentState]?.type || 'text')
@@ -457,7 +542,6 @@ export function useChat() {
     sessionId: sessionId.current,
     collectedData,
     currentState,
-    currentQuickReplies,
     currentInputType,
   }
 }

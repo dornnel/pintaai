@@ -21,9 +21,11 @@ import { ReviewsPage } from './pages/admin/ReviewsPage'
 import { PermissionsPage } from './pages/admin/PermissionsPage'
 import { CMSPage } from './pages/admin/CMSPage'
 import { LeadsPage } from './pages/admin/LeadsPage'
+import { AdminAgentChat } from './pages/admin/AdminAgentChat'
 import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
 import { CRMBoard } from './pages/crm/CRMBoard'
 import { ColorVisualizerFAB } from './components/ColorVisualizerFAB'
+import { AppShell } from './components/AppShell'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -72,9 +74,9 @@ function NeighborhoodPage() {
 
 function AppRoutes() {
   return (
-    <>
-    <ColorVisualizerFAB />
-    <Routes>
+    <AppShell>
+      <ColorVisualizerFAB />
+      <Routes>
       {/* Public */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/chat" element={<ChatPage />} />
@@ -118,6 +120,7 @@ function AppRoutes() {
         <Route path="crm" element={<CRMBoard />} />
         <Route path="leads" element={<LeadsPage />} />
         <Route path="agent" element={<AgentConfigPage />} />
+        <Route path="ai" element={<AdminAgentChat />} />
         <Route path="conversations" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
         <Route path="settings" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
       </Route>
@@ -138,7 +141,7 @@ function AppRoutes() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    </>
+    </AppShell>
   )
 }
 

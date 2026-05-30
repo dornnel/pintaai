@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { Save, Bot, Zap, FileText, TestTube, Loader2, CheckCircle, Plus, Trash2 } from 'lucide-react'
+import {
+  Save, Bot, Zap, FileText, TestTube, Loader2, CheckCircle,
+  Plus, Trash2, Upload, MessageSquare, Copy, Check,
+} from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import type { ConversationSession } from '../../lib/types'
 
 interface AgentConfig {
   id: string
@@ -37,6 +41,14 @@ const AVAILABLE_SKILLS = [
   { id: 'price_estimator', label: 'Estimativa de preço', desc: 'Faixas de preço por m², tipo de serviço e bairro' },
 ]
 
+const CHANNEL_LABELS: Record<string, string> = {
+  web: 'Web',
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  system: 'Sistema',
+  admin: 'Admin',
+}
+
 export function AgentConfigPage() {
   const [config, setConfig] = useState<AgentConfig | null>(null)
   const [loading, setLoading] = useState(true)
@@ -45,11 +57,16 @@ export function AgentConfigPage() {
   const [testInput, setTestInput] = useState('')
   const [testOutput, setTestOutput] = useState('')
   const [testing, setTesting] = useState(false)
-  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'test'>('prompt')
+  const [uploading, setUploading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'conversations' | 'test'>('prompt')
+  const [conversations, setConversations] = useState<ConversationSession[]>([])
+  const [convLoading, setConvLoading] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
 
+  useEffect(() => { loadConfig() }, [])
   useEffect(() => {
-    loadConfig()
-  }, [])
+    if (activeTab === 'conversations') loadConversations()
+  }, [activeTab])
 
   async function loadConfig() {
     const { data } = await supabase.from('agent_configs').select('*').eq('active', true).single()
@@ -62,6 +79,17 @@ export function AgentConfigPage() {
       })
     }
     setLoading(false)
+  }
+
+  async function loadConversations() {
+    setConvLoading(true)
+    const { data } = await supabase
+      .from('conversation_sessions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setConversations((data as ConversationSession[]) || [])
+    setConvLoading(false)
   }
 
   async function save() {
@@ -89,12 +117,7 @@ export function AgentConfigPage() {
     setTestOutput('')
     try {
       const { data, error } = await supabase.functions.invoke('agent-chat', {
-        body: {
-          session_id: `test_${Date.now()}`,
-          message: testInput,
-          history: [],
-          media_urls: [],
-        },
+        body: { session_id: `test_${Date.now()}`, message: testInput, history: [], media_urls: [] },
       })
       if (error) throw error
       setTestOutput(data?.message || JSON.stringify(data, null, 2))
@@ -102,6 +125,28 @@ export function AgentConfigPage() {
       setTestOutput(`Erro: ${String(err)}`)
     } finally {
       setTesting(false)
+    }
+  }
+
+  async function uploadRagFile(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!config) return
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploading(true)
+    try {
+      const path = `agent-docs/${Date.now()}-${file.name}`
+      const { error } = await supabase.storage.from('agent-docs').upload(path, file)
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('agent-docs').getPublicUrl(path)
+      setConfig({
+        ...config,
+        rag_documents: [...config.rag_documents, { name: file.name, url: urlData.publicUrl }],
+      })
+    } catch (err) {
+      console.error('Upload error:', err)
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -127,10 +172,17 @@ export function AgentConfigPage() {
     setConfig({ ...config, rag_documents: config.rag_documents.filter((_, idx) => idx !== i) })
   }
 
+  async function copyUrl(url: string) {
+    await navigator.clipboard.writeText(url)
+    setCopiedUrl(url)
+    setTimeout(() => setCopiedUrl(null), 2000)
+  }
+
   const TABS = [
     { id: 'prompt', icon: Bot, label: 'Prompt' },
     { id: 'tools', icon: Zap, label: 'Tools & Skills' },
     { id: 'rag', icon: FileText, label: 'RAG / Docs' },
+    { id: 'conversations', icon: MessageSquare, label: 'Conversas' },
     { id: 'test', icon: TestTube, label: 'Testar' },
   ] as const
 
@@ -251,46 +303,128 @@ export function AgentConfigPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">Documentos de referência para o agente (preços, bairros, processos técnicos)</p>
-            <button onClick={addRagDoc} className="flex items-center gap-1.5 text-sm text-brand font-medium cursor-pointer hover:text-brand-dark">
-              <Plus className="w-4 h-4" /> Adicionar
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Upload de arquivo */}
+              <label className={`flex items-center gap-1.5 text-sm font-medium cursor-pointer px-3 py-1.5 rounded-xl border transition-colors ${
+                uploading ? 'text-gray-400 border-gray-200 pointer-events-none' : 'text-brand border-brand/30 hover:bg-orange-50'
+              }`}>
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                {uploading ? 'Enviando...' : 'Upload'}
+                <input
+                  type="file"
+                  accept=".pdf,.txt,.doc,.docx,.md"
+                  className="hidden"
+                  onChange={uploadRagFile}
+                  disabled={uploading}
+                />
+              </label>
+              {/* Adicionar URL manual */}
+              <button onClick={addRagDoc} className="flex items-center gap-1.5 text-sm text-gray-500 font-medium cursor-pointer hover:text-gray-700">
+                <Plus className="w-4 h-4" /> URL
+              </button>
+            </div>
           </div>
 
-          {config.rag_documents.length === 0 && (
+          {config.rag_documents.length === 0 && !uploading && (
             <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center">
               <FileText className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">Nenhum documento ainda. Adicione PDFs ou URLs de referência.</p>
+              <p className="text-sm text-gray-400">Nenhum documento ainda.</p>
+              <p className="text-xs text-gray-300 mt-1">Faça upload de PDFs, TXT ou adicione URLs de referência.</p>
             </div>
           )}
 
-          {config.rag_documents.map((doc, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl">
-              <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-              <input
-                value={doc.name}
-                onChange={e => {
-                  const docs = [...config.rag_documents]
-                  docs[i] = { ...docs[i], name: e.target.value }
-                  setConfig({ ...config, rag_documents: docs })
-                }}
-                placeholder="Nome do documento"
-                className="flex-1 text-sm outline-none border-0 p-0"
-              />
-              <input
-                value={doc.url}
-                onChange={e => {
-                  const docs = [...config.rag_documents]
-                  docs[i] = { ...docs[i], url: e.target.value }
-                  setConfig({ ...config, rag_documents: docs })
-                }}
-                placeholder="URL ou caminho"
-                className="flex-1 text-sm outline-none border-0 p-0 text-gray-400"
-              />
-              <button onClick={() => removeRagDoc(i)} className="text-red-400 hover:text-red-600 cursor-pointer">
-                <Trash2 className="w-4 h-4" />
-              </button>
+          <div className="space-y-2">
+            {config.rag_documents.map((doc, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl bg-white">
+                <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <input
+                    value={doc.name}
+                    onChange={e => {
+                      const docs = [...config.rag_documents]
+                      docs[i] = { ...docs[i], name: e.target.value }
+                      setConfig({ ...config, rag_documents: docs })
+                    }}
+                    placeholder="Nome do documento"
+                    className="w-full text-sm font-medium outline-none border-0 p-0 text-gray-800 bg-transparent"
+                  />
+                  <input
+                    value={doc.url}
+                    onChange={e => {
+                      const docs = [...config.rag_documents]
+                      docs[i] = { ...docs[i], url: e.target.value }
+                      setConfig({ ...config, rag_documents: docs })
+                    }}
+                    placeholder="URL ou caminho"
+                    className="w-full text-xs outline-none border-0 p-0 text-gray-400 bg-transparent truncate"
+                  />
+                </div>
+                {doc.url && (
+                  <button
+                    onClick={() => copyUrl(doc.url)}
+                    className="text-gray-300 hover:text-gray-500 cursor-pointer shrink-0"
+                    title="Copiar URL"
+                  >
+                    {copiedUrl === doc.url ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+                <button onClick={() => removeRagDoc(i)} className="text-red-400 hover:text-red-600 cursor-pointer shrink-0">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Conversations tab */}
+      {activeTab === 'conversations' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">Histórico de sessões de conversa</p>
+            <button onClick={loadConversations} className="text-xs text-brand font-medium cursor-pointer hover:text-brand-dark">
+              Atualizar
+            </button>
+          </div>
+
+          {convLoading ? (
+            <div className="space-y-2">
+              {[1,2,3,4].map(i => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}
             </div>
-          ))}
+          ) : conversations.length === 0 ? (
+            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center">
+              <MessageSquare className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Nenhuma conversa registrada ainda.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {conversations.map(s => (
+                <div key={s.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-xl bg-white hover:border-gray-300 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                        s.channel === 'whatsapp' ? 'bg-green-100 text-green-700' :
+                        s.channel === 'web' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {CHANNEL_LABELS[s.channel] ?? s.channel}
+                      </span>
+                      <span className="text-xs text-gray-500 font-mono truncate">{s.user_identifier}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      <span className="truncate">Estado: <span className="text-gray-600 font-medium">{s.current_state}</span></span>
+                      <span className="shrink-0">{new Date(s.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                  {s.service_request_id && (
+                    <span className="text-xs bg-orange-50 text-brand px-2 py-0.5 rounded-full font-medium shrink-0">
+                      tem pedido
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { ArrowLeft, RotateCcw, Send, Paperclip, X, Video } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { RotateCcw, Send, Paperclip, X, Video } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
 import { TypingIndicator } from './TypingIndicator'
+import { MobileHeader } from '../mobile/MobileHeader'
 import { useChat } from '../../hooks/useChat'
+
+const SUGGESTIONS = [
+  'Quero um orçamento',
+  'Quanto custa pintar?',
+  'Quero ser pintor cadastrado',
+  'Como funciona o serviço?',
+]
 
 export function ChatInterface() {
   const { messages, loading, sendMessage, reset, currentInputType } = useChat()
@@ -16,7 +24,6 @@ export function ChatInterface() {
   const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Inject greeting on first load
   useEffect(() => {
     if (initFired.current) return
     initFired.current = true
@@ -61,28 +68,25 @@ export function ChatInterface() {
 
   const isMediaStep = currentInputType === 'media'
   const visibleMessages = messages.filter((m) => m.content !== '__init__')
+  const showSuggestions = visibleMessages.length <= 1 && !loading
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 shrink-0 shadow-sm">
-        <Link to="/" className="text-gray-400 hover:text-gray-600 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white text-sm font-bold shrink-0">
-          P
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-gray-900">Pintai Floripa</p>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-            <p className="text-xs text-green-500">Online agora</p>
-          </div>
-        </div>
-        <button onClick={reset} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer" title="Nova conversa">
-          <RotateCcw className="w-4 h-4" />
-        </button>
-      </header>
+    <div className="flex flex-col h-full bg-gray-50">
+      {/* Header — usa MobileHeader padronizado */}
+      <MobileHeader
+        showLogo
+        title="Pintaê Floripa"
+        subtitle="Orçamentos de pintura com IA"
+        rightAction={
+          <button
+            onClick={reset}
+            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1"
+            title="Nova conversa"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        }
+      />
 
       {/* Messages */}
       <div
@@ -107,19 +111,45 @@ export function ChatInterface() {
       {/* Drag overlay */}
       <AnimatePresence>
         {dragging && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="absolute inset-0 z-20 bg-brand/10 border-4 border-dashed border-brand flex items-center justify-center pointer-events-none">
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 bg-brand/10 border-4 border-dashed border-brand flex items-center justify-center pointer-events-none"
+          >
             <p className="text-brand font-semibold text-lg">Solte os arquivos aqui</p>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Input area */}
-      <div className="px-4 pb-4 pt-2 bg-white border-t border-gray-100 shrink-0">
-        {/* Media hint when in media step */}
+      <div className="px-4 pb-3 pt-2 bg-white border-t border-gray-100 shrink-0">
+        {/* Suggestion chips — aparecem no estado inicial */}
+        <AnimatePresence>
+          {showSuggestions && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="flex flex-wrap gap-2 mb-3"
+            >
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => sendMessage(s)}
+                  className="px-3.5 py-2 text-sm border border-brand/40 text-brand rounded-full bg-orange-50 hover:bg-brand hover:text-white transition-colors cursor-pointer"
+                >
+                  {s}
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Media hint */}
         {isMediaStep && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 text-xs text-brand bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-2">
+          <motion.div
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 text-xs text-brand bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-2"
+          >
             <Video className="w-3.5 h-3.5 shrink-0" />
             <span>Envie fotos ou vídeo de até 1 minuto. Arraste ou use o clipe.</span>
           </motion.div>
@@ -137,8 +167,10 @@ export function ChatInterface() {
                     <Video className="w-5 h-5 text-gray-400" />
                   </div>
                 )}
-                <button onClick={() => removeFile(i)}
-                  className="absolute top-0.5 right-0.5 w-4 h-4 bg-gray-700/80 text-white rounded-full items-center justify-center hidden group-hover:flex cursor-pointer">
+                <button
+                  onClick={() => removeFile(i)}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 bg-gray-700/80 text-white rounded-full items-center justify-center hidden group-hover:flex cursor-pointer"
+                >
                   <X className="w-2.5 h-2.5" />
                 </button>
               </div>
@@ -148,12 +180,21 @@ export function ChatInterface() {
 
         {/* Input box */}
         <div className={`flex items-end gap-2 border rounded-2xl bg-white transition-colors ${dragging ? 'border-brand bg-orange-50' : 'border-gray-200'}`}>
-          <button onClick={() => fileRef.current?.click()}
+          <button
+            onClick={() => fileRef.current?.click()}
             className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
-            title="Enviar foto ou vídeo">
+            title="Enviar foto, vídeo ou arquivo"
+          >
             <Paperclip className="w-4 h-4" />
           </button>
-          <input ref={fileRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFiles} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,video/*,application/pdf,.doc,.docx,.txt"
+            multiple
+            className="hidden"
+            onChange={handleFiles}
+          />
 
           <textarea
             value={text}
@@ -176,7 +217,7 @@ export function ChatInterface() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-1.5">
-          Seus dados são protegidos pela LGPD · Pintai Floripa
+          Seus dados são protegidos pela LGPD · Pintaê Floripa
         </p>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
-  Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox, Paintbrush,
+  Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox, Paintbrush, BrainCircuit,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -15,6 +15,7 @@ const NAV = [
   { to: '/admin/reviews', icon: Star, label: 'Avaliações' },
   { to: '/admin/crm', icon: BarChart3, label: 'CRM Global' },
   { to: '/admin/agent', icon: Bot, label: 'Agente IA' },
+  { to: '/admin/ai', icon: BrainCircuit, label: 'IA Ops' },
   { to: '/admin/permissions', icon: Shield, label: 'Permissões' },
   { to: '/admin/cms', icon: Layout, label: 'Conteúdo' },
   { to: '/admin/conversations', icon: MessageSquare, label: 'Conversas' },
