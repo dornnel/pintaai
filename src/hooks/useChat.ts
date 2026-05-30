@@ -89,7 +89,7 @@ function validateName(v: string): { ok: boolean; hint?: string } {
 
 const FLOW: Partial<Record<ChatState, StepConfig>> = {
   lead_name: {
-    question: () => 'Olá! Sou o assistente da **Pintaê Floripa**. Para começar, qual é o seu nome?',
+    question: () => 'Para continuarmos, me diz o seu nome 😊',
     type: 'text',
     field: 'name',
     validate: (v) => validateName(v),

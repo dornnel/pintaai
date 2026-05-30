@@ -24,7 +24,6 @@ import { LeadsPage } from './pages/admin/LeadsPage'
 import { AdminAgentChat } from './pages/admin/AdminAgentChat'
 import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
 import { CRMBoard } from './pages/crm/CRMBoard'
-import { ColorVisualizerFAB } from './components/ColorVisualizerFAB'
 import { AppShell } from './components/AppShell'
 
 // Route guard: redirect unauthenticated users to login
@@ -75,7 +74,6 @@ function NeighborhoodPage() {
 function AppRoutes() {
   return (
     <AppShell>
-      <ColorVisualizerFAB />
       <Routes>
       {/* Public */}
       <Route path="/" element={<LandingPage />} />

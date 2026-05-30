@@ -52,7 +52,7 @@ export const REQUEST_STATUSES = {
   canceled: { label: 'Cancelado', color: 'bg-red-100 text-red-700' },
 } as const
 
-export const WHATSAPP_NUMBER = '5548999999999'
+export const WHATSAPP_NUMBER = '5548991813090'
 export const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}`
 
 export const AGENT_INTRO = `Oi! Sou o assistente da **Pintai Floripa** 🎨
