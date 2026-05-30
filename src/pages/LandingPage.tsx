@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useInView, type Variants, useMotionValue, useSpring, useTransform } from 'motion/react'
 import {
-  Send, Paperclip, ArrowRight, CheckCircle, Star, X,
+  Send, Paperclip, ArrowRight, CheckCircle, Star,
   MapPin, MessageCircle, Paintbrush, Home, Building2,
   Sparkles, TrendingUp, Zap, ShieldCheck, CreditCard, Calendar, ChevronDown,
 } from 'lucide-react'
@@ -93,10 +93,10 @@ const BEFORE_AFTER_COMPAT = [
 
 const SUGGESTIONS = ['Pintar sala e quartos', 'Fachada externa', 'Pintura pós-obra', 'Mural artístico']
 
-const PAIN_POINTS = [
-  { text: 'Pintor sem histórico verificado' },
-  { text: 'Preço sem nenhuma base técnica' },
-  { text: 'Você no escuro sem referência' },
+const VALUE_PROPS = [
+  { text: 'Pintores com histórico verificado' },
+  { text: 'Briefing técnico gerado por IA' },
+  { text: 'Propostas comparáveis e transparentes' },
 ]
 
 // ─── Motion variants ─────────────────────────────────────────────────────────
@@ -432,9 +432,17 @@ export function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ── Hero (photo visible, light vignette) ── */}
+      {/* ── Hero mobile: agente conversacional como hero (sem cards flutuantes) ── */}
+      <section className="lg:hidden relative flex flex-col pt-14 overflow-hidden bg-white" style={{ minHeight: 'calc(100dvh - 64px)' }}>
+        <HeroBackground />
+        <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 py-8">
+          <HeroChat />
+        </div>
+      </section>
+
+      {/* ── Hero desktop (foto + título + floating cards + chat widget) ── */}
       <section ref={heroRef} onMouseMove={handleMouseMove}
-        className="relative min-h-screen flex items-center pt-14 overflow-hidden bg-white">
+        className="hidden lg:flex relative min-h-screen items-center pt-14 overflow-hidden bg-white">
         <HeroBackground />
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -448,18 +456,18 @@ export function LandingPage() {
             <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.04] tracking-tight mb-8"
-              style={{ color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.35)' }}>
+              style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.18)' }}>
               O pintor certo<br />
               para o seu<br />
               <span style={{ color: '#FF7A30' }}>espaço.</span>
             </motion.h1>
 
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex flex-wrap gap-2 mb-10">
-              {PAIN_POINTS.map(({ text }) => (
+              {VALUE_PROPS.map(({ text }) => (
                 <motion.span key={text} variants={fadeUp}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-semibold"
-                  style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}>
-                  <X className="w-3 h-3 shrink-0" style={{ color: '#f87171' }} />{text}
+                  style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}>
+                  <CheckCircle className="w-3 h-3 shrink-0" style={{ color: '#4ade80' }} />{text}
                 </motion.span>
               ))}
             </motion.div>
