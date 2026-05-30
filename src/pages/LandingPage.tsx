@@ -1,10 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence, useInView, type Variants, useMotionValue, useSpring, useTransform } from 'motion/react'
+import { motion, AnimatePresence, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star,
-  MapPin, MessageCircle, Paintbrush, Home, Building2,
-  Sparkles, TrendingUp, Zap, ShieldCheck, CreditCard, Calendar, ChevronDown,
+  MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
@@ -70,27 +69,6 @@ const DEFAULT_PAINTER_REVIEWS = [
 ]
 
 // ─── Before/after data ───────────────────────────────────────────────────────
-const BEFORE_AFTER_COMPAT = [
-  {
-    img: 'https://images.unsplash.com/photo-1600210491892-03d54078f7ef?w=900&q=85',
-    afterHue: 200,
-    label: 'Sala · Campeche',
-    afterLabel: 'Azul Steel',
-  },
-  {
-    img: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=900&q=85',
-    afterHue: 330,
-    label: 'Quarto · Rio Tavares',
-    afterLabel: 'Rosa pálido',
-  },
-  {
-    img: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?w=900&q=85',
-    afterHue: 100,
-    label: 'Sala · Armação',
-    afterLabel: 'Verde sálvia',
-  },
-]
-
 const SUGGESTIONS = ['Pintar sala e quartos', 'Fachada externa', 'Pintura pós-obra', 'Mural artístico']
 
 const VALUE_PROPS = [
@@ -158,49 +136,6 @@ function FloatingCard({ children, className = '', mouseX, mouseY, factorX = 1, f
       style={{ x, y, boxShadow: '0 4px 20px rgba(0,0,0,0.10)' }}
       className={`absolute bg-white border border-gray-100 pointer-events-none select-none rounded ${className}`}>
       {children}
-    </motion.div>
-  )
-}
-
-// ─── Before / After card (same image, hue-rotated for after) ─────────────────
-
-function BeforeAfterCard({ item, index }: { item: typeof BEFORE_AFTER_COMPAT[0]; index: number }) {
-  const [flipped, setFlipped] = useState(false)
-  const ref = useRef(null)
-  const inView = useInView(ref, { once: true, amount: 0.3 })
-
-  return (
-    <motion.div ref={ref} variants={fadeUp} initial="hidden" animate={inView ? 'show' : 'hidden'}
-      transition={{ delay: index * 0.1 }}
-      className="relative rounded overflow-hidden cursor-pointer group"
-      onClick={() => setFlipped(!flipped)} whileHover={{ y: -4 }}>
-      <div className="relative h-60 overflow-hidden">
-        {/* Before */}
-        <img
-          src={item.img}
-          alt="antes"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: `grayscale(45%) brightness(0.72) contrast(1.1) sepia(20%)` }}
-        />
-        {/* After — same image, hue-rotated to show different wall color */}
-        <motion.img
-          src={item.img}
-          alt="depois"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: `hue-rotate(${item.afterHue}deg) saturate(0.7) brightness(0.9)` }}
-          initial={false}
-          animate={{ clipPath: flipped ? 'inset(0 0% 0 0)' : 'inset(0 100% 0 0)' }}
-          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <span className={`absolute top-3 left-3 text-xs font-semibold px-2 py-0.5 rounded text-white ${flipped ? 'bg-emerald-600' : 'bg-gray-600'}`}>
-          {flipped ? 'DEPOIS' : 'ANTES'}
-        </span>
-        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-          <span className="text-white text-sm font-medium">{item.label}</span>
-          <span className="text-white/60 text-xs">{flipped ? item.afterLabel : 'Toque para ver'}</span>
-        </div>
-      </div>
     </motion.div>
   )
 }
@@ -342,37 +277,104 @@ function HeroChat() {
 // ─── How payment works ────────────────────────────────────────────────────────
 
 function HowPaymentWorks() {
+  const ref = useRef(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
+  const bgY = useTransform(scrollYProgress, [0, 1], ['-8%', '8%'])
+
+  const steps = [
+    {
+      step: '01', title: 'Pague com total segurança', desc: 'Pix, cartão ou boleto. O valor fica retido — o pintor não recebe nada ainda.',
+      icon: (
+        <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+          <rect x="4" y="12" width="40" height="26" rx="5" fill="url(#sp1)"/>
+          <rect x="4" y="19" width="40" height="5" fill="white" opacity="0.15"/>
+          <rect x="10" y="28" width="10" height="3" rx="1.5" fill="white" opacity="0.9"/>
+          <rect x="24" y="28" width="6" height="3" rx="1.5" fill="white" opacity="0.5"/>
+          <circle cx="38" cy="11" r="7" fill="url(#sp1b)"/>
+          <path d="M35 11 L37 13 L41 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <defs>
+            <linearGradient id="sp1" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#3B82F6"/><stop offset="1" stopColor="#1D4ED8"/></linearGradient>
+            <linearGradient id="sp1b" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#10B981"/><stop offset="1" stopColor="#059669"/></linearGradient>
+          </defs>
+        </svg>
+      ),
+    },
+    {
+      step: '02', title: 'Agendamento e execução', desc: 'Agenda direto no chat. O pintor executa e envia fotos de progresso em cada etapa.',
+      icon: (
+        <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+          <rect x="6" y="8" width="36" height="34" rx="5" fill="url(#sp2)"/>
+          <rect x="6" y="16" width="36" height="2.5" fill="white" opacity="0.2"/>
+          <rect x="14" y="6" width="3" height="6" rx="1.5" fill="white" opacity="0.8"/>
+          <rect x="31" y="6" width="3" height="6" rx="1.5" fill="white" opacity="0.8"/>
+          <rect x="12" y="23" width="5" height="5" rx="1.5" fill="white" opacity="0.7"/>
+          <rect x="21" y="23" width="5" height="5" rx="1.5" fill="white" opacity="0.5"/>
+          <rect x="30" y="23" width="5" height="5" rx="1.5" fill="white" opacity="0.3"/>
+          <rect x="12" y="32" width="5" height="5" rx="1.5" fill="white" opacity="0.5"/>
+          <rect x="21" y="32" width="5" height="5" rx="1.5" fill="white" opacity="0.8"/>
+          <defs>
+            <linearGradient id="sp2" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#F97316"/><stop offset="1" stopColor="#E35A1A"/></linearGradient>
+          </defs>
+        </svg>
+      ),
+    },
+    {
+      step: '03', title: 'Liberação por etapas', desc: 'Você aprova cada fase. Só então o valor é desbloqueado. Controle total, do início ao fim.',
+      icon: (
+        <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+          <circle cx="24" cy="24" r="20" fill="url(#sp3)"/>
+          <path d="M14 24 L20 30 L34 18" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="24" cy="24" r="14" stroke="white" strokeWidth="1.5" opacity="0.25"/>
+          <defs>
+            <linearGradient id="sp3" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#10B981"/><stop offset="1" stopColor="#059669"/></linearGradient>
+          </defs>
+        </svg>
+      ),
+    },
+  ]
+
   return (
-    <section className="py-20 px-4 bg-emerald-950/90 text-white relative overflow-hidden">
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-400 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-teal-400 rounded-full blur-3xl" />
-      </div>
+    <section ref={ref} className="py-24 px-4 relative overflow-hidden text-white"
+      style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 60%, #0F172A 100%)' }}>
+      {/* Parallax mesh bg */}
+      <motion.div className="absolute inset-0 pointer-events-none" style={{ y: bgY }}>
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-violet-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-0 w-64 h-64 bg-blue-500/8 rounded-full blur-3xl" />
+      </motion.div>
+
       <div className="max-w-4xl mx-auto relative z-10">
-        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-          <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">Segurança</span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold mt-2 tracking-tight">Como o Airbnb faz para hospedagem</h2>
-          <p className="text-emerald-200/70 mt-2 text-sm max-w-lg mx-auto">O dinheiro fica retido e só é liberado conforme o serviço avança. Zero risco para o cliente.</p>
+        <motion.div initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center mb-14">
+          <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Segurança</span>
+          <h2 className="text-3xl sm:text-4xl font-extrabold mt-2 tracking-tight">
+            Pagamento protegido,<br className="hidden sm:block" /> do início ao fim
+          </h2>
+          <p className="text-white/50 mt-3 text-sm max-w-md mx-auto leading-relaxed">
+            O valor fica retido e só é liberado quando você aprova. Zero risco para o cliente.
+          </p>
         </motion.div>
-        <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          {[
-            { icon: CreditCard, step: '01', color: 'text-blue-400', bg: 'bg-blue-400/10', title: 'Você paga com segurança', desc: 'Pix, boleto ou cartão. O valor fica retido — o pintor não recebe nada ainda.' },
-            { icon: Calendar, step: '02', color: 'text-brand', bg: 'bg-brand/10', title: 'Serviço agendado e executado', desc: 'Agenda no chat. Pintor inicia o serviço e envia fotos de progresso.' },
-            { icon: CheckCircle, step: '03', color: 'text-emerald-400', bg: 'bg-emerald-400/10', title: 'Pagamento liberado por etapas', desc: 'Você aprova cada etapa. Só então o valor é liberado, menos a comissão.' },
-          ].map(({ icon: Icon, step, color, bg, title, desc }) => (
-            <motion.div key={step} variants={fadeUp} className="border border-white/10 rounded p-6 bg-white/5">
-              <div className={`w-10 h-10 rounded ${bg} flex items-center justify-center mb-4`}>
-                <Icon className={`w-5 h-5 ${color}`} />
-              </div>
-              <span className="text-xs font-bold text-white/30 tracking-widest">{step}</span>
-              <h3 className="font-bold text-white mt-1 mb-2 text-sm">{title}</h3>
+
+        <motion.div variants={stagger} initial="hidden" whileInView="show"
+          viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          {steps.map(({ step, title, desc, icon }) => (
+            <motion.div key={step} variants={fadeUp}
+              whileHover={{ y: -4, borderColor: 'rgba(99,102,241,0.4)' }}
+              className="border border-white/10 rounded-2xl p-6 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(8px)' }}>
+              <div className="mb-4">{icon}</div>
+              <span className="text-xs font-bold text-white/25 tracking-widest block mb-1">{step}</span>
+              <h3 className="font-bold text-white mb-2">{title}</h3>
               <p className="text-sm text-white/50 leading-relaxed">{desc}</p>
             </motion.div>
           ))}
         </motion.div>
+
         <motion.p initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}
-          className="text-center text-xs text-white/30 mt-8">
-          Pagamentos via <strong className="text-white/50">Asaas</strong> (autorizado Banco Central) · Pix · Split automático
+          transition={{ delay: 0.4 }}
+          className="text-center text-xs text-white/25 mt-10">
+          Pagamentos via <strong className="text-white/40">Asaas</strong> · autorizado Banco Central · Pix · Cartão · Split automático
         </motion.p>
       </div>
     </section>
@@ -386,6 +388,10 @@ export function LandingPage() {
   const heroRef = useRef<HTMLElement>(null)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
+
+  // Parallax: hero background moves at 40% scroll speed
+  const { scrollY } = useScroll()
+  const heroBgY = useTransform(scrollY, [0, 800], [0, -120])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = heroRef.current?.getBoundingClientRect()
@@ -434,7 +440,9 @@ export function LandingPage() {
 
       {/* ── Hero mobile: agente conversacional como hero (sem cards flutuantes) ── */}
       <section className="lg:hidden relative flex flex-col pt-14 overflow-hidden bg-white" style={{ minHeight: 'calc(100dvh - 64px)' }}>
-        <HeroBackground />
+        <motion.div className="absolute inset-0" style={{ y: heroBgY }}>
+          <HeroBackground />
+        </motion.div>
         <div className="relative z-10 flex flex-col items-center justify-center flex-1 px-4 py-8">
           <HeroChat />
         </div>
@@ -443,7 +451,9 @@ export function LandingPage() {
       {/* ── Hero desktop (foto + título + floating cards + chat widget) ── */}
       <section ref={heroRef} onMouseMove={handleMouseMove}
         className="hidden lg:flex relative min-h-screen items-center pt-14 overflow-hidden bg-white">
-        <HeroBackground />
+        <motion.div className="absolute inset-0" style={{ y: heroBgY }}>
+          <HeroBackground />
+        </motion.div>
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
@@ -635,49 +645,105 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Reviews marquee (dark) ── */}
-      <ReviewMarquee />
-
-      {/* ── Before / After — white ── */}
+      {/* ── Service types ── */}
       <section className="py-24 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
-          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <span className="text-xs font-bold text-brand uppercase tracking-widest">Portfólio</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2 tracking-tight">Antes e depois</h2>
-            <p className="text-gray-500 mt-2 text-sm">Toque para ver a cor aplicada na mesma parede</p>
-          </motion.div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {BEFORE_AFTER_COMPAT.map((item, i) => <BeforeAfterCard key={item.label} item={item} index={i} />)}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Payment trust — dark emerald ── */}
-      <HowPaymentWorks />
-
-      {/* ── Service types — cool blue tint ── */}
-      <section className="py-24 px-4" style={{ background: '#F0F6FF' }}>
-        <div className="max-w-5xl mx-auto">
-          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-12">
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-widest">Serviços</span>
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center mb-12">
+            <span className="text-xs font-bold text-brand uppercase tracking-widest">Serviços</span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2 tracking-tight">Para todo tipo de espaço</h2>
+            <p className="text-gray-400 mt-2 text-sm">Clique para começar o orçamento</p>
           </motion.div>
-          <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }}
-            className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <motion.div variants={stagger} initial="hidden" whileInView="show"
+            viewport={{ once: true, amount: 0.15 }} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { icon: Home, label: 'Residencial', desc: 'Casas, apartamentos, quartos', color: 'text-amber-600', bg: 'bg-amber-50' },
-              { icon: Building2, label: 'Comercial', desc: 'Lojas, restaurantes, escritórios', color: 'text-blue-600', bg: 'bg-blue-50' },
-              { icon: Paintbrush, label: 'Fachada', desc: 'Externas, muros, garagens', color: 'text-violet-600', bg: 'bg-violet-50' },
-              { icon: Zap, label: 'Pós-obra', desc: 'Reboco novo, acabamento fino', color: 'text-orange-600', bg: 'bg-orange-50' },
-              { icon: Sparkles, label: 'Arte / Mural', desc: 'Grafite, decoração artística', color: 'text-pink-600', bg: 'bg-pink-50' },
-              { icon: TrendingUp, label: 'Manutenção', desc: 'Rachaduras, mofo, manchas', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            ].map(({ icon: Icon, label, desc, color, bg }) => (
-              <motion.div key={label} variants={fadeUp} whileHover={{ y: -4, borderColor: '#1d4ed8' }}
+              {
+                label: 'Residencial', desc: 'Casas, apartamentos, quartos',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <path d="M24 6 L42 22 L42 42 L6 42 L6 22 Z" fill="url(#sv1)"/>
+                    <rect x="18" y="28" width="12" height="14" rx="2" fill="white" opacity="0.9"/>
+                    <rect x="28" y="16" width="8" height="8" rx="1.5" fill="white" opacity="0.5"/>
+                    <path d="M12 22 L24 11 L36 22" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.4"/>
+                    <defs><linearGradient id="sv1" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#F59E0B"/><stop offset="1" stopColor="#D97706"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Comercial', desc: 'Lojas, restaurantes, escritórios',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <rect x="8" y="10" width="32" height="32" rx="4" fill="url(#sv2)"/>
+                    <rect x="14" y="18" width="6" height="8" rx="1" fill="white" opacity="0.9"/>
+                    <rect x="24" y="18" width="6" height="8" rx="1" fill="white" opacity="0.6"/>
+                    <rect x="14" y="30" width="16" height="2" rx="1" fill="white" opacity="0.4"/>
+                    <rect x="8" y="10" width="32" height="5" rx="4" fill="white" opacity="0.15"/>
+                    <defs><linearGradient id="sv2" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#3B82F6"/><stop offset="1" stopColor="#1D4ED8"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Fachada', desc: 'Externas, muros, garagens',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <rect x="4" y="8" width="40" height="32" rx="4" fill="url(#sv3)"/>
+                    <rect x="4" y="8" width="40" height="10" rx="4" fill="white" opacity="0.15"/>
+                    <rect x="10" y="22" width="28" height="3" rx="1.5" fill="white" opacity="0.7"/>
+                    <rect x="10" y="29" width="20" height="3" rx="1.5" fill="white" opacity="0.5"/>
+                    <circle cx="36" cy="35" r="6" fill="white" opacity="0.2"/>
+                    <path d="M33 35 L35.5 37.5 L39 32" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs><linearGradient id="sv3" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#8B5CF6"/><stop offset="1" stopColor="#6D28D9"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Pós-obra', desc: 'Reboco novo, acabamento fino',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <rect x="6" y="14" width="36" height="26" rx="4" fill="url(#sv4)"/>
+                    <path d="M6 20 L42 20" stroke="white" strokeWidth="2" opacity="0.2"/>
+                    <rect x="12" y="26" width="8" height="8" rx="2" fill="white" opacity="0.8"/>
+                    <rect x="24" y="26" width="12" height="3" rx="1.5" fill="white" opacity="0.5"/>
+                    <rect x="24" y="31" width="8" height="3" rx="1.5" fill="white" opacity="0.3"/>
+                    <path d="M28 8 L32 14 L24 14 Z" fill="url(#sv4)" opacity="0.6"/>
+                    <defs><linearGradient id="sv4" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#F97316"/><stop offset="1" stopColor="#E35A1A"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Arte / Mural', desc: 'Grafite, decoração artística',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <circle cx="24" cy="24" r="20" fill="url(#sv5)"/>
+                    <circle cx="16" cy="20" r="4" fill="white" opacity="0.8"/>
+                    <circle cx="28" cy="16" r="3" fill="white" opacity="0.6"/>
+                    <circle cx="32" cy="28" r="4" fill="white" opacity="0.7"/>
+                    <circle cx="20" cy="32" r="3" fill="white" opacity="0.5"/>
+                    <path d="M16 20 Q22 18 28 16 Q30 22 32 28 Q26 30 20 32 Q18 26 16 20Z" fill="white" opacity="0.15"/>
+                    <defs><linearGradient id="sv5" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#EC4899"/><stop offset="1" stopColor="#BE185D"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+              {
+                label: 'Manutenção', desc: 'Rachaduras, mofo, manchas',
+                icon: (
+                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
+                    <circle cx="24" cy="24" r="20" fill="url(#sv6)"/>
+                    <path d="M16 32 L24 16 L32 32" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.9"/>
+                    <path d="M19 27 L29 27" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.7"/>
+                    <circle cx="24" cy="34" r="2" fill="white" opacity="0.9"/>
+                    <defs><linearGradient id="sv6" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#10B981"/><stop offset="1" stopColor="#059669"/></linearGradient></defs>
+                  </svg>
+                ),
+              },
+            ].map(({ label, desc, icon }) => (
+              <motion.div key={label} variants={fadeUp}
+                whileHover={{ y: -6, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => { window.location.href = `/chat?q=${encodeURIComponent(label)}` }}
-                className="bg-white border border-gray-100 rounded p-5 cursor-pointer transition-colors group">
-                <div className={`w-10 h-10 rounded ${bg} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                  <Icon className={`w-5 h-5 ${color}`} />
-                </div>
+                className="bg-white border border-gray-100 rounded-2xl p-5 cursor-pointer group transition-shadow">
+                <div className="mb-3 group-hover:scale-110 transition-transform duration-200 w-fit">{icon}</div>
                 <p className="font-bold text-gray-900 text-sm mb-1">{label}</p>
                 <p className="text-xs text-gray-400">{desc}</p>
               </motion.div>
@@ -685,6 +751,12 @@ export function LandingPage() {
           </motion.div>
         </div>
       </section>
+
+      {/* ── Reviews marquee (dark) — after services ── */}
+      <ReviewMarquee />
+
+      {/* ── Payment / Security ── */}
+      <HowPaymentWorks />
 
       {/* ── Painter CTA — slate ── */}
       <section className="py-16 px-4 border-t border-gray-100 bg-white">
