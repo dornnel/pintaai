@@ -802,11 +802,11 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Reviews marquee (dark) — after services ── */}
-      <ReviewMarquee />
-
       {/* ── Payment / Security ── */}
       <HowPaymentWorks />
+
+      {/* ── Reviews marquee (dark) — after security ── */}
+      <ReviewMarquee />
 
       {/* ── Painter CTA — slate ── */}
       <section className="py-16 px-4 border-t border-gray-100 bg-white">
