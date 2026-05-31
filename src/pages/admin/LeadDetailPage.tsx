@@ -2,8 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
-  ArrowLeft, MapPin, Wrench, Phone, Mail, MessageCircle, Send, CheckCircle,
-  Image as ImageIcon, Clock, ChevronDown, ChevronUp, Sparkles, Loader2,
+  ArrowLeft, Phone, Mail, MessageCircle, Send, CheckCircle,
+  Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2,
   Calendar, X, Bot, User, AlertTriangle, Calculator, Check, Plus,
   FileText, Activity,
 } from 'lucide-react'

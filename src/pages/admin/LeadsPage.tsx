@@ -452,7 +452,6 @@ export function LeadsPage() {
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
   const [sending, setSending] = useState<Lead | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     loadLeads()
