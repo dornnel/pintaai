@@ -210,13 +210,13 @@ const MOBILE_CHIPS = ['Sala', 'Fachada', 'Pós-obra', 'Mural', 'Enviar fotos']
 // Placeholder animado: "Quero pintar" + propriedade + local em loop
 const PLACEHOLDER_CYCLE = [
   { prop: 'meu escritório', local: 'no Rio Tavares' },
-  { prop: 'meu studio', local: 'no Novo Campeche' },
-  { prop: 'minha casa de praia', local: 'no Morro das Pedras' },
-  { prop: 'meu apartamento', local: 'no Campeche' },
+  { prop: 'meu studio', local: 'no Campeche' },
+  { prop: 'minha casa', local: 'no Morro das Pedras' },
+  { prop: 'meu apartamento', local: 'na Armação' },
   { prop: 'minha sala', local: 'no Pântano do Sul' },
-  { prop: 'meu restaurante', local: 'na Armação' },
+  { prop: 'meu restaurante', local: 'na Costeira' },
   { prop: 'minha loja', local: 'no Rio Tavares' },
-  { prop: 'minha fachada', local: 'na Costeira' },
+  { prop: 'minha fachada', local: 'no Campeche' },
 ]
 
 const MOBILE_BG_FALLBACK = [
@@ -380,10 +380,10 @@ function SimpleLanding() {
         <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-3 py-2.5 mb-3">
           <div className="flex-1 relative">
             {showPlaceholder && (
-              <div className="absolute inset-0 flex items-center pointer-events-none select-none">
-                <span className="text-gray-400 text-sm">Quero pintar </span>
+              <div className="absolute inset-0 flex items-center pointer-events-none select-none overflow-hidden whitespace-nowrap">
+                <span className="text-gray-400 text-sm">{'Quero pintar '}</span>
                 <span className="text-gray-600 text-sm">{typeText}</span>
-                <span className="inline-block w-px h-3.5 bg-brand ml-px"
+                <span className="inline-block w-px h-3.5 bg-brand ml-0.5 shrink-0"
                   style={{ animation: 'blink 1s step-end infinite' }} />
               </div>
             )}
