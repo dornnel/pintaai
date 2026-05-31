@@ -32,19 +32,34 @@ export function LoginPage() {
   const [success, setSuccess] = useState('')
   const [waitingRedirect, setWaitingRedirect] = useState(false)
 
-  // Redirect when user loads after login
+  // Limpar estado residual ao montar — loading pode ter ficado true após OAuth cancelado
+  useEffect(() => {
+    setLoading(false)
+    setError('')
+    setSuccess('')
+    setWaitingRedirect(false)
+  }, [])
+
   useEffect(() => {
     if (user && waitingRedirect) {
       navigate(getRoleHome(user.role), { replace: true })
     }
   }, [user, waitingRedirect, navigate])
 
-  // If already logged in, redirect immediately
   useEffect(() => {
     if (!authLoading && user) {
       navigate(getRoleHome(user.role), { replace: true })
     }
   }, [authLoading, user, navigate])
+
+  function switchTab(t: Tab) {
+    setTab(t)
+    setError('')
+    setSuccess('')
+    setLoading(false)
+    setEmail('')
+    setPassword('')
+  }
 
   async function handleGoogleLogin() {
     setLoading(true); setError('')
@@ -56,22 +71,18 @@ export function LoginPage() {
       },
     })
     if (error) { setError(error.message); setLoading(false) }
+    // Se sem erro: browser redireciona para Google — não resetar loading
   }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-
     if (err) {
-      const msg = err.message.includes('Invalid') ? 'E-mail ou senha incorretos.' : err.message
-      setError(msg)
+      setError(err.message.includes('Invalid') ? 'E-mail ou senha incorretos.' : err.message)
       setLoading(false)
       return
     }
-
-    // Auth state change will trigger useEffect above
     setWaitingRedirect(true)
     setLoading(false)
   }
@@ -79,10 +90,8 @@ export function LoginPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-
     const { data, error: err } = await supabase.auth.signUp({ email, password })
     if (err) { setError(err.message); setLoading(false); return }
-
     if (data.user) {
       const { error: insertErr } = await supabase.from('users').insert({
         auth_user_id: data.user.id,
@@ -114,14 +123,11 @@ export function LoginPage() {
       <div className="absolute top-0 right-0 w-96 h-96 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(227,90,26,0.07) 0%, transparent 70%)' }} />
       <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(227,90,26,0.05) 0%, transparent 70%)' }} />
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-md relative z-10"
-      >
+        className="w-full max-w-md relative z-10">
         <Link to="/" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand mb-8 transition-colors w-fit">
-          <ArrowLeft className="w-4 h-4" /> Voltar
+          <ArrowLeft className="w-4 h-4" /> Voltar ao site
         </Link>
 
         <div className="bg-white border border-gray-100 rounded-3xl shadow-xl shadow-black/5 overflow-hidden">
@@ -129,18 +135,14 @@ export function LoginPage() {
             <div className="w-10 h-10 rounded-2xl bg-brand flex items-center justify-center">
               <Paintbrush className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-brand">Pintai</span>
+            <span className="text-xl font-bold text-brand">Pintaê</span>
           </div>
 
           {/* Google OAuth */}
           <div className="px-8 pt-6">
-            <motion.button
-              onClick={handleGoogleLogin}
-              disabled={loading}
+            <motion.button onClick={handleGoogleLogin} disabled={loading}
               whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60"
-            >
-              {/* Google icon */}
+              className="w-full flex items-center justify-center gap-3 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-60">
               <svg className="w-4 h-4" viewBox="0 0 48 48">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
                 <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -158,7 +160,7 @@ export function LoginPage() {
 
           <div className="px-8 pt-2 flex gap-1 bg-white">
             {(['login', 'register'] as Tab[]).map((t) => (
-              <button key={t} onClick={() => { setTab(t); setError(''); setSuccess('') }}
+              <button key={t} onClick={() => switchTab(t)}
                 className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer ${tab === t ? 'bg-brand text-white' : 'text-gray-500 hover:text-gray-800'}`}>
                 {t === 'login' ? 'Entrar' : 'Criar conta'}
               </button>
@@ -173,7 +175,7 @@ export function LoginPage() {
                     <CheckCircle className="w-7 h-7 text-green-500" />
                   </div>
                   <p className="text-gray-700 font-medium">{success}</p>
-                  <button onClick={() => { setTab('login'); setSuccess('') }} className="mt-4 text-sm text-brand font-medium cursor-pointer">
+                  <button onClick={() => switchTab('login')} className="mt-4 text-sm text-brand font-medium cursor-pointer">
                     Fazer login →
                   </button>
                 </motion.div>
@@ -184,7 +186,7 @@ export function LoginPage() {
                     <label className="text-xs font-medium text-gray-600 mb-1.5 block">E-mail</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50"
                         placeholder="seu@email.com" />
                     </div>
@@ -193,7 +195,7 @@ export function LoginPage() {
                     <label className="text-xs font-medium text-gray-600 mb-1.5 block">Senha</label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
+                      <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
                         className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50"
                         placeholder="••••••••" />
                       <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer">
@@ -207,9 +209,6 @@ export function LoginPage() {
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Entrar
                   </motion.button>
-                  <p className="text-center text-xs text-gray-400">
-                    Acesso restrito. Use suas credenciais de administrador.
-                  </p>
                 </motion.form>
               ) : (
                 <motion.form key="register" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
@@ -235,14 +234,14 @@ export function LoginPage() {
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50" placeholder="Seu nome" />
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50" placeholder="Seu nome completo" />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-600 mb-1.5 block">E-mail</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"
                         className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50" placeholder="seu@email.com" />
                     </div>
                   </div>
@@ -258,7 +257,7 @@ export function LoginPage() {
                     <label className="text-xs font-medium text-gray-600 mb-1.5 block">Senha</label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+                      <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={6} autoComplete="new-password"
                         className="w-full pl-10 pr-10 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50" placeholder="Mínimo 6 caracteres" />
                       <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer">
                         {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

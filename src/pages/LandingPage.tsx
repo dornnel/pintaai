@@ -671,9 +671,6 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <PintaiLogo white />
           <div className="flex items-center gap-2">
-            <Link to="/visualizar-cor" className="hidden sm:flex items-center gap-1 text-sm text-white/60 hover:text-white transition-colors px-3 py-1.5">
-              <Paintbrush className="w-3.5 h-3.5" /> Simular cor
-            </Link>
             {/* WhatsApp — always visible desktop + mobile */}
             <motion.a
               href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer"

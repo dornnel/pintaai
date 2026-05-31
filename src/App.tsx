@@ -25,6 +25,7 @@ import { AdminAgentChat } from './pages/admin/AdminAgentChat'
 import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
 import { CRMBoard } from './pages/crm/CRMBoard'
 import { AppShell } from './components/AppShell'
+import { OnboardingPage } from './pages/OnboardingPage'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -41,14 +42,15 @@ function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: s
 
 function AuthCallback() {
   const navigate = useNavigate()
-  const { user, loading } = useAuth()
+  const { user, loading, needsOnboarding } = useAuth()
 
   useEffect(() => {
     if (!loading) {
-      if (user) navigate(getRoleHome(user.role), { replace: true })
+      if (needsOnboarding) navigate('/onboarding', { replace: true })
+      else if (user) navigate(getRoleHome(user.role), { replace: true })
       else navigate('/', { replace: true })
     }
-  }, [user, loading, navigate])
+  }, [user, loading, needsOnboarding, navigate])
 
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -82,6 +84,7 @@ function AppRoutes() {
       <Route path="/marketplace" element={<MarketplacePage />} />
       <Route path="/visualizar-cor" element={<ColorVisualizerPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/seja-pintor" element={<LoginPage />} />
       <Route path="/pintura/:neighborhood" element={<NeighborhoodPage />} />
 

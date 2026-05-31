@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
   Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox,
-  Paintbrush, BrainCircuit, Menu, X,
+  Paintbrush, BrainCircuit, Menu, X, Home, LogOut,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useAuth } from '../../lib/auth'
 
 const NAV = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -27,9 +28,16 @@ const NAV = [
 export function AdminLayout() {
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
 
-  // Close sidebar on route change (mobile)
   const close = () => setOpen(false)
+
+  async function handleSignOut() {
+    close()
+    await signOut()
+    navigate('/', { replace: true })
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -92,7 +100,19 @@ export function AdminLayout() {
         </nav>
 
         {/* Settings footer */}
-        <div className="p-2 border-t border-gray-100 shrink-0">
+        <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
+          <button
+            onClick={() => { close(); navigate('/') }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors"
+          >
+            <Home className="w-4 h-4 shrink-0" /> Voltar ao site
+          </button>
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 cursor-pointer transition-colors"
+          >
+            <LogOut className="w-4 h-4 shrink-0" /> Sair
+          </button>
           <NavLink
             to="/admin/settings"
             onClick={close}
