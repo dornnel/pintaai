@@ -94,6 +94,36 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Extração de campo via linguagem natural (gpt-4o-mini, barato)
+    if (action === 'extract_field' && collected) {
+      const { field, text: inputText } = collected as { field: string; text: string }
+      const fieldDescriptions: Record<string, string> = {
+        name: 'nome de uma pessoa (apenas o nome, sem frases)',
+        email: 'endereço de e-mail válido no formato usuario@dominio.com',
+        whatsapp: 'número de telefone celular com DDD (apenas dígitos)',
+      }
+      const extractionPrompt =
+        `Extraia "${fieldDescriptions[field] || field}" da mensagem abaixo.\n` +
+        `Retorne SOMENTE o valor extraído, sem explicação.\n` +
+        `Se não conseguir extrair um valor válido, retorne exatamente: null\n\n` +
+        `Mensagem: "${inputText}"\n\n` +
+        `Exemplos para "name": "pode chamar de João" → João | "campeche" → null | "meu nome é Ana" → Ana\n` +
+        `Exemplos para "email": "meu email é joao@gmail.com" → joao@gmail.com | "joao arroba gmail" → null\n` +
+        `Exemplos para "whatsapp": "48 9 9999-9999" → 48999999999 | "fala no 48 99999 9999" → 4899999 9999`
+
+      const resp = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 64,
+        temperature: 0,
+        messages: [{ role: 'user', content: extractionPrompt }],
+      })
+      const extracted = resp.choices[0].message.content?.trim() || 'null'
+      return new Response(
+        JSON.stringify({ extracted: extracted === 'null' ? null : extracted }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     // Build user content
     let userContent = message === '__init__' ? 'Olá, acessei a plataforma.' : message
     if (media_urls && media_urls.length > 0) {

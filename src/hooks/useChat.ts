@@ -30,6 +30,24 @@ function delay(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
 
+// ─── Mapa de chips da home → service_type pré-preenchido ─────────────────────
+const CHIP_TO_SERVICE: Record<string, string> = {
+  'pintar sala e quartos': 'Pintura interna',
+  'sala e quartos': 'Pintura interna',
+  'fachada externa': 'Fachada externa',
+  'fachada': 'Fachada externa',
+  'pintura pós-obra': 'Pós-obra',
+  'pós-obra': 'Pós-obra',
+  'pos-obra': 'Pós-obra',
+  'mural artístico': 'Arte / mural',
+  'mural': 'Arte / mural',
+  'parede com mofo': 'Pintura interna',
+  'enviar fotos': 'Pintura interna',
+}
+
+// Bairros conhecidos para fuzzy match em texto livre
+const KNOWN_NEIGHBORHOODS = ['Campeche', 'Rio Tavares', 'Armação', 'Morro das Pedras', 'Pântano do Sul', 'Costeira', 'Ribeirão da Ilha', 'Tapera']
+
 // ─── Chat flow state machine ──────────────────────────────────────────────────
 
 type ChatState =
@@ -138,7 +156,8 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
     type: 'quick_reply',
     quickReplies: ['Apartamento', 'Casa', 'Loja / Comércio', 'Airbnb / Temporada', 'Outro'],
     field: 'property_type',
-    next: 'service_type',
+    // Pular service_type se já foi pré-preenchido pelo chip da home
+    next: (_v: string, data: CollectedData) => data.service_type ? 'media_upload' : 'service_type',
   },
   service_type: {
     question: () => 'Que tipo de serviço você precisa?',
@@ -285,6 +304,53 @@ export function useChat() {
       },
     })
     return data as { message: string; quickReplies?: string[] }
+  }
+
+  // Extrair dados de linguagem natural via LLM (gpt-4o-mini, barato)
+  async function extractFieldWithLLM(field: string, text: string): Promise<string | null> {
+    try {
+      const { data } = await supabase.functions.invoke('agent-chat', {
+        body: {
+          session_id: sessionId.current,
+          message: text,
+          history: [],
+          metadata: metadataRef.current,
+          action: 'extract_field',
+          collected: { field, text },
+        },
+      })
+      const extracted = data?.extracted
+      return extracted && extracted !== 'null' ? extracted : null
+    } catch {
+      return null
+    }
+  }
+
+  // Salvar lead parcial quando email/WhatsApp é coletado (para follow-up de abandonados)
+  async function savePartialLead(data: CollectedData, currentStep: string) {
+    if (!data.email && !data.whatsapp) return
+    try {
+      const protocol = (dataRef.current as CollectedData & { _partialProtocol?: string })._partialProtocol ||
+        `PT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+      ;(dataRef.current as CollectedData & { _partialProtocol?: string })._partialProtocol = protocol
+
+      await supabase.from('leads').upsert({
+        name: data.name || 'Não informado',
+        email: data.email,
+        phone: data.whatsapp,
+        source: 'chat',
+        source_detail: 'web_chat',
+        stage: 'new',
+        protocol,
+        service_interest: data.service_type,
+        neighborhood: data.neighborhood,
+        tags: ['web_chat', 'partial'],
+        notes: JSON.stringify({ partial: true, step: currentStep }),
+        stage_updated_at: new Date().toISOString(),
+      }, { onConflict: 'protocol' })
+    } catch (err) {
+      console.warn('Partial lead save error:', err)
+    }
   }
 
   // Save session to DB (called early, updated as flow progresses)
@@ -501,29 +567,48 @@ export function useChat() {
 
     // ── INIT ─────────────────────────────────────────────────────────────────
     if (text === '__init__' || currentState === 'init') {
+      let prefilled: Partial<CollectedData> = {}
+
       if (text !== '__init__') {
-        // User typed something before being greeted — respond to it naturally first
-        setLoading(true)
-        try {
-          const res = await callEdgeFunction(text, [])
-          agentMessage(res.message, res.quickReplies)
+        const lower = text.toLowerCase()
+
+        // 1. Verificar se é um chip conhecido da home (pré-preenche service_type)
+        const matchedChip = Object.entries(CHIP_TO_SERVICE).find(([k]) => lower.includes(k))
+
+        if (matchedChip) {
+          // Chip conhecido — NÃO chamar LLM, saudar brevemente e pré-preencher
+          prefilled = { service_type: matchedChip[1] }
+          agentMessage(`Ótimo! Vou te ajudar com **${matchedChip[1]}** 🎨 Para começar, preciso de algumas informações rápidas.`)
           await delay(600)
-        } catch {
-          // Fallback if edge function fails
-          agentMessage('Que interessante! 😄 Para te ajudar, preciso de alguns dados básicos.')
-          await delay(600)
-        } finally {
-          setLoading(false)
+        } else {
+          // Input desconhecido — chamar LLM mas SEM repassar quickReplies
+          // (quickReplies do LLM conflitam com os botões do estado seguinte)
+          setLoading(true)
+          try {
+            const res = await callEdgeFunction(text, [])
+            agentMessage(res.message) // ⚠️ sem res.quickReplies — evita confusão com estado seguinte
+            await delay(600)
+          } catch {
+            agentMessage('Para te ajudar com seu projeto de pintura, preciso de algumas informações.')
+            await delay(600)
+          } finally {
+            setLoading(false)
+          }
         }
       }
 
-      // Save session start with metadata
-      saveSessionState('lead_name', {}).catch(console.error)
+      // Pré-preencher dados se chips foram reconhecidos
+      if (Object.keys(prefilled).length > 0) {
+        dataRef.current = { ...dataRef.current, ...prefilled }
+        setCollectedData(dataRef.current)
+      }
+
+      saveSessionState('lead_name', dataRef.current).catch(console.error)
 
       const initState: ChatState = 'lead_name'
       const step = FLOW[initState]!
       setCurrentState(initState)
-      agentMessage(step.question({}), undefined)
+      agentMessage(step.question({}), undefined) // apenas a pergunta, sem quickReplies do init
       return
     }
 
@@ -575,22 +660,57 @@ export function useChat() {
     if (step.type === 'text') {
       const validation = validateInput(currentState, text)
       if (!validation.ok) {
-        setLoading(true)
-        setTimeout(() => {
-          agentMessage(validation.hint || 'Não entendi. Pode tentar de novo?', undefined)
+        // Tentar extrair dado via LLM antes de rejeitar (para campos críticos)
+        const extractableFields = ['lead_name', 'lead_email', 'lead_whatsapp']
+        if (extractableFields.includes(currentState)) {
+          setLoading(true)
+          const extracted = await extractFieldWithLLM(step.field, text)
           setLoading(false)
-        }, 500)
+          if (extracted) {
+            const revalidation = validateInput(currentState, extracted)
+            if (revalidation.ok) {
+              const newData = { ...dataRef.current, [step.field]: extracted }
+              dataRef.current = newData
+              setCollectedData(newData)
+              const nextState = typeof step.next === 'function' ? step.next(extracted, newData) : step.next
+              // Salvar lead parcial após coletar WhatsApp
+              if (currentState === 'lead_whatsapp') savePartialLead(newData, nextState).catch(console.warn)
+              advanceToState(nextState, newData)
+              return
+            }
+          }
+        }
+        agentMessage(validation.hint || 'Não entendi. Pode tentar de novo?', undefined)
         return
       }
     }
 
-    // Para quick_reply: se o texto não bate com nenhuma opção, pede para usar os botões
+    // Para quick_reply: se o texto não bate com nenhuma opção, tentar entender contexto
     if (step.type === 'quick_reply' && step.quickReplies && text.trim()) {
       const normalized = text.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim()
       const isValid = step.quickReplies.some(qr =>
         normalized.includes(qr.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim().slice(0, 8))
       )
       if (!isValid) {
+        // Para neighborhood: aceitar texto livre que mencione um bairro conhecido
+        if (currentState === 'neighborhood') {
+          const match = KNOWN_NEIGHBORHOODS.find(b => normalized.includes(b.toLowerCase()))
+          if (match) {
+            const newData = { ...dataRef.current, neighborhood: match }
+            dataRef.current = newData
+            setCollectedData(newData)
+            advanceToState('property_type', newData)
+            return
+          }
+          // Texto livre genérico de bairro → aceitar como "Outro bairro"
+          if (normalized.length > 2 && !normalized.includes('?')) {
+            const newData = { ...dataRef.current, neighborhood: text.trim() }
+            dataRef.current = newData
+            setCollectedData(newData)
+            advanceToState('property_type', newData)
+            return
+          }
+        }
         setLoading(true)
         setTimeout(() => {
           agentMessage('Por favor, escolha uma das opções acima. 👆', step.quickReplies)
@@ -611,6 +731,11 @@ export function useChat() {
     setCollectedData(newData)
 
     const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
+
+    // Salvar lead parcial quando WhatsApp é coletado pelo fluxo normal
+    if (currentState === 'lead_whatsapp') {
+      savePartialLead(newData, nextState).catch(console.warn)
+    }
 
     setLoading(true)
     setTimeout(() => {
