@@ -251,7 +251,7 @@ function MobileVideoBackground() {
       >
         <video
           ref={videoRef}
-          src="/video_bkg_mobile_2.mp4"
+          src="/bkg_video_mobile.mp4"
           autoPlay
           muted
           playsInline
@@ -332,10 +332,10 @@ function SimpleLanding() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="text-center"
       >
-        <h1 className="font-extrabold text-gray-900 leading-tight tracking-tight"
-          style={{ fontSize: '2rem' }}>
+        <h1 className="font-extrabold text-white leading-tight tracking-tight"
+          style={{ fontSize: '2rem', textShadow: '0 2px 12px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.15)' }}>
           O pintor certo<br />para o seu{' '}
-          <span className="text-brand">espaço.</span>
+          <span className="text-white">espaço.</span>
         </h1>
         <p className="text-white/85 text-sm mt-2.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
           Descreva o que precisa pintar.
@@ -348,7 +348,7 @@ function SimpleLanding() {
         transition={{ duration: 0.6, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
         className="w-full rounded-3xl p-4"
         style={{
-          background: 'rgba(255,255,255,0.82)',
+          background: 'rgba(255,255,255,0.96)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           boxShadow: '0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9)',
@@ -391,7 +391,7 @@ function SimpleLanding() {
           <div className="flex-1 flex gap-1.5 overflow-x-auto scrollbar-hide">
             {MOBILE_CHIPS.map(c => (
               <button key={c} onClick={() => handleSend(c)}
-                className="shrink-0 text-xs px-2.5 py-1.5 rounded-full bg-orange-50 text-brand border border-brand/20 whitespace-nowrap cursor-pointer">
+                className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-gray-900 text-white font-medium whitespace-nowrap cursor-pointer hover:bg-brand transition-colors">
                 {c}
               </button>
             ))}
