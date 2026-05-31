@@ -33,8 +33,10 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
+  /* PWA root — nunca rola, AppShell gerencia todo o scroll internamente */
   #root {
-    @apply min-h-screen;
+    height: 100%;
+    overflow: hidden;
   }
 }
 
@@ -54,15 +56,17 @@
   50% { opacity: 0; }
 }
 
-/* Prevent horizontal scroll globally */
+/*
+ * PWA LOCK — html/body/root nunca rolam.
+ * Todo scroll acontece dentro do AppShell (overflow-y-auto controlado).
+ * overscroll-behavior: none elimina pull-to-refresh e bounce no iOS.
+ */
 html, body {
-  overflow-x: hidden;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+  touch-action: manipulation; /* elimina duplo-toque para zoom */
   max-width: 100vw;
-}
-
-/* PWA safe area */
-@supports (padding: env(safe-area-inset-bottom)) {
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
 }

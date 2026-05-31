@@ -423,13 +423,6 @@ function SimpleLanding() {
         </div>
       </motion.div>
 
-      <motion.p
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-        className="text-xs text-white/60"
-      >
-        🛡️ Grátis · orçamento em até 4h
-      </motion.p>
     </div>
   )
 }

@@ -139,6 +139,7 @@ export function ChatInterface() {
       {/* Messages — justify-end faz mensagens ficarem no fundo (padrão WhatsApp) */}
       <div
         className="flex-1 overflow-y-auto scrollbar-hide"
+        style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
