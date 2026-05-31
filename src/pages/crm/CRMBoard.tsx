@@ -34,6 +34,8 @@ interface Lead {
   notes?: string
   tags: string[]
   created_at: string
+  protocol?: string
+  service_request_id?: string
 }
 
 const STAGES = [
@@ -82,9 +84,21 @@ function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boole
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center text-white text-[10px] font-bold shrink-0">
               {lead.name[0]?.toUpperCase()}
             </div>
-            <p className="text-sm font-semibold text-gray-900 truncate">{lead.name}</p>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900 truncate">{lead.name}</p>
+              {lead.protocol && (
+                <p className="text-[9px] font-mono text-brand/60 leading-none">{lead.protocol}</p>
+              )}
+            </div>
           </div>
-          {SOURCE_ICONS[lead.source] || <Globe className="w-3 h-3 text-gray-400" />}
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {SOURCE_ICONS[lead.source] || <Globe className="w-3 h-3 text-gray-400" />}
+            {lead.service_request_id && (
+              <span className="text-[9px] bg-green-100 text-green-700 font-medium px-1 py-0.5 rounded leading-none">
+                Pedido ✓
+              </span>
+            )}
+          </div>
         </div>
 
         {lead.service_interest && (
