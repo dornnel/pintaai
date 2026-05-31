@@ -131,10 +131,15 @@ function FloatingCard({ children, className = '', mouseX, mouseY, factorX = 1, f
   const y = useSpring(useTransform(mouseY, [-300, 300], [-8 * factorY, 8 * factorY]), { stiffness: 80, damping: 20 })
 
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
+    <motion.div
+      initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
       transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       style={{ x, y, boxShadow: '0 4px 20px rgba(0,0,0,0.10)' }}
-      className={`absolute bg-white border border-gray-100 pointer-events-none select-none rounded ${className}`}>
+      drag
+      dragMomentum={false}
+      whileDrag={{ scale: 1.06, boxShadow: '0 16px 40px rgba(0,0,0,0.18)', zIndex: 50 }}
+      className={`absolute bg-white border border-gray-100 select-none rounded cursor-grab active:cursor-grabbing ${className}`}
+    >
       {children}
     </motion.div>
   )
@@ -422,7 +427,7 @@ function HeroChat() {
             whileTap={{ scale: 0.96 }}
             whileHover={{ borderColor: '#E35A1A', color: '#E35A1A' }}
             onClick={() => handleSend(label)}
-            className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-white border border-gray-100 text-left text-sm text-gray-700 font-medium transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-white border border-gray-100 text-left text-xs text-gray-600 font-medium transition-colors cursor-pointer"
             style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
           >
             <Icon className="w-4.5 h-4.5 text-brand shrink-0" style={{ width: 18, height: 18 }} />
@@ -699,10 +704,10 @@ export function LandingPage() {
               <HeroChat />
             </motion.div>
 
-            {/* Floating cards — positioned OUTSIDE chat widget boundaries */}
-            {/* Top-left: above the chat header */}
+            {/* Floating cards — arrastar para reposicionar */}
+            {/* Top-left: abaixo do header do chat (top-16) para não cobrir o avatar */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.9} factorY={0.6} delay={1.0}
-              className="top-0 -left-4 lg:-left-16 p-3 w-48 z-20">
+              className="top-16 -left-6 lg:-left-20 p-3 w-48 z-20">
               <div className="flex items-center gap-2 mb-1.5">
                 <div className="w-6 h-6 rounded bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">JK</div>
                 <div>
@@ -714,9 +719,9 @@ export function LandingPage() {
               <p className="text-gray-500 text-[10px] leading-relaxed">"Sem sensação de estar sendo enganado."</p>
             </FloatingCard>
 
-            {/* Bottom-left: below chat bottom edge, no overlap with input */}
+            {/* Bottom-left */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.8} delay={1.2}
-              className="-bottom-4 -left-4 lg:-left-16 p-3 w-40 z-20">
+              className="-bottom-6 -left-6 lg:-left-20 p-3 w-40 z-20">
               <div className="flex items-center gap-2">
                 <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
                 <div><p className="text-gray-900 text-xs font-semibold leading-none">Carlos M.</p><p className="text-gray-400 text-[9px]">87 jobs · Campeche</p></div>
@@ -728,18 +733,18 @@ export function LandingPage() {
               <div className="flex items-center gap-1 mt-1"><ShieldCheck className="w-2.5 h-2.5 text-brand" /><span className="text-brand text-[9px] font-bold">Verificado</span></div>
             </FloatingCard>
 
-            {/* Top-right: above chat, right side */}
+            {/* Top-right — abaixo do header */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={-0.8} factorY={1.0} delay={1.4}
-              className="top-0 -right-2 lg:-right-8 p-2.5 w-36 z-20">
+              className="top-16 -right-4 lg:-right-12 p-2.5 w-36 z-20">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-orange-100 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 text-brand" /></div>
                 <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Briefing por IA</p><p className="text-gray-400 text-[9px]">gerado agora</p></div>
               </div>
             </FloatingCard>
 
-            {/* Bottom-right: below input, right side */}
+            {/* Bottom-right */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.9} delay={1.6}
-              className="-bottom-4 -right-2 lg:-right-8 p-2.5 w-44 z-20">
+              className="-bottom-6 -right-4 lg:-right-12 p-2.5 w-44 z-20">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0"><CreditCard className="w-3 h-3 text-emerald-600" /></div>
                 <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Pagamento seguro</p><p className="text-gray-400 text-[9px]">retido até conclusão</p></div>
