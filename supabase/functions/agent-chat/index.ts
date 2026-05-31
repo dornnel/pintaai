@@ -1,14 +1,14 @@
-import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3'
+import OpenAI from 'npm:openai@4'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
+const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY')! })
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   { db: { schema: 'pintae' } },
 )
 
-const SYSTEM_PROMPT = `Você é o assistente da Pintaê Floripa no chat web.
+const SYSTEM_PROMPT = `Você é o Koke, assistente da Pintaê Floripa no chat web e WhatsApp.
 
 Tom: Prático, simpático, local e objetivo. Evite mensagens longas. Use markdown mínimo (**negrito** apenas quando importante).
 
@@ -28,13 +28,11 @@ Para CLIENTES — colete nesta ordem:
 5. Prazo desejado (quick_replies: O mais rápido possível, 2 semanas, Próximo mês, Sem pressa)
 6. Material incluso ou não (quick_replies: Quero com material, Vou comprar o material, Pintor que indique)
 
-Quando tiver bairro + tipo imóvel + estado da parede, gere o briefing (action: "generate_briefing").
-
 Para PINTORES — colete: nome, bairros atendidos, especialidades, experiência, disponibilidade.
 
 Regras:
 - Faça UMA pergunta por vez quando possível.
-- Use quick_replies para acelerar (máx 4 opções).
+- Use quick_replies para acelerar (máx 6 opções).
 - Nunca prometa preço final. A estimativa é orientativa.
 - Se detectar urgência, registre.
 - Se o usuário mandar foto, agradeça e continue coletando.
@@ -77,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const body = (await req.json()) as RequestBody
     const { session_id, message, history, media_urls, metadata, action, collected } = body
 
-    // Persist conversation session start (async, fire-and-forget)
+    // Persist conversation session (async, fire-and-forget)
     supabase.from('conversation_sessions').upsert({
       session_id,
       user_identifier: session_id,
@@ -87,16 +85,7 @@ Deno.serve(async (req: Request) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'session_id' }).then(() => {}).catch(console.error)
 
-    // Build user content
-    let userContent: string = message === '__init__'
-      ? 'Olá, acessei a plataforma.'
-      : message
-
-    if (media_urls && media_urls.length > 0) {
-      userContent += `\n[Usuário enviou ${media_urls.length} imagem(ns): ${media_urls.join(', ')}]`
-    }
-
-    // If explicit briefing generation action, skip conversation and generate directly
+    // If explicit briefing generation, skip conversation
     if (action === 'generate_briefing' && collected) {
       const briefingData = await generateBriefing(collected, history, media_urls)
       return new Response(
@@ -105,23 +94,28 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Build messages array from history
-    const messages: Anthropic.MessageParam[] = [
-      ...history.slice(-10).map((h) => ({
-        role: (h.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-        content: h.content,
-      })),
-      { role: 'user', content: userContent },
-    ]
+    // Build user content
+    let userContent = message === '__init__' ? 'Olá, acessei a plataforma.' : message
+    if (media_urls && media_urls.length > 0) {
+      userContent += `\n[Usuário enviou ${media_urls.length} imagem(ns): ${media_urls.join(', ')}]`
+    }
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+    // Call GPT-4o
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages,
+      temperature: 0.7,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...history.slice(-10).map((h) => ({
+          role: (h.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: h.content,
+        })),
+        { role: 'user', content: userContent },
+      ],
     })
 
-    const rawText = (response.content[0] as { text: string }).text.trim()
+    const rawText = response.choices[0].message.content?.trim() || ''
 
     let parsed: {
       message: string
@@ -137,23 +131,23 @@ Deno.serve(async (req: Request) => {
       parsed = { message: rawText, quick_replies: null, action: null }
     }
 
-    // If briefing action, call the briefing generator
+    // If briefing action triggered by AI
     let briefingData = null
     if (parsed.action === 'generate_briefing' && parsed.collected) {
       briefingData = await generateBriefing(parsed.collected, history, media_urls)
     }
 
-    // Save message log (async, fire-and-forget)
+    // Save message log (async)
     supabase.from('messages').insert({
       session_id,
       channel: 'web',
       direction: 'inbound',
       body: userContent,
       ai_intent: parsed.action || 'chat',
-      metadata: { parsed_response: parsed.message, metadata: metadata || {}, browser: metadata || {} },
+      metadata: { parsed_response: parsed.message, browser: metadata || {} },
     }).then(() => {}).catch(console.error)
 
-    // Moderation check (async, don't block response)
+    // Moderation (async, non-blocking)
     moderateMessage(session_id, userContent).catch(console.error)
 
     return new Response(
@@ -166,7 +160,7 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
-    console.error(err)
+    console.error('agent-chat error:', err)
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -207,13 +201,13 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
   "observacoes_para_pintor": "..."
 }`
 
-  const resp = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o',
     max_tokens: 1024,
     messages: [{ role: 'user', content: briefingPrompt }],
   })
 
-  const text = (resp.content[0] as { text: string }).text
+  const text = resp.choices[0].message.content || ''
   const match = text.match(/\{[\s\S]*\}/)
   return match ? JSON.parse(match[0]) : null
 }
@@ -221,25 +215,20 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
 async function moderateMessage(sessionId: string, message: string): Promise<void> {
   if (message === '__init__' || message.length < 5) return
 
-  const resp = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
     max_tokens: 256,
     messages: [{
       role: 'user',
       content: `Analise esta mensagem de uma plataforma de serviços. Responda APENAS com JSON:
 Mensagem: "${message}"
-{
-  "has_flag": false,
-  "flag_type": null,
-  "severity": null,
-  "explanation": ""
-}
+{"has_flag": false, "flag_type": null, "severity": null, "explanation": ""}
 Tipos: "offensive" | "bypass_attempt" | "ethics_violation" | "spam"
 Severidades: "low" | "medium" | "high"`,
     }],
   })
 
-  const text = (resp.content[0] as { text: string }).text
+  const text = resp.choices[0].message.content || ''
   const match = text.match(/\{[\s\S]*\}/)
   if (!match) return
 

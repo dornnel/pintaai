@@ -23,9 +23,9 @@ interface AgentConfig {
 }
 
 const MODELS = [
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Recomendado)' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (Rápido, baixo custo)' },
-  { value: 'claude-opus-4-8', label: 'Claude Opus 4.8 (Máxima qualidade)' },
+  { value: 'gpt-4o', label: 'GPT-4o (Recomendado)' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Rápido, baixo custo)' },
+  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo (Alta qualidade)' },
 ]
 
 const AVAILABLE_TOOLS = [

@@ -176,15 +176,23 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
   confirmation: {
     question: (d) =>
       `**Resumo do pedido:**\n\n` +
-      `👤 ${d.name}\n📧 ${d.email}\n📱 ${d.whatsapp}\n` +
+      `👤 ${d.name}\n` +
+      `📧 ${d.email}\n` +
+      `📱 ${d.whatsapp}\n` +
       `📍 ${d.neighborhood} · ${d.property_type}\n` +
-      `🎨 ${d.service_type} · Paredes: ${d.wall_condition}\n` +
-      `⏱ ${d.deadline} · Material: ${d.material}\n\n` +
+      `🎨 ${d.service_type}\n` +
+      `🧱 Paredes: ${d.wall_condition}\n` +
+      `⏱ Prazo: ${d.deadline}\n` +
+      `🪣 Material: ${d.material}\n\n` +
       `Ao confirmar, você declara que as informações são verídicas e concorda com nossa Política de Privacidade (LGPD). **Podemos enviar para os pintores?**`,
     type: 'quick_reply',
     quickReplies: ['✅ Confirmar e enviar', '✏️ Corrigir algum dado'],
     field: 'confirmed',
-    next: (v) => (v.includes('Confirmar') ? 'generating_briefing' : 'lead_name'),
+    next: (v) => {
+      if (v.includes('Confirmar')) return 'generating_briefing'
+      if (v.includes('Corrigir')) return 'lead_name'
+      return 'confirmation' // texto livre → permanece na confirmação
+    },
   },
   // ── PAINTER FLOW ─────────────────────────────────────────────────────────────
   painter_neighborhoods: {
@@ -310,12 +318,14 @@ export function useChat() {
   }
 
   async function generateBriefing(data: CollectedData) {
-    agentMessage('Gerando seu **briefing técnico**...', undefined)
+    agentMessage('Processando seu pedido...', undefined)
     setLoading(true)
 
-    try {
-      let briefingData: BriefingData | null = null
+    // SALVA NO DB PRIMEIRO — independente de a AI funcionar
+    const protocol = await saveToDatabase(data, 'client')
 
+    let briefingData: BriefingData | null = null
+    try {
       const { data: fnData } = await supabase.functions.invoke('agent-chat', {
         body: {
           session_id: sessionId.current,
@@ -327,42 +337,38 @@ export function useChat() {
           metadata: metadataRef.current,
         },
       })
-
-      if (fnData?.briefing) {
-        briefingData = fnData.briefing as BriefingData
-      } else {
-        briefingData = {
-          resumo_cliente: `Pintura ${data.service_type?.toLowerCase()} em ${data.property_type?.toLowerCase()} no ${data.neighborhood}.`,
-          briefing_tecnico: `Serviço: ${data.service_type}. Local: ${data.property_type} no ${data.neighborhood}. Estado das paredes: ${data.wall_condition}. Prazo: ${data.deadline}. Material: ${data.material}.`,
-          tipo_servico: data.service_type || 'residential',
-          superficies: ['paredes internas'],
-          estado_parede: data.wall_condition || 'unknown',
-          metragem_estimada_m2: undefined,
-          confianca_metragem: 'baixa',
-          preco_min_estimado: undefined,
-          preco_max_estimado: undefined,
-          confianca_preco: 'baixa',
-          materiais_recomendados: [],
-          perguntas_faltantes: [],
-          riscos: [],
-          observacoes_para_pintor: `Prazo: ${data.deadline}. Material ${data.material?.toLowerCase()}.`,
-        }
-      }
-
-      const protocol = await saveToDatabase(data, 'client')
-
-      setCurrentState('briefing_ready')
-      agentMessage(
-        `✅ **Pedido enviado com sucesso!**\n\nProtocolo: **${protocol}**\n\nSeu pedido foi encaminhado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vamos te notificar pelo WhatsApp **${data.whatsapp}** assim que chegar.`,
-        undefined,
-        { briefing: briefingData ?? undefined },
-      )
+      if (fnData?.briefing) briefingData = fnData.briefing as BriefingData
     } catch (err) {
-      console.error(err)
-      agentMessage('Houve um problema ao gerar o briefing. Tente novamente em instantes.', ['Tentar novamente'])
-    } finally {
-      setLoading(false)
+      console.warn('Briefing AI indisponível, usando fallback local:', err)
     }
+
+    // Fallback local se AI falhou
+    if (!briefingData) {
+      briefingData = {
+        resumo_cliente: `Pintura ${data.service_type?.toLowerCase()} em ${data.property_type?.toLowerCase()} no ${data.neighborhood}.`,
+        briefing_tecnico: `Serviço: ${data.service_type}. Local: ${data.property_type} no ${data.neighborhood}. Estado das paredes: ${data.wall_condition}. Prazo: ${data.deadline}. Material: ${data.material}.`,
+        tipo_servico: data.service_type || 'residential',
+        superficies: ['paredes internas'],
+        estado_parede: data.wall_condition || 'unknown',
+        metragem_estimada_m2: undefined,
+        confianca_metragem: 'baixa',
+        preco_min_estimado: undefined,
+        preco_max_estimado: undefined,
+        confianca_preco: 'baixa',
+        materiais_recomendados: [],
+        perguntas_faltantes: [],
+        riscos: [],
+        observacoes_para_pintor: `Prazo: ${data.deadline}. Material ${data.material?.toLowerCase()}.`,
+      }
+    }
+
+    setCurrentState('briefing_ready')
+    agentMessage(
+      `✅ **Pedido enviado com sucesso!**\n\nProtocolo: **${protocol}**\n\nSeu pedido foi encaminhado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vamos te notificar pelo WhatsApp **${data.whatsapp}** assim que chegar.`,
+      undefined,
+      { briefing: briefingData },
+    )
+    setLoading(false)
   }
 
   async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<string> {
@@ -483,7 +489,12 @@ export function useChat() {
       setCollectedData(newData)
 
       const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
-      agentMessage('Recebido! 📎', undefined)
+      // Mostrar thumbnails das imagens enviadas na mensagem do agente
+      if (mediaUrls.length > 0) {
+        agentMessage(`Recebido! 📸 ${mediaUrls.length} ${mediaUrls.length === 1 ? 'imagem recebida' : 'imagens recebidas'}.`)
+      } else {
+        agentMessage('Ok, vou prosseguir sem fotos.')
+      }
       setTimeout(() => advanceToState(nextState, newData), 600)
       return
     }
@@ -497,6 +508,22 @@ export function useChat() {
           agentMessage(validation.hint || 'Não entendi. Pode tentar de novo?', undefined)
           setLoading(false)
         }, 500)
+        return
+      }
+    }
+
+    // Para quick_reply: se o texto não bate com nenhuma opção, pede para usar os botões
+    if (step.type === 'quick_reply' && step.quickReplies && text.trim()) {
+      const normalized = text.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim()
+      const isValid = step.quickReplies.some(qr =>
+        normalized.includes(qr.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim().slice(0, 8))
+      )
+      if (!isValid) {
+        setLoading(true)
+        setTimeout(() => {
+          agentMessage('Por favor, escolha uma das opções acima. 👆', step.quickReplies)
+          setLoading(false)
+        }, 300)
         return
       }
     }
