@@ -38,8 +38,12 @@ export function ChatInterface() {
     setTimeout(() => sendMessage(q ? q : '__init__'), 300)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Só rola para baixo quando há mensagens reais visíveis (não no __init__ vazio)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const hasVisible = messages.some(m => m.content !== '__init__')
+    if (hasVisible || loading) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, loading])
 
   function handleSend() {
