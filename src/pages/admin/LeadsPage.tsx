@@ -578,14 +578,6 @@ export function LeadsPage() {
                   </div>
                 </div>
 
-                {/* Expanded detail */}
-                <AnimatePresence>
-                  {expanded === lead.id && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                      <LeadDetail lead={lead} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             )
           })}
