@@ -344,29 +344,10 @@ function SimpleLanding() {
         </p>
       </motion.div>
 
-      {/* Avatar de atendimento + saudação acima do card */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="w-full flex items-end gap-2.5"
-      >
-        <img src="/avatar_koke.jpeg" alt="Koke"
-          className="w-9 h-9 rounded-full object-cover shrink-0 shadow-md" />
-        <div className="rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm text-gray-800 max-w-[85%]"
-          style={{
-            background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-          }}>
-          Olá! Eu sou o Koke 👋 Me conta o que precisa pintar.
-        </div>
-      </motion.div>
-
-      {/* Glass input card */}
+      {/* Glass input card — avatar e saudação dentro do card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
         className="w-full rounded-3xl p-3.5"
         style={{
           background: 'rgba(255,255,255,0.96)',
@@ -376,6 +357,23 @@ function SimpleLanding() {
           border: '1px solid rgba(255,255,255,0.6)',
         }}
       >
+        {/* Avatar + saudação dentro do card */}
+        <div className="flex items-center gap-2.5 mb-3">
+          <img src="/avatar_koke.jpeg" alt="Koke"
+            className="w-8 h-8 rounded-full object-cover shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs font-semibold text-gray-900 leading-none">Koke</p>
+            <p className="text-xs text-gray-500 mt-0.5">Olá! Me conta o que precisa pintar 👋</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-[10px] text-emerald-600 font-medium">Online</span>
+          </div>
+        </div>
+
+        {/* Divisor */}
+        <div className="h-px bg-gray-100 mb-3" />
+
         {/* Input limpo: texto + ícone dinâmico (lupa→seta ao digitar) */}
         <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-3 py-2.5 mb-3">
           <div className="flex-1 relative">

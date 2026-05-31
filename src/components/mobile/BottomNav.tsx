@@ -57,15 +57,17 @@ export function BottomNav() {
                 >
                   <motion.div
                     whileTap={{ scale: 0.88 }}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{
+                    className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200"
+                    style={active ? {
                       background: 'linear-gradient(135deg, #FF8C42, #E35A1A)',
                       boxShadow: '0 2px 10px rgba(227,90,26,0.4)',
+                    } : {
+                      background: 'rgba(0,0,0,0.06)',
                     }}
                   >
-                    <Icon className="w-5 h-5 text-white" />
+                    <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-500'}`} />
                   </motion.div>
-                  <span className="text-[10px] font-bold text-brand leading-none">Chat</span>
+                  <span className={`text-[10px] font-bold leading-none ${active ? 'text-brand' : 'text-gray-400'}`}>Chat</span>
                 </NavLink>
               )
             }
