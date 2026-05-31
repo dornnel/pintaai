@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
-  Send, Paperclip, ArrowRight, CheckCircle, Star,
+  Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
   Home, Building2, Droplets, ImagePlus,
 } from 'lucide-react'
@@ -332,10 +332,12 @@ function SimpleLanding() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="text-center"
       >
-        <h1 className="font-extrabold text-white leading-tight tracking-tight"
-          style={{ fontSize: '2rem', textShadow: '0 2px 12px rgba(0,0,0,0.22), 0 1px 3px rgba(0,0,0,0.15)' }}>
-          O pintor certo<br />para o seu{' '}
-          <span className="text-white">espaço.</span>
+        <h1 className="font-extrabold leading-tight tracking-tight"
+          style={{ fontSize: '2rem' }}>
+          <span className="text-gray-900" style={{ textShadow: '0 1px 8px rgba(255,255,255,0.6)' }}>
+            O pintor certo<br />para o seu{' '}
+          </span>
+          <span className="text-white" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>espaço.</span>
         </h1>
         <p className="text-white/85 text-sm mt-2.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
           Descreva o que precisa pintar.
@@ -355,35 +357,32 @@ function SimpleLanding() {
           border: '1px solid rgba(255,255,255,0.6)',
         }}
       >
-        {/* Avatar + input com typewriter */}
-        <div className="flex items-start gap-3 mb-3">
+        {/* Input com borda cinza fina, avatar, placeholder typewriter e ícone search */}
+        <div className="flex items-center gap-2.5 border border-gray-200 rounded-2xl px-3 py-2.5 mb-3">
           <img src="/avatar_koke.jpeg" alt="Koke"
-            className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" />
+            className="w-7 h-7 rounded-full object-cover shrink-0" />
 
-          <div className="flex-1 relative min-h-[48px]">
-            {/* Typewriter placeholder — visível quando vazio e sem foco */}
+          <div className="flex-1 relative">
             {showPlaceholder && (
-              <div className="absolute inset-0 pointer-events-none select-none leading-relaxed text-sm"
-                style={{ paddingTop: 1 }}>
-                <span className="text-gray-400">Quero pintar </span>
-                <span className="text-gray-600">{typeText}</span>
-                {/* Cursor piscante */}
-                <span className="inline-block w-px h-3.5 bg-brand ml-px align-middle"
+              <div className="absolute inset-0 flex items-center pointer-events-none select-none">
+                <span className="text-gray-400 text-sm">Quero pintar </span>
+                <span className="text-gray-600 text-sm">{typeText}</span>
+                <span className="inline-block w-px h-3.5 bg-brand ml-px"
                   style={{ animation: 'blink 1s step-end infinite' }} />
               </div>
             )}
-
-            <textarea
+            <input
+              type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-              rows={2}
-              className="w-full bg-transparent text-sm text-gray-800 outline-none resize-none leading-relaxed"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSend() } }}
+              className="w-full bg-transparent text-sm text-gray-800 outline-none"
               style={{ caretColor: '#E35A1A' }}
             />
           </div>
+          <Search className="w-4 h-4 text-gray-300 shrink-0" />
         </div>
 
         {/* Chips horizontais + Send */}
@@ -391,7 +390,7 @@ function SimpleLanding() {
           <div className="flex-1 flex gap-1.5 overflow-x-auto scrollbar-hide">
             {MOBILE_CHIPS.map(c => (
               <button key={c} onClick={() => handleSend(c)}
-                className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-gray-900 text-white font-medium whitespace-nowrap cursor-pointer hover:bg-brand transition-colors">
+                className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-gray-900 text-white font-medium whitespace-nowrap cursor-pointer hover:bg-brand transition-colors">
                 {c}
               </button>
             ))}
@@ -400,7 +399,7 @@ function SimpleLanding() {
             whileTap={{ scale: 0.9 }}
             onClick={() => handleSend()}
             disabled={!input.trim()}
-            className="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-40"
+            className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-40"
           >
             <Send className="w-4 h-4" />
           </motion.button>
