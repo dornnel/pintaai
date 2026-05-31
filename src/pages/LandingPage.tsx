@@ -325,7 +325,7 @@ function SimpleLanding() {
   const showPlaceholder = !input && !focused
 
   return (
-    <div className="h-full flex flex-col items-center justify-center px-5 gap-7">
+    <div className="h-full flex flex-col items-center justify-center px-5 gap-5">
       {/* Title */}
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -339,16 +339,35 @@ function SimpleLanding() {
           </span>
           <span className="text-white" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>espaço.</span>
         </h1>
-        <p className="text-white/85 text-sm mt-2.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+        <p className="text-white/85 text-sm mt-2 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
           Descreva o que precisa pintar.
         </p>
+      </motion.div>
+
+      {/* Avatar de atendimento + saudação acima do card */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="w-full flex items-end gap-2.5"
+      >
+        <img src="/avatar_koke.jpeg" alt="Koke"
+          className="w-9 h-9 rounded-full object-cover shrink-0 shadow-md" />
+        <div className="rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm text-gray-800 max-w-[85%]"
+          style={{
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+          }}>
+          Olá! Eu sou o Koke 👋 Me conta o que precisa pintar.
+        </div>
       </motion.div>
 
       {/* Glass input card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full rounded-3xl p-4"
+        transition={{ duration: 0.6, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full rounded-3xl p-3.5"
         style={{
           background: 'rgba(255,255,255,0.96)',
           backdropFilter: 'blur(20px)',
@@ -357,11 +376,8 @@ function SimpleLanding() {
           border: '1px solid rgba(255,255,255,0.6)',
         }}
       >
-        {/* Input com borda cinza fina, avatar, placeholder typewriter e ícone search */}
-        <div className="flex items-center gap-2.5 border border-gray-200 rounded-2xl px-3 py-2.5 mb-3">
-          <img src="/avatar_koke.jpeg" alt="Koke"
-            className="w-7 h-7 rounded-full object-cover shrink-0" />
-
+        {/* Input limpo: texto + ícone dinâmico (lupa→seta ao digitar) */}
+        <div className="flex items-center gap-2 border border-gray-200 rounded-2xl px-3 py-2.5 mb-3">
           <div className="flex-1 relative">
             {showPlaceholder && (
               <div className="absolute inset-0 flex items-center pointer-events-none select-none">
@@ -382,34 +398,35 @@ function SimpleLanding() {
               style={{ caretColor: '#E35A1A' }}
             />
           </div>
-          <Search className="w-4 h-4 text-gray-300 shrink-0" />
+          {/* Ícone dinâmico: lupa quando vazio, seta laranja ao digitar */}
+          {input.trim() ? (
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              onClick={() => handleSend()}
+              className="w-7 h-7 rounded-lg bg-brand text-white flex items-center justify-center shrink-0 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </motion.button>
+          ) : (
+            <Search className="w-4 h-4 text-gray-300 shrink-0" />
+          )}
         </div>
 
-        {/* Chips horizontais + Send */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex gap-1.5 overflow-x-auto scrollbar-hide">
-            {MOBILE_CHIPS.map(c => (
-              <button key={c} onClick={() => handleSend(c)}
-                className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-gray-900 text-white font-medium whitespace-nowrap cursor-pointer hover:bg-brand transition-colors">
-                {c}
-              </button>
-            ))}
-          </div>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleSend()}
-            disabled={!input.trim()}
-            className="w-8 h-8 rounded-xl bg-brand text-white flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-40"
-          >
-            <Send className="w-4 h-4" />
-          </motion.button>
+        {/* Chips — sem botão de envio separado */}
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+          {MOBILE_CHIPS.map(c => (
+            <button key={c} onClick={() => handleSend(c)}
+              className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-gray-900 text-white font-medium whitespace-nowrap cursor-pointer hover:bg-brand transition-colors">
+              {c}
+            </button>
+          ))}
         </div>
       </motion.div>
 
       <motion.p
         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
         transition={{ delay: 0.4 }}
-        className="text-xs text-gray-400"
+        className="text-xs text-white/60"
       >
         🛡️ Grátis · orçamento em até 4h
       </motion.p>
