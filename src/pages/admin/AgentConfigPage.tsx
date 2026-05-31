@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import {
   Save, Bot, Zap, FileText, TestTube, Loader2, CheckCircle,
-  Plus, Trash2, Upload, MessageSquare, Copy, Check,
+  Plus, Trash2, Upload, MessageSquare, Copy, Check, HelpCircle,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { ConversationSession } from '../../lib/types'
@@ -58,7 +58,8 @@ export function AgentConfigPage() {
   const [testOutput, setTestOutput] = useState('')
   const [testing, setTesting] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'conversations' | 'test'>('prompt')
+  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'faq' | 'conversations' | 'test'>('prompt')
+  const [faqItems, setFaqItems] = useState<{ question: string; answer: string }[]>([])
   const [conversations, setConversations] = useState<ConversationSession[]>([])
   const [convLoading, setConvLoading] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
@@ -182,6 +183,7 @@ export function AgentConfigPage() {
     { id: 'prompt', icon: Bot, label: 'Prompt' },
     { id: 'tools', icon: Zap, label: 'Tools & Skills' },
     { id: 'rag', icon: FileText, label: 'RAG / Docs' },
+    { id: 'faq', icon: HelpCircle, label: 'FAQ' },
     { id: 'conversations', icon: MessageSquare, label: 'Conversas' },
     { id: 'test', icon: TestTube, label: 'Testar' },
   ] as const
@@ -425,6 +427,81 @@ export function AgentConfigPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* FAQ tab */}
+      {activeTab === 'faq' && (
+        <div className="space-y-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-700">Base de Conhecimento — FAQ</p>
+              <p className="text-xs text-gray-500 mt-0.5">Perguntas e respostas que o agente deve saber. Exemplos: ambiente ocupado, acesso, chuva, atrasos, garantias.</p>
+            </div>
+            <button
+              onClick={() => setFaqItems(prev => [...prev, { question: '', answer: '' }])}
+              className="flex items-center gap-1.5 text-sm text-brand font-medium cursor-pointer hover:text-brand-dark"
+            >
+              <Plus className="w-4 h-4" /> Adicionar
+            </button>
+          </div>
+
+          {faqItems.length === 0 && (
+            <div className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center">
+              <HelpCircle className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">Nenhuma pergunta ainda.</p>
+              <p className="text-xs text-gray-300 mt-1">Adicione Q&A frequentes para o Koke responder com precisão.</p>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {faqItems.map((item, i) => (
+              <div key={i} className="border border-gray-200 rounded-2xl p-4 bg-white space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pergunta {i + 1}</span>
+                  <button onClick={() => setFaqItems(prev => prev.filter((_, idx) => idx !== i))}
+                    className="text-red-400 hover:text-red-600 cursor-pointer">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <input
+                  value={item.question}
+                  onChange={e => setFaqItems(prev => prev.map((it, idx) => idx === i ? { ...it, question: e.target.value } : it))}
+                  placeholder="Ex: O ambiente precisa estar vazio?"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand"
+                />
+                <textarea
+                  value={item.answer}
+                  onChange={e => setFaqItems(prev => prev.map((it, idx) => idx === i ? { ...it, answer: e.target.value } : it))}
+                  placeholder="Ex: Não é necessário esvaziar completamente, mas móveis devem ser afastados das paredes..."
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand resize-none"
+                />
+              </div>
+            ))}
+          </div>
+
+          {faqItems.length > 0 && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  if (!config) return
+                  const faqDocs = faqItems
+                    .filter(f => f.question.trim() && f.answer.trim())
+                    .map((f, i) => ({ name: `FAQ: ${f.question}`, url: `faq://${i}`, _content: f.answer }))
+                  const nonFaq = config.rag_documents.filter(d => !d.url.startsWith('faq://'))
+                  setConfig({ ...config, rag_documents: [...nonFaq, ...faqDocs] })
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer hover:bg-brand-dark"
+              >
+                <Save className="w-4 h-4" /> Salvar FAQ no RAG
+              </button>
+            </div>
+          )}
+
+          <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+            <p className="text-xs text-gray-600"><strong>Dica:</strong> O Koke usa estes FAQs para responder perguntas sobre: ambiente ocupado, cobertura de chuva, atrasos, revisitas, garantia de serviço, materiais, prazos, forma de pagamento, etc.</p>
+          </div>
         </div>
       )}
 

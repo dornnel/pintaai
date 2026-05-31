@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Upload, Paintbrush, ArrowLeft, Sliders, History,
-  Sparkles, Check, ArrowRight, LogIn, Image as ImageIcon,
+  Sparkles, Check, ArrowRight, LogIn, Image as ImageIcon, Trash2,
 } from 'lucide-react'
 import { ColorWheel, PAINT_PRESETS, PANTONE_COLORS } from '../components/color/ColorWheel'
 import { WallCanvas, type WallCanvasRef } from '../components/color/WallCanvas'
@@ -230,7 +230,33 @@ export function ColorVisualizerPage() {
                 </div>
               </motion.div>
             ) : (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+                {/* Tolerance slider + delete button — ACIMA da imagem, sempre visíveis */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-3 flex items-center gap-3">
+                  <Sliders className="w-4 h-4 text-brand shrink-0" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-700">Tolerância</span>
+                      <span className="text-xs text-gray-400 font-mono">{tolerance}</span>
+                    </div>
+                    <input type="range" min="10" max="100" value={tolerance}
+                      onChange={e => setTolerance(Number(e.target.value))}
+                      className="w-full accent-brand h-1.5" />
+                    <div className="flex justify-between text-[10px] text-gray-300">
+                      <span>Preciso</span><span>Amplo</span>
+                    </div>
+                  </div>
+                  {/* Botão lixeira — apaga a imagem */}
+                  <button
+                    onClick={() => { setImageUrl(''); setImageName(''); setAppliedColors([]); setSaved(false) }}
+                    className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 px-2.5 py-1.5 rounded-xl border border-red-200 hover:bg-red-50 cursor-pointer transition-colors shrink-0"
+                    title="Remover imagem"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Remover</span>
+                  </button>
+                </div>
+
                 <WallCanvas
                   ref={canvasRef}
                   imageUrl={imageUrl}
@@ -238,31 +264,6 @@ export function ColorVisualizerPage() {
                   tolerance={tolerance}
                   onSave={handleSave}
                 />
-              </motion.div>
-            )}
-
-            {/* Tolerance slider */}
-            {imageUrl && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl border border-gray-100 p-4">
-                <div className="flex items-center gap-3">
-                  <Sliders className="w-4 h-4 text-brand shrink-0" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-700">Tolerância da seleção</span>
-                      <span className="text-xs text-gray-400">{tolerance}</span>
-                    </div>
-                    <input type="range" min="10" max="100" value={tolerance}
-                      onChange={e => setTolerance(Number(e.target.value))}
-                      className="w-full accent-brand" />
-                    <div className="flex justify-between text-[10px] text-gray-300 mt-0.5">
-                      <span>Preciso</span><span>Amplo</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Baixa tolerância = seleciona apenas pixels muito similares. Alta = preenche área maior.
-                </p>
               </motion.div>
             )}
 
