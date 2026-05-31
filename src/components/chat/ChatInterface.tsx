@@ -136,7 +136,7 @@ export function ChatInterface() {
         </div>
       </header>
 
-      {/* Messages — justify-end faz mensagens ficarem no fundo (padrão WhatsApp) */}
+      {/* Messages */}
       <div
         className="flex-1 overflow-y-auto scrollbar-hide"
         style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
@@ -144,6 +144,44 @@ export function ChatInterface() {
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
       >
+        {/* Empty state — coerente com a home, como se o card tivesse expandido */}
+        {visibleMessages.length === 0 && !loading && (
+          <div className="flex flex-col items-center justify-center h-full px-5 gap-5">
+            <div className="w-full rounded-3xl p-4 max-w-md"
+              style={{
+                background: 'rgba(255,255,255,0.92)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.07)',
+                border: '1px solid rgba(255,255,255,0.7)',
+              }}>
+              {/* Mini header Koke */}
+              <div className="flex items-center gap-2.5 mb-3">
+                <img src="/avatar_koke.jpeg" alt="Koke" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-gray-900">Koke</p>
+                  <p className="text-xs text-gray-500">Para continuarmos, me diz o seu nome por favor! 😊</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                  <span className="text-[10px] text-emerald-600 font-medium">Online</span>
+                </div>
+              </div>
+              <div className="h-px bg-gray-100 mb-3" />
+              {/* Chips de contexto */}
+              <p className="text-xs text-gray-400 mb-2">Começar por:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {['Quero um orçamento', 'Quanto custa pintar?', 'Sou pintor', 'Como funciona?'].map(s => (
+                  <button key={s} onClick={() => sendMessage(s)}
+                    className="text-[11px] px-2.5 py-1 rounded-full bg-gray-900 text-white font-medium cursor-pointer hover:bg-brand transition-colors">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col justify-end min-h-full px-4 py-4 gap-4">
           {visibleMessages.map((msg) => (
             <MessageBubble

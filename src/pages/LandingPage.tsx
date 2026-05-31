@@ -918,7 +918,7 @@ export function LandingPage() {
       </section>
 
       {/* ── Service types — desktop only ── */}
-      <section className="hidden lg:block py-24 px-4 bg-white">
+      <section className="py-24 px-4 bg-white">
         <div className="max-w-5xl mx-auto">
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -1025,13 +1025,13 @@ export function LandingPage() {
       </section>
 
       {/* ── Payment / Security — desktop only ── */}
-      <div className="hidden lg:block"><HowPaymentWorks /></div>
+      <HowPaymentWorks />
 
-      {/* ── Reviews marquee — desktop only ── */}
-      <div className="hidden lg:block"><ReviewMarquee /></div>
+      {/* ── Reviews marquee ── */}
+      <ReviewMarquee />
 
-      {/* ── Painter CTA — desktop only ── */}
-      <section className="hidden lg:block py-16 px-4 border-t border-gray-100 bg-white">
+      {/* ── Painter CTA ── */}
+      <section className="py-16 px-4 border-t border-gray-100 bg-white">
         <div className="max-w-xl mx-auto text-center">
           <ShieldCheck className="w-10 h-10 text-brand mx-auto mb-4" />
           <h2 className="text-xl font-extrabold text-gray-900 mb-2">Sou pintor e quero receber pedidos</h2>
@@ -1044,7 +1044,7 @@ export function LandingPage() {
       </section>
 
       {/* ── Final CTA — desktop only ── */}
-      <section className="hidden lg:block py-24 px-4 bg-gray-950">
+      <section className="py-24 px-4 bg-gray-950">
         <motion.div initial={{ opacity: 0, scale: 0.97 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
           className="max-w-2xl mx-auto text-center">
           <div className="inline-block w-12 h-1 bg-brand mb-6" />
@@ -1070,7 +1070,7 @@ export function LandingPage() {
       </section>
 
       {/* ── Footer — desktop only ── */}
-      <footer className="hidden lg:block bg-gray-950 text-gray-500 py-10 px-4 border-t border-white/6">
+      <footer className="bg-gray-950 text-gray-500 py-10 px-4 border-t border-white/6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start justify-between gap-6 mb-6">
           <div>
             <PintaiLogo white />
