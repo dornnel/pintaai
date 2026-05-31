@@ -38,6 +38,7 @@ type ChatState =
   | 'role_select'
   | 'neighborhood' | 'property_type' | 'service_type'
   | 'media_upload' | 'wall_condition' | 'deadline' | 'material'
+  | 'final_notes'
   | 'confirmation'
   | 'generating_briefing' | 'briefing_ready' | 'waiting_quotes'
   | 'painter_neighborhoods' | 'painter_specialties' | 'painter_experience' | 'painter_done'
@@ -60,6 +61,8 @@ interface CollectedData {
   neighborhood?: string
   property_type?: string
   service_type?: string
+  final_notes?: string
+  notes_media_urls?: string[]
   wall_condition?: string
   deadline?: string
   material?: string
@@ -170,6 +173,17 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
     type: 'quick_reply',
     quickReplies: ['Incluso no serviço', 'Vou comprar separado', 'O pintor que indique'],
     field: 'material',
+    next: 'final_notes',
+  },
+  // ── OBSERVAÇÕES FINAIS ───────────────────────────────────────────────────────
+  final_notes: {
+    question: () =>
+      'Alguma **observação adicional** que possa ajudar o pintor?\n\n' +
+      'Ex: "Tem móveis pesados", "Acesso difícil", "Obra em andamento"...\n\n' +
+      'Pode escrever aqui, enviar uma foto/vídeo extra, ou clique em "Pular".',
+    type: 'media',
+    quickReplies: ['Pular por agora'],
+    field: 'final_notes',
     next: 'confirmation',
   },
   // ── CONFIRMAÇÃO LGPD ─────────────────────────────────────────────────────────
@@ -183,8 +197,10 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
       `🎨 ${d.service_type}\n` +
       `🧱 Paredes: ${d.wall_condition}\n` +
       `⏱ Prazo: ${d.deadline}\n` +
-      `🪣 Material: ${d.material}\n\n` +
-      `Ao confirmar, você declara que as informações são verídicas e concorda com nossa Política de Privacidade (LGPD). **Podemos enviar para os pintores?**`,
+      `🪣 Material: ${d.material}\n` +
+      (d.final_notes ? `📝 Obs: ${d.final_notes}\n` : '') +
+      (d.notes_media_urls?.length ? `📎 Mídias extras: ${d.notes_media_urls.length} arquivo(s)\n` : '') +
+      `\nAo confirmar, você declara que as informações são verídicas e concorda com nossa Política de Privacidade (LGPD). **Podemos enviar para os pintores?**`,
     type: 'quick_reply',
     quickReplies: ['✅ Confirmar e enviar', '✏️ Corrigir algum dado'],
     field: 'confirmed',
@@ -401,6 +417,15 @@ export function useChat() {
           stage: 'new',
           stage_updated_at: new Date().toISOString(),
           protocol,
+          // Campos estruturados (novos)
+          property_type: data.property_type,
+          wall_condition: data.wall_condition,
+          deadline: data.deadline,
+          material: data.material,
+          media_urls: data.media_urls || [],
+          final_notes: data.final_notes || null,
+          notes_media_urls: data.notes_media_urls || [],
+          tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
           notes: JSON.stringify({
             property_type: data.property_type,
             wall_condition: data.wall_condition,
@@ -409,8 +434,34 @@ export function useChat() {
             media_count: data.media_urls?.length || 0,
             metadata: metadataRef.current,
           }),
-          tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
         })
+
+        // Enviar email de confirmação (async, não bloqueia)
+        if (data.email) {
+          const summaryText =
+            `Nome: ${data.name}\nEmail: ${data.email}\nWhatsApp: ${data.whatsapp}\n` +
+            `Bairro: ${data.neighborhood} · ${data.property_type}\n` +
+            `Serviço: ${data.service_type}\nParedes: ${data.wall_condition}\n` +
+            `Prazo: ${data.deadline} · Material: ${data.material}\n` +
+            (data.final_notes ? `Observações: ${data.final_notes}\n` : '')
+
+          supabase.functions.invoke('send-notification-email', {
+            body: {
+              to: data.email,
+              name: data.name,
+              protocol,
+              neighborhood: data.neighborhood,
+              service_type: data.service_type,
+              summary: summaryText,
+            },
+          }).then(() => {
+            // Marcar email como enviado
+            supabase.from('leads')
+              .update({ email_confirmation_sent: true })
+              .eq('protocol', protocol)
+              .then(() => {})
+          }).catch(console.warn)
+        }
       }
 
       await supabase.from('messages').insert({
@@ -489,11 +540,32 @@ export function useChat() {
       setCollectedData(newData)
 
       const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
-      // Mostrar thumbnails das imagens enviadas na mensagem do agente
       if (mediaUrls.length > 0) {
         agentMessage(`Recebido! 📸 ${mediaUrls.length} ${mediaUrls.length === 1 ? 'imagem recebida' : 'imagens recebidas'}.`)
       } else {
         agentMessage('Ok, vou prosseguir sem fotos.')
+      }
+      setTimeout(() => advanceToState(nextState, newData), 600)
+      return
+    }
+
+    // ── FINAL NOTES (texto livre + mídia opcional) ────────────────────────────
+    if (currentState === 'final_notes') {
+      const newData: CollectedData = {
+        ...dataRef.current,
+        final_notes: text.trim() || dataRef.current.final_notes,
+        notes_media_urls: [...(dataRef.current.notes_media_urls || []), ...mediaUrls],
+      }
+      dataRef.current = newData
+      setCollectedData(newData)
+
+      const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
+      if (mediaUrls.length > 0) {
+        agentMessage(`Anotado! 📝 ${mediaUrls.length > 0 ? `${mediaUrls.length} arquivo(s) recebido(s).` : ''}`)
+      } else if (text.trim()) {
+        agentMessage('Anotado! ✍️')
+      } else {
+        agentMessage('Tudo bem, sem observações extras.')
       }
       setTimeout(() => advanceToState(nextState, newData), 600)
       return

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Search, Send, CheckCircle, Clock, Eye, MessageCircle } from 'lucide-react'
+import {
+  Search, Send, CheckCircle, Clock, Eye, MessageCircle,
+  Mail, Image as ImageIcon, FileText, MapPin, Wrench, X,
+} from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { cn, formatDate, formatRelativeTime } from '../../lib/utils'
 
@@ -13,6 +16,19 @@ interface Lead {
   source: string
   service_interest?: string
   neighborhood?: string
+  property_type?: string
+  wall_condition?: string
+  deadline?: string
+  material?: string
+  final_notes?: string
+  media_urls?: string[]
+  notes_media_urls?: string[]
+  ai_briefing?: string
+  ai_price_min?: number
+  ai_price_max?: number
+  ai_sentiment?: string
+  email_confirmation_sent?: boolean
+  sent_to_painters_at?: string
   stage: string
   stage_updated_at: string
   notes?: string
@@ -50,16 +66,49 @@ function SendToPaintersModal({ lead, onClose }: { lead: Lead; onClose: () => voi
 
   async function send() {
     setSending(true)
-    // Create messages for each selected painter
+
+    // Mensagem anonimizada — sem PII do cliente
+    const briefing = (() => {
+      if (lead.ai_briefing) return lead.ai_briefing
+      try {
+        const notes = JSON.parse(lead.notes || '{}')
+        return `${lead.service_interest} · Paredes: ${notes.wall_condition || lead.wall_condition || '?'} · Prazo: ${notes.deadline || lead.deadline || '?'}`
+      } catch {
+        return `${lead.service_interest} em ${lead.neighborhood}`
+      }
+    })()
+
+    const priceEstimate = lead.ai_price_min
+      ? `R$ ${lead.ai_price_min?.toLocaleString('pt-BR')} – R$ ${lead.ai_price_max?.toLocaleString('pt-BR')}`
+      : 'A calcular'
+
+    const anonymizedBody =
+      `🎨 Nova oportunidade — ${lead.protocol}\n\n` +
+      `📍 ${lead.neighborhood} · ${lead.property_type || ''}\n` +
+      `🛠 ${lead.service_interest}\n` +
+      (lead.wall_condition ? `🧱 Paredes: ${lead.wall_condition}\n` : '') +
+      (lead.deadline ? `⏱ Prazo: ${lead.deadline}\n` : '') +
+      (lead.material ? `🪣 Material: ${lead.material}\n` : '') +
+      `💰 Estimativa IA: ${priceEstimate}\n\n` +
+      `📝 ${briefing}\n` +
+      (lead.final_notes ? `💬 Obs do cliente: ${lead.final_notes}\n` : '') +
+      `\nAcesse o Portal do Pintor para ver detalhes e enviar proposta.`
+
     await Promise.all(Array.from(selected).map(painterId =>
       supabase.from('messages').insert({
         channel: 'admin',
         direction: 'outbound',
-        body: `Nova solicitação ${lead.protocol}: ${lead.service_interest} em ${lead.neighborhood}. Cliente: ${lead.name} (${lead.phone}). Briefing: ${lead.notes || 'Ver admin.'}`,
-        metadata: { lead_id: lead.id, painter_id: painterId, action: 'lead_sent_to_painter' },
+        body: anonymizedBody,
+        metadata: { lead_id: lead.id, painter_id: painterId, action: 'lead_sent_to_painter', protocol: lead.protocol },
       })
     ))
-    await supabase.from('leads').update({ stage: 'proposal_sent', stage_updated_at: new Date().toISOString() }).eq('id', lead.id)
+
+    await supabase.from('leads').update({
+      stage: 'proposal_sent',
+      stage_updated_at: new Date().toISOString(),
+      sent_to_painters_at: new Date().toISOString(),
+    }).eq('id', lead.id)
+
     setDone(true)
     setSending(false)
     setTimeout(onClose, 1500)
@@ -76,11 +125,24 @@ function SendToPaintersModal({ lead, onClose }: { lead: Lead; onClose: () => voi
           <div className="text-center py-4">
             <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
             <p className="font-semibold text-gray-900">Enviado para {selected.size} pintor{selected.size !== 1 ? 'es' : ''}!</p>
+            <p className="text-xs text-gray-400 mt-1">Dados do cliente anonimizados na mensagem.</p>
           </div>
         ) : (
           <>
-            <h3 className="font-bold text-gray-900 mb-1">Enviar para pintores</h3>
-            <p className="text-xs text-gray-400 mb-4">Lead: <strong>{lead.protocol}</strong> · {lead.service_interest} · {lead.neighborhood}</p>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="font-bold text-gray-900">Enviar para pintores</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  <span className="font-mono text-brand">{lead.protocol}</span> · {lead.service_interest} · {lead.neighborhood}
+                </p>
+              </div>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700">
+              🔒 A mensagem será enviada <strong>sem dados pessoais</strong> do cliente — só briefing técnico e estimativa.
+            </div>
+
             <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
               {painters.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Nenhum pintor disponível</p>}
               {painters.map(p => (
@@ -109,6 +171,111 @@ function SendToPaintersModal({ lead, onClose }: { lead: Lead; onClose: () => voi
   )
 }
 
+function LeadDetail({ lead }: { lead: Lead }) {
+  const allMediaUrls = [...(lead.media_urls || []), ...(lead.notes_media_urls || [])]
+  const notes = (() => {
+    try { return JSON.parse(lead.notes || '{}') } catch { return {} }
+  })()
+
+  return (
+    <div className="px-4 pb-4 border-t border-gray-100 pt-4 space-y-4">
+      {/* Solicitante */}
+      <div>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Solicitante</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+          <div><p className="text-gray-400">Nome</p><p className="font-semibold text-gray-900">{lead.name}</p></div>
+          {lead.email && <div>
+            <p className="text-gray-400">E-mail</p>
+            <p className="font-medium text-gray-800">{lead.email}</p>
+            {lead.email_confirmation_sent !== undefined && (
+              <span className={`text-[10px] ${lead.email_confirmation_sent ? 'text-green-600' : 'text-yellow-600'}`}>
+                {lead.email_confirmation_sent ? '✅ Email enviado' : '⏳ Pendente'}
+              </span>
+            )}
+          </div>}
+          {lead.phone && <div>
+            <p className="text-gray-400">WhatsApp</p>
+            <a href={`https://wa.me/55${lead.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+              className="font-medium text-brand hover:underline">{lead.phone}</a>
+          </div>}
+          <div><p className="text-gray-400">Protocolo</p>
+            <span className="font-mono font-bold text-brand bg-orange-50 px-1.5 py-0.5 rounded text-xs">{lead.protocol}</span>
+          </div>
+          <div><p className="text-gray-400">Cadastrado</p><p className="font-medium">{formatDate(lead.created_at)}</p></div>
+          {lead.sent_to_painters_at && <div><p className="text-gray-400">Enviado pintores</p><p className="font-medium">{formatDate(lead.sent_to_painters_at)}</p></div>}
+        </div>
+      </div>
+
+      {/* Serviço */}
+      <div>
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Serviço</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+          <div><p className="text-gray-400">Tipo</p><p className="font-medium">{lead.service_interest}</p></div>
+          <div><p className="text-gray-400">Bairro</p><p className="font-medium">{lead.neighborhood}</p></div>
+          {(lead.property_type || notes.property_type) && <div><p className="text-gray-400">Imóvel</p><p className="font-medium">{lead.property_type || notes.property_type}</p></div>}
+          {(lead.wall_condition || notes.wall_condition) && <div><p className="text-gray-400">Paredes</p><p className="font-medium">{lead.wall_condition || notes.wall_condition}</p></div>}
+          {(lead.deadline || notes.deadline) && <div><p className="text-gray-400">Prazo</p><p className="font-medium">{lead.deadline || notes.deadline}</p></div>}
+          {(lead.material || notes.material) && <div><p className="text-gray-400">Material</p><p className="font-medium">{lead.material || notes.material}</p></div>}
+        </div>
+      </div>
+
+      {/* Briefing IA */}
+      {lead.ai_briefing && (
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Briefing técnico (IA)</p>
+          <p className="text-xs text-gray-700 bg-blue-50 border border-blue-100 rounded-lg p-3 leading-relaxed">
+            {lead.ai_briefing}
+          </p>
+          {lead.ai_price_min && (
+            <p className="text-xs font-semibold text-brand mt-1.5">
+              💰 Estimativa IA: R$ {lead.ai_price_min?.toLocaleString('pt-BR')} – R$ {lead.ai_price_max?.toLocaleString('pt-BR')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Observações finais */}
+      {lead.final_notes && (
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Observações do cliente</p>
+          <p className="text-xs text-gray-700 bg-yellow-50 border border-yellow-100 rounded-lg p-3 italic">
+            "{lead.final_notes}"
+          </p>
+        </div>
+      )}
+
+      {/* Fotos/vídeos */}
+      {allMediaUrls.length > 0 && (
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
+            Fotos/vídeos enviados ({allMediaUrls.length})
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {allMediaUrls.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                className="block w-20 h-20 rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity">
+                <img src={url} alt="" className="w-full h-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Alterar estágio */}
+      <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+        <span className="text-xs text-gray-400">Estágio:</span>
+        <select defaultValue={lead.stage}
+          onChange={async e => {
+            await supabase.from('leads').update({ stage: e.target.value, stage_updated_at: new Date().toISOString() }).eq('id', lead.id)
+          }}
+          className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-brand bg-white cursor-pointer">
+          {Object.entries(STAGES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+}
+
 export function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,22 +287,11 @@ export function LeadsPage() {
   useEffect(() => {
     loadLeads()
 
-    // Realtime: auto-update when new lead arrives
     const channel = supabase.channel('leads-realtime')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'pintae',
-        table: 'leads',
-      }, (payload) => {
-        setLeads(prev => [payload.new as Lead, ...prev])
-      })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'pintae',
-        table: 'leads',
-      }, (payload) => {
-        setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new as Lead : l))
-      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'pintae', table: 'leads' },
+        (payload) => setLeads(prev => [payload.new as Lead, ...prev]))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'pintae', table: 'leads' },
+        (payload) => setLeads(prev => prev.map(l => l.id === payload.new.id ? payload.new as Lead : l)))
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -147,15 +303,13 @@ export function LeadsPage() {
     setLoading(false)
   }
 
-  async function updateStage(id: string, stage: string) {
-    await supabase.from('leads').update({ stage, stage_updated_at: new Date().toISOString() }).eq('id', id)
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage } : l))
-  }
-
   const filtered = leads.filter(l => {
-    const matchSearch = !search || l.protocol?.includes(search.toUpperCase()) ||
+    const matchSearch = !search ||
+      l.protocol?.includes(search.toUpperCase()) ||
       l.name?.toLowerCase().includes(search.toLowerCase()) ||
-      l.phone?.includes(search) || l.neighborhood?.toLowerCase().includes(search.toLowerCase())
+      l.phone?.includes(search) ||
+      l.email?.toLowerCase().includes(search.toLowerCase()) ||
+      l.neighborhood?.toLowerCase().includes(search.toLowerCase())
     const matchStage = stageFilter === 'all' || l.stage === stageFilter
     return matchSearch && matchStage
   })
@@ -175,18 +329,20 @@ export function LeadsPage() {
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
         {Object.entries(STAGES).map(([key, { label, color }]) => (
           <button key={key} onClick={() => setStageFilter(stageFilter === key ? 'all' : key)}
-            className={cn('text-center p-2.5 rounded border transition-colors cursor-pointer', stageFilter === key ? `${color} border-transparent ring-2 ring-brand` : 'bg-white border-gray-100 hover:border-gray-200')}>
+            className={cn('text-center p-2.5 rounded border transition-colors cursor-pointer',
+              stageFilter === key ? `${color} border-transparent ring-2 ring-brand` : 'bg-white border-gray-100 hover:border-gray-200')}>
             <p className="text-lg font-bold text-gray-900">{counts[key] || 0}</p>
             <p className="text-[10px] text-gray-500">{label}</p>
           </button>
         ))}
       </div>
 
-      {/* Search + filter */}
+      {/* Search */}
       <div className="flex gap-3 mb-5 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por protocolo, nome, bairro..."
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por protocolo, nome, email, bairro..."
             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-brand" />
         </div>
         <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
@@ -206,74 +362,63 @@ export function LeadsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(lead => (
-            <div key={lead.id} className="bg-white rounded border border-gray-100">
-              <div className="p-4 flex items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                    <span className="text-xs font-mono font-bold text-brand bg-orange-50 px-2 py-0.5 rounded">{lead.protocol || 'PT-???'}</span>
-                    <span className={cn('text-xs font-medium px-2 py-0.5 rounded', STAGES[lead.stage]?.color || 'bg-gray-100 text-gray-600')}>
-                      {STAGES[lead.stage]?.label || lead.stage}
-                    </span>
-                    <span className="text-xs text-gray-400">{SOURCE_LABELS[lead.source] || lead.source}</span>
-                    <span className="text-xs text-gray-300">{formatRelativeTime(lead.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-sm">{lead.name}</p>
-                    {lead.neighborhood && <span className="text-xs text-gray-500">📍 {lead.neighborhood}</span>}
-                    {lead.service_interest && <span className="text-xs text-gray-500">🎨 {lead.service_interest}</span>}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  {lead.phone && (
-                    <a href={`https://wa.me/55${lead.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
-                      className="w-7 h-7 flex items-center justify-center rounded bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
-                      <MessageCircle className="w-3.5 h-3.5" />
-                    </a>
-                  )}
-                  <button onClick={() => setSending(lead)}
-                    className="w-7 h-7 flex items-center justify-center rounded bg-brand/10 text-brand hover:bg-brand/20 cursor-pointer transition-colors" title="Enviar para pintores">
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => setExpanded(expanded === lead.id ? null : lead.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer transition-colors">
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Expanded detail */}
-              {expanded === lead.id && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                  className="px-4 pb-4 border-t border-gray-100 pt-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3 text-xs">
-                    {lead.phone && <div><p className="text-gray-400">WhatsApp</p><p className="font-medium">{lead.phone}</p></div>}
-                    {lead.email && <div><p className="text-gray-400">E-mail</p><p className="font-medium">{lead.email}</p></div>}
-                    <div><p className="text-gray-400">Cadastrado</p><p className="font-medium">{formatDate(lead.created_at)}</p></div>
-                  </div>
-                  {lead.notes && (
-                    <div className="bg-gray-50 rounded p-3 text-xs text-gray-600 mb-3">
-                      <p className="font-semibold text-gray-700 mb-1">Dados do briefing</p>
-                      {(() => {
-                        try { return Object.entries(JSON.parse(lead.notes)).map(([k, v]) => (
-                          <div key={k} className="flex gap-2"><span className="text-gray-400 capitalize">{k.replace(/_/g,' ')}:</span><span>{String(v)}</span></div>
-                        )) } catch { return <p>{lead.notes}</p> }
-                      })()}
+          {filtered.map(lead => {
+            const allMedia = [...(lead.media_urls || []), ...(lead.notes_media_urls || [])]
+            return (
+              <div key={lead.id} className="bg-white rounded border border-gray-100">
+                <div className="p-4 flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <span className="text-xs font-mono font-bold text-brand bg-orange-50 px-2 py-0.5 rounded">{lead.protocol || 'PT-???'}</span>
+                      <span className={cn('text-xs font-medium px-2 py-0.5 rounded', STAGES[lead.stage]?.color || 'bg-gray-100 text-gray-600')}>
+                        {STAGES[lead.stage]?.label || lead.stage}
+                      </span>
+                      <span className="text-xs text-gray-400">{SOURCE_LABELS[lead.source] || lead.source}</span>
+                      <span className="text-xs text-gray-300">{formatRelativeTime(lead.created_at)}</span>
+                      {lead.email_confirmation_sent && (
+                        <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <Mail className="w-2.5 h-2.5" /> Email ✓
+                        </span>
+                      )}
                     </div>
-                  )}
-                  {/* Stage changer */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Alterar estágio:</span>
-                    <select value={lead.stage} onChange={e => updateStage(lead.id, e.target.value)}
-                      className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:border-brand bg-white cursor-pointer">
-                      {Object.entries(STAGES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
+                    <div className="flex items-center gap-4 flex-wrap text-sm">
+                      <p className="font-semibold text-gray-900">{lead.name}</p>
+                      {lead.neighborhood && <span className="text-xs text-gray-500"><MapPin className="w-3 h-3 inline mr-0.5" />{lead.neighborhood}</span>}
+                      {lead.service_interest && <span className="text-xs text-gray-500"><Wrench className="w-3 h-3 inline mr-0.5" />{lead.service_interest}</span>}
+                      {allMedia.length > 0 && <span className="text-xs text-blue-500"><ImageIcon className="w-3 h-3 inline mr-0.5" />{allMedia.length} foto{allMedia.length !== 1 ? 's' : ''}</span>}
+                      {lead.final_notes && <span className="text-xs text-yellow-600"><FileText className="w-3 h-3 inline mr-0.5" />Obs.</span>}
+                    </div>
                   </div>
-                </motion.div>
-              )}
-            </div>
-          ))}
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {lead.phone && (
+                      <a href={`https://wa.me/55${lead.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                        className="w-7 h-7 flex items-center justify-center rounded bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    <button onClick={() => setSending(lead)}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-brand/10 text-brand hover:bg-brand/20 cursor-pointer transition-colors" title="Enviar para pintores">
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setExpanded(expanded === lead.id ? null : lead.id)}
+                      className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer transition-colors">
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded detail */}
+                <AnimatePresence>
+                  {expanded === lead.id && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                      <LeadDetail lead={lead} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )
+          })}
         </div>
       )}
 
