@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Search, Send, CheckCircle, Clock, Eye, MessageCircle,
-  Mail, Image as ImageIcon, FileText, MapPin, Wrench, X,
+  Mail, Image as ImageIcon, FileText, MapPin, Wrench, X, AlertTriangle, Calculator,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { cn, formatDate, formatRelativeTime } from '../../lib/utils'
+import { calculateDivergence, BUDGET_ERROR_CATEGORIES } from '../../lib/budgetEngine'
 
 interface Lead {
   id: string
@@ -261,6 +262,11 @@ function LeadDetail({ lead }: { lead: Lead }) {
         </div>
       )}
 
+      {/* Motor de Orçamento IA vs Pintor */}
+      {(lead.ai_price_min || lead.ai_price_max) && (
+        <BudgetComparisonPanel lead={lead} />
+      )}
+
       {/* Alterar estágio */}
       <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
         <span className="text-xs text-gray-400">Estágio:</span>
@@ -272,6 +278,158 @@ function LeadDetail({ lead }: { lead: Lead }) {
           {Object.entries(STAGES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
       </div>
+    </div>
+  )
+}
+
+// ─── Comparação IA vs Pintor ──────────────────────────────────────────────────
+
+function BudgetComparisonPanel({ lead }: { lead: Lead }) {
+  const [painterPrice, setPainterPrice] = useState<string>('')
+  const [showModal, setShowModal] = useState(false)
+  const [modalCategory, setModalCategory] = useState('')
+  const [modalReason, setModalReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const aiMin = lead.ai_price_min ?? 0
+  const aiMax = lead.ai_price_max ?? 0
+  const painterNum = Number(painterPrice) || 0
+  const divergence = painterNum > 0 ? calculateDivergence(aiMin, aiMax, painterNum) : 0
+  const highDivergence = Math.abs(divergence) > 15
+
+  async function saveDivergence() {
+    if (!modalCategory || !modalReason.trim()) return
+    setSaving(true)
+    await supabase.from('budget_ai_adjustments').insert({
+      lead_id: lead.id,
+      field_adjusted: 'price',
+      ai_value: `R$ ${aiMin}–R$ ${aiMax}`,
+      painter_value: `R$ ${painterNum}`,
+      difference_percent: divergence,
+      error_category: modalCategory,
+      reason: modalReason,
+      created_by: 'admin',
+    })
+    // Salvar preço do pintor no lead
+    await supabase.from('leads').update({ estimated_value: painterNum }).eq('id', lead.id)
+    setSaving(false)
+    setSaved(true)
+    setShowModal(false)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-4">
+      <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+        <Calculator className="w-3.5 h-3.5" /> Motor de Orçamento IA
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        {/* Estimativa IA */}
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+          <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1">⚡ Estimativa IA (interna)</p>
+          <p className="text-sm font-bold text-gray-900">
+            {aiMin > 0 ? `R$ ${aiMin.toLocaleString('pt-BR')} – R$ ${aiMax.toLocaleString('pt-BR')}` : '—'}
+          </p>
+          <p className="text-[10px] text-amber-600 mt-1">Não compartilhar com o cliente</p>
+        </div>
+
+        {/* Validação do pintor */}
+        <div className={`border rounded-xl p-3 ${saved ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+          <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">✅ Validação do pintor</p>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-500">R$</span>
+            <input
+              type="number"
+              value={painterPrice}
+              onChange={e => setPainterPrice(e.target.value)}
+              placeholder="0,00"
+              className="flex-1 bg-transparent text-sm font-bold text-gray-900 outline-none w-full"
+            />
+          </div>
+          {painterNum > 0 && (
+            <p className={`text-[10px] mt-1 font-medium ${Math.abs(divergence) > 15 ? 'text-red-600' : 'text-green-600'}`}>
+              {divergence > 0 ? '+' : ''}{divergence}% vs IA
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Alerta de divergência alta */}
+      {highDivergence && painterNum > 0 && !saved && (
+        <div className="flex items-center justify-between bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+            <p className="text-xs text-red-700 font-medium">Divergência de {Math.abs(divergence)}% — registre o motivo</p>
+          </div>
+          <button onClick={() => setShowModal(true)}
+            className="text-xs text-red-700 font-bold border border-red-200 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-red-100 shrink-0">
+            Registrar
+          </button>
+        </div>
+      )}
+
+      {saved && (
+        <p className="text-xs text-green-600 font-medium flex items-center gap-1.5">
+          <CheckCircle className="w-3.5 h-3.5" /> Validação registrada com sucesso
+        </p>
+      )}
+
+      {/* Modal de divergência */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowModal(false)}>
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
+              className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900">Por que você alterou a análise da IA?</h3>
+                <button onClick={() => setShowModal(false)} className="text-gray-400 cursor-pointer"><X className="w-4 h-4" /></button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Estimativa IA: <strong>R$ {aiMin.toLocaleString()} – R$ {aiMax.toLocaleString()}</strong></p>
+                  <p className="text-xs text-gray-500">Valor do pintor: <strong>R$ {painterNum.toLocaleString()}</strong> ({divergence > 0 ? '+' : ''}{divergence}%)</p>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">Categoria do erro</label>
+                  <select value={modalCategory} onChange={e => setModalCategory(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
+                    <option value="">Selecione...</option>
+                    {BUDGET_ERROR_CATEGORIES.map(c => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">Explicação (obrigatória)</label>
+                  <textarea value={modalReason} onChange={e => setModalReason(e.target.value)}
+                    placeholder="Ex: Tinha móveis pesados que a IA não considerou..."
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand resize-none" />
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setShowModal(false)}
+                    className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer">
+                    Cancelar
+                  </button>
+                  <button onClick={saveDivergence} disabled={saving || !modalCategory || !modalReason.trim()}
+                    className="flex-1 py-2.5 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
+                    {saving ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Salvando...</> : 'Registrar divergência'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

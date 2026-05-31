@@ -3,9 +3,40 @@ import { motion } from 'motion/react'
 import {
   Save, Bot, Zap, FileText, TestTube, Loader2, CheckCircle,
   Plus, Trash2, Upload, MessageSquare, Copy, Check, HelpCircle,
+  Calculator, RefreshCw, AlertTriangle,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import type { ConversationSession } from '../../lib/types'
+import type { ConversationSession, BudgetPricingRule, BudgetComplexityRule } from '../../lib/types'
+
+const RECOMMENDED_PROMPT = `Você é o Koke, assistente da Pintaê Floripa no chat web e WhatsApp.
+
+Tom: Prático, simpático, local e objetivo. Evite mensagens longas. Use markdown mínimo (**negrito** apenas quando importante).
+
+Objetivo: Guiar o usuário até um pedido de pintura completo (cliente) ou cadastro (pintor) com o mínimo de atrito.
+
+REGRA CENTRAL: Nunca informe preço final ao cliente.
+A IA gera apenas pré-análise técnica interna para admins e pintores.
+O orçamento final sempre precisa ser validado por um pintor profissional.
+
+Para CLIENTES — colete nesta ordem:
+1. Bairro e tipo de imóvel
+2. Tipo de serviço (pintura interna, fachada, pós-obra, etc.)
+3. Fotos ou vídeo do local — explique que ajudam na precisão
+4. Estado das paredes (manchas, mofo, trincas, descascando)
+5. Tem móveis? Tem gente morando?
+6. Prazo desejado e preferência de material
+
+Regras para clientes:
+- Faça UMA pergunta por vez.
+- Explique que um pintor parceiro validará o orçamento final.
+- Nunca prometa valor fechado ou faixa de preço.
+- Se o cliente insistir em preço, diga: "Preciso de mais informações para que o pintor faça uma análise precisa."
+
+Para PINTORES — colete: bairros atendidos, especialidades, experiência, disponibilidade, valor mínimo, se fornece material.
+
+Para ADMINS — gere: resumo técnico, riscos, perguntas pendentes, comparação IA × pintor.
+
+Formato: máx 2 frases por mensagem. Uma pergunta por vez. Sem textão.`
 
 interface AgentConfig {
   id: string
@@ -58,15 +89,23 @@ export function AgentConfigPage() {
   const [testOutput, setTestOutput] = useState('')
   const [testing, setTesting] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'faq' | 'conversations' | 'test'>('prompt')
+  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'budget' | 'faq' | 'conversations' | 'test'>('prompt')
   const [faqItems, setFaqItems] = useState<{ question: string; answer: string }[]>([])
   const [conversations, setConversations] = useState<ConversationSession[]>([])
   const [convLoading, setConvLoading] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  // Motor de orçamento
+  const [pricingRules, setPricingRules] = useState<BudgetPricingRule[]>([])
+  const [complexityRules, setComplexityRules] = useState<BudgetComplexityRule[]>([])
+  const [budgetEnabled, setBudgetEnabled] = useState(false)
+  const [budgetMode, setBudgetMode] = useState('internal_only')
+  const [budgetWarning, setBudgetWarning] = useState('')
+  const [savingBudget, setSavingBudget] = useState(false)
 
   useEffect(() => { loadConfig() }, [])
   useEffect(() => {
     if (activeTab === 'conversations') loadConversations()
+    if (activeTab === 'budget') loadBudgetRules()
   }, [activeTab])
 
   async function loadConfig() {
@@ -78,8 +117,53 @@ export function AgentConfigPage() {
         rag_documents: data.rag_documents || [],
         skills_enabled: data.skills_enabled || [],
       })
+      setBudgetEnabled(data.budget_engine_enabled ?? false)
+      setBudgetMode(data.budget_mode ?? 'internal_only')
+      setBudgetWarning(data.budget_warning_text ?? '')
     }
     setLoading(false)
+  }
+
+  async function loadBudgetRules() {
+    const [pricingRes, complexityRes] = await Promise.all([
+      supabase.from('budget_pricing_rules').select('*').order('sort_order'),
+      supabase.from('budget_complexity_rules').select('*').order('sort_order'),
+    ])
+    if (pricingRes.data) setPricingRules(pricingRes.data as BudgetPricingRule[])
+    if (complexityRes.data) setComplexityRules(complexityRes.data as BudgetComplexityRule[])
+  }
+
+  async function saveBudgetConfig() {
+    if (!config) return
+    setSavingBudget(true)
+    try {
+      // Salvar config do motor no agent_configs
+      await supabase.from('agent_configs').update({
+        budget_engine_enabled: budgetEnabled,
+        budget_mode: budgetMode,
+        budget_warning_text: budgetWarning,
+      }).eq('id', config.id)
+
+      // Upsert faixas de preço
+      for (const rule of pricingRules) {
+        await supabase.from('budget_pricing_rules').upsert({
+          id: rule.id, service_type: rule.service_type, label: rule.label,
+          min_price_m2: rule.min_price_m2, max_price_m2: rule.max_price_m2,
+          active: rule.active, sort_order: rule.sort_order,
+          updated_at: new Date().toISOString(),
+        })
+      }
+
+      // Upsert multiplicadores
+      for (const rule of complexityRules) {
+        await supabase.from('budget_complexity_rules').upsert({
+          id: rule.id, key: rule.key, label: rule.label,
+          multiplier: rule.multiplier, active: rule.active, sort_order: rule.sort_order,
+          updated_at: new Date().toISOString(),
+        })
+      }
+    } catch (err) { console.error('Budget save error:', err) }
+    setSavingBudget(false)
   }
 
   async function loadConversations() {
@@ -183,6 +267,7 @@ export function AgentConfigPage() {
     { id: 'prompt', icon: Bot, label: 'Prompt' },
     { id: 'tools', icon: Zap, label: 'Tools & Skills' },
     { id: 'rag', icon: FileText, label: 'RAG / Docs' },
+    { id: 'budget', icon: Calculator, label: 'Orçamento IA' },
     { id: 'faq', icon: HelpCircle, label: 'FAQ' },
     { id: 'conversations', icon: MessageSquare, label: 'Conversas' },
     { id: 'test', icon: TestTube, label: 'Testar' },
@@ -249,7 +334,16 @@ export function AgentConfigPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1.5 block">System Prompt</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-gray-600">System Prompt</label>
+              <button
+                onClick={() => setConfig({ ...config, system_prompt: RECOMMENDED_PROMPT })}
+                className="flex items-center gap-1 text-xs text-brand hover:text-brand-dark cursor-pointer transition-colors"
+                title="Restaurar o prompt recomendado pela Pintaê"
+              >
+                <RefreshCw className="w-3 h-3" /> Restaurar recomendado
+              </button>
+            </div>
             <textarea
               value={config.system_prompt}
               onChange={e => setConfig({ ...config, system_prompt: e.target.value })}
@@ -427,6 +521,118 @@ export function AgentConfigPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Orçamento IA tab */}
+      {activeTab === 'budget' && (
+        <div className="space-y-6">
+          {/* Aviso interno */}
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Motor de orçamento interno</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                As estimativas geradas por este motor são para uso INTERNO de admins e pintores.
+                O cliente nunca recebe preço automático — o pintor valida o orçamento final.
+              </p>
+            </div>
+          </div>
+
+          {/* Switch + Modo + Aviso */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Motor de orçamento IA</p>
+                <p className="text-xs text-gray-400 mt-0.5">Calcula faixa estimada internamente ao receber solicitação</p>
+              </div>
+              <button
+                onClick={() => setBudgetEnabled(!budgetEnabled)}
+                className={`w-11 h-6 rounded-full transition-colors cursor-pointer relative ${budgetEnabled ? 'bg-brand' : 'bg-gray-200'}`}
+              >
+                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${budgetEnabled ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">Modo de exposição</label>
+              <select value={budgetMode} onChange={e => setBudgetMode(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
+                <option value="internal_only">Interno apenas (padrão recomendado)</option>
+                <option value="show_summary">Mostrar resumo ao cliente</option>
+                <option value="show_range">Mostrar faixa estimada ao cliente com aviso</option>
+              </select>
+            </div>
+
+            {budgetMode !== 'internal_only' && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Texto de aviso exibido ao cliente</label>
+                <textarea value={budgetWarning} onChange={e => setBudgetWarning(e.target.value)} rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand resize-none" />
+              </div>
+            )}
+          </div>
+
+          {/* Faixas base por m² */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Faixas base por m² (R$)</h3>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-medium text-gray-400 px-1 pb-1">
+                <span className="col-span-5">Tipo de serviço</span>
+                <span className="col-span-3 text-center">Mín R$/m²</span>
+                <span className="col-span-3 text-center">Máx R$/m²</span>
+                <span className="col-span-1 text-center">Ativo</span>
+              </div>
+              {pricingRules.map((rule, i) => (
+                <div key={rule.id} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-5 text-xs text-gray-700 truncate">{rule.label}</span>
+                  <input type="number" value={rule.min_price_m2} step="0.5"
+                    onChange={e => setPricingRules(prev => prev.map((r, idx) => idx === i ? { ...r, min_price_m2: Number(e.target.value) } : r))}
+                    className="col-span-3 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-brand" />
+                  <input type="number" value={rule.max_price_m2} step="0.5"
+                    onChange={e => setPricingRules(prev => prev.map((r, idx) => idx === i ? { ...r, max_price_m2: Number(e.target.value) } : r))}
+                    className="col-span-3 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-brand" />
+                  <div className="col-span-1 flex justify-center">
+                    <input type="checkbox" checked={rule.active}
+                      onChange={e => setPricingRules(prev => prev.map((r, idx) => idx === i ? { ...r, active: e.target.checked } : r))}
+                      className="accent-brand w-4 h-4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Multiplicadores de complexidade */}
+          <div className="bg-white border border-gray-100 rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Multiplicadores de complexidade</h3>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-medium text-gray-400 px-1 pb-1">
+                <span className="col-span-8">Fator</span>
+                <span className="col-span-3 text-center">Multiplicador</span>
+                <span className="col-span-1 text-center">Ativo</span>
+              </div>
+              {complexityRules.map((rule, i) => (
+                <div key={rule.id} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-8 text-xs text-gray-700">{rule.label}</span>
+                  <input type="number" value={rule.multiplier} step="0.01" min="1"
+                    onChange={e => setComplexityRules(prev => prev.map((r, idx) => idx === i ? { ...r, multiplier: Number(e.target.value) } : r))}
+                    className="col-span-3 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:border-brand" />
+                  <div className="col-span-1 flex justify-center">
+                    <input type="checkbox" checked={rule.active}
+                      onChange={e => setComplexityRules(prev => prev.map((r, idx) => idx === i ? { ...r, active: e.target.checked } : r))}
+                      className="accent-brand w-4 h-4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <motion.button onClick={saveBudgetConfig} disabled={savingBudget}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer disabled:opacity-50">
+            {savingBudget ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Salvar configurações de orçamento
+          </motion.button>
         </div>
       )}
 

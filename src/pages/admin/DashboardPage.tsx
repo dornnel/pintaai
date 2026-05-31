@@ -18,6 +18,8 @@ interface Lead {
   neighborhood?: string
   created_at: string
   estimated_value?: number
+  ai_price_min?: number
+  ai_price_max?: number
 }
 
 interface Activity {
@@ -218,6 +220,52 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Métricas do Motor de Orçamento IA */}
+      {(() => {
+        const withAI = leads.filter(l => l.ai_price_min && l.ai_price_max)
+        const withValidation = leads.filter(l => l.estimated_value && l.ai_price_min && l.ai_price_max)
+        if (withAI.length === 0) return null
+
+        const avgError = withValidation.length > 0
+          ? Math.round(withValidation.reduce((sum, l) => {
+              const aiMid = ((l.ai_price_min ?? 0) + (l.ai_price_max ?? 0)) / 2
+              return sum + (aiMid > 0 ? Math.abs(((l.estimated_value ?? 0) - aiMid) / aiMid * 100) : 0)
+            }, 0) / withValidation.length)
+          : null
+
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <DollarSign className="w-4 h-4 text-amber-500" />
+              <h2 className="text-sm font-semibold text-gray-700">Inteligência de Orçamento IA</h2>
+              <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Interno</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                <p className="text-xl font-bold text-gray-900">{withAI.length}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Estimativas IA geradas</p>
+              </div>
+              <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
+                <p className="text-xl font-bold text-gray-900">{withValidation.length}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Validadas pelo pintor</p>
+              </div>
+              <div className={`rounded-xl p-3 text-center border ${avgError !== null && avgError > 25 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+                <p className="text-xl font-bold text-gray-900">
+                  {avgError !== null ? `${avgError}%` : '—'}
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Erro médio da IA</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+                <p className="text-xl font-bold text-gray-900">
+                  {withAI.length > 0 ? Math.round((withValidation.length / withAI.length) * 100) : 0}%
+                </p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Taxa de validação</p>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Leads recentes */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

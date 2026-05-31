@@ -261,12 +261,25 @@ export interface Product {
   id: string
   partner_id: string
   name: string
+  description?: string
   category: string
   brand?: string
   sku?: string
   price?: number
   commission_rate?: number
   active: boolean
+  featured: boolean
+  origin: 'pintai' | 'partner'
+  approval_status: 'pending' | 'approved' | 'rejected'
+  images: string[]
+  stock_quantity: number
+  unit: string
+  tags: string[]
+  sort_order: number
+  // ML fields
+  ml_item_id?: string
+  ml_permalink?: string
+  ml_thumbnail?: string
   created_at: string
 }
 
@@ -276,11 +289,64 @@ export interface Partner {
   partner_type: string
   trade_name: string
   legal_name?: string
+  cnpj?: string
+  description?: string
+  logo_url?: string
+  website?: string
   neighborhood_id?: string
   contact_phone: string
   commission_rate?: number
   coupon_code?: string
   status: string
+  accepts_online_orders: boolean
+  delivery_radius_km: number
+  min_order_value?: number
+  verified_at?: string
+  created_at: string
+}
+
+export interface ProductCombo {
+  id: string
+  partner_id?: string
+  name: string
+  description?: string
+  image_url?: string
+  original_price: number
+  combo_price: number
+  discount_pct?: number
+  active: boolean
+  featured: boolean
+  valid_from: string
+  valid_until?: string
+  created_at: string
+  items?: ProductComboItem[]
+}
+
+export interface ProductComboItem {
+  id: string
+  combo_id: string
+  product_id: string
+  quantity: number
+  unit_price?: number
+  product?: Product
+}
+
+export interface Promotion {
+  id: string
+  partner_id?: string
+  name: string
+  description?: string
+  promo_type: 'percent_off' | 'fixed_off' | 'free_shipping' | 'buy_x_get_y' | 'coupon'
+  discount_value?: number
+  coupon_code?: string
+  min_order_value?: number
+  max_uses?: number
+  uses_count: number
+  applies_to: string
+  applies_to_ids: string[]
+  active: boolean
+  valid_from: string
+  valid_until?: string
   created_at: string
 }
 
@@ -295,4 +361,48 @@ export interface ConversationSession {
   collected_data: Record<string, unknown>
   created_at: string
   updated_at: string
+}
+
+// ─── Motor de Orçamento IA ────────────────────────────────────────────────────
+
+export interface BudgetPricingRule {
+  id: string
+  service_type: string
+  label: string
+  min_price_m2: number
+  max_price_m2: number
+  active: boolean
+  sort_order: number
+}
+
+export interface BudgetComplexityRule {
+  id: string
+  key: string
+  label: string
+  multiplier: number
+  active: boolean
+  sort_order: number
+}
+
+export interface BudgetAiAdjustment {
+  id: string
+  lead_id: string
+  field_adjusted: string
+  ai_value?: string
+  painter_value?: string
+  difference_percent?: number
+  error_category?: string
+  reason?: string
+  created_by: string
+  created_at: string
+}
+
+export interface AgentKnowledgeEntry {
+  id: string
+  title: string
+  content: string
+  source_type: string
+  related_lead_id?: string
+  active: boolean
+  created_at: string
 }
