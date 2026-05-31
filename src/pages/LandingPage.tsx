@@ -198,7 +198,104 @@ function ReviewMarquee() {
   )
 }
 
-// ─── Hero chat widget ─────────────────────────────────────────────────────────
+// ─── Mobile simple landing (Lovable-style) ───────────────────────────────────
+
+const MOBILE_CHIPS = ['Sala', 'Fachada', 'Pós-obra', 'Mural', 'Enviar fotos']
+
+const MOBILE_BG = [
+  'radial-gradient(ellipse at 15% 30%, rgba(227,90,26,0.22) 0%, transparent 55%)',
+  'radial-gradient(ellipse at 85% 70%, rgba(255,180,100,0.18) 0%, transparent 55%)',
+  'radial-gradient(ellipse at 80% 10%, rgba(255,120,60,0.12) 0%, transparent 50%)',
+  '#fdf8f5',
+].join(', ')
+
+function SimpleLanding() {
+  const [input, setInput] = useState('')
+
+  function handleSend(text?: string) {
+    const msg = (text || input).trim()
+    if (!msg) return
+    window.location.href = `/chat?q=${encodeURIComponent(msg)}`
+  }
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center px-5 gap-7">
+      {/* Title */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="text-center"
+      >
+        <h1 className="font-extrabold text-gray-900 leading-tight tracking-tight"
+          style={{ fontSize: '2rem' }}>
+          O pintor certo<br />para o seu{' '}
+          <span className="text-brand">espaço.</span>
+        </h1>
+        <p className="text-gray-500 text-sm mt-2.5">
+          Descreva o que precisa pintar. Grátis, sem cadastro.
+        </p>
+      </motion.div>
+
+      {/* Glass input card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+        className="w-full rounded-3xl p-4"
+        style={{
+          background: 'rgba(255,255,255,0.82)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9)',
+          border: '1px solid rgba(255,255,255,0.6)',
+        }}
+      >
+        {/* Avatar + textarea */}
+        <div className="flex items-start gap-3 mb-3">
+          <img src="/avatar_koke.jpeg" alt="Koke"
+            className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" />
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+            placeholder="Quero pintar minha sala no Campeche..."
+            rows={2}
+            className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none resize-none leading-relaxed"
+          />
+        </div>
+
+        {/* Chips horizontais + Send */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex gap-1.5 overflow-x-auto scrollbar-hide">
+            {MOBILE_CHIPS.map(c => (
+              <button key={c} onClick={() => handleSend(c)}
+                className="shrink-0 text-xs px-2.5 py-1.5 rounded-full bg-orange-50 text-brand border border-brand/20 whitespace-nowrap cursor-pointer">
+                {c}
+              </button>
+            ))}
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleSend()}
+            disabled={!input.trim()}
+            className="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-40"
+          >
+            <Send className="w-4 h-4" />
+          </motion.button>
+        </div>
+      </motion.div>
+
+      <motion.p
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        className="text-xs text-gray-400"
+      >
+        🛡️ Grátis · orçamento em até 4h
+      </motion.p>
+    </div>
+  )
+}
+
+// ─── Hero chat widget (desktop only) ─────────────────────────────────────────
 
 const HERO_CHIPS = [
   { icon: Home,       label: 'Pintar sala e quartos' },
@@ -228,11 +325,8 @@ function HeroChat() {
     >
       {/* Agent header */}
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 shrink-0">
-        {/* Avatar — substituir src por imagem real do Koke */}
-        <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white font-bold text-base"
-          style={{ background: 'linear-gradient(135deg, #FF8C42, #E35A1A)' }}>
-          K
-        </div>
+        <img src="/avatar_koke.jpeg" alt="Koke"
+          className="w-10 h-10 rounded-full object-cover shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-gray-900 leading-none">Koke</p>
           <div className="flex items-center gap-1.5 mt-0.5">
@@ -487,15 +581,10 @@ export function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ── Hero mobile: chat fullscreen, altura = dvh - navbar(56) - bottom nav(80) ── */}
-      <section className="lg:hidden flex flex-col bg-gray-50"
-        style={{ height: 'calc(100dvh - 136px)', marginTop: 56 }}>
-        <p className="text-xs text-gray-400 font-medium px-4 pt-3 pb-1 shrink-0">
-          Seja bem-vindo! 👋
-        </p>
-        <div className="flex-1 min-h-0 px-3 pb-2">
-          <HeroChat />
-        </div>
+      {/* ── Hero mobile: Lovable-style — título + glass input + gradient ── */}
+      <section className="lg:hidden flex flex-col"
+        style={{ height: 'calc(100dvh - 136px)', marginTop: 56, background: MOBILE_BG }}>
+        <SimpleLanding />
       </section>
 
       {/* ── Hero desktop (foto + título + floating cards + chat widget) ── */}

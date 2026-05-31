@@ -101,17 +101,20 @@ export function ChatInterface() {
   const showSuggestions = visibleMessages.length <= 1 && !loading
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Header — Koke identity */}
-      <header className="shrink-0 bg-white/95 backdrop-blur-sm border-b border-gray-100" style={{ zIndex: 20 }}>
+      <header
+        className="shrink-0 border-b border-white/40"
+        style={{
+          zIndex: 20,
+          background: 'rgba(255,255,255,0.88)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
         <div className="flex items-center gap-3 px-4" style={{ height: 52 }}>
-          {/* Koke avatar — substituir por <img src="/koke-avatar.png"> quando disponível */}
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shrink-0"
-            style={{ background: 'linear-gradient(135deg, #FF8C42, #E35A1A)' }}
-          >
-            K
-          </div>
+          <img src="/avatar_koke.jpeg" alt="Koke"
+            className="w-9 h-9 rounded-full object-cover shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-900 leading-none">Koke</p>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -162,7 +165,13 @@ export function ChatInterface() {
       </AnimatePresence>
 
       {/* Input area */}
-      <div className="px-4 pb-3 pt-2 bg-white border-t border-gray-100 shrink-0">
+      <div className="px-4 pb-3 pt-2 border-t border-white/40 shrink-0"
+        style={{
+          background: 'rgba(255,255,255,0.88)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
         {/* Suggestion chips */}
         <AnimatePresence>
           {showSuggestions && (
