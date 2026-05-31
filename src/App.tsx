@@ -32,6 +32,7 @@ import { ConversationsPage } from './pages/admin/ConversationsPage'
 import { SettingsPage } from './pages/admin/SettingsPage'
 import { SubscriptionsPage } from './pages/admin/SubscriptionsPage'
 import { AdsPage } from './pages/admin/AdsPage'
+import { AuditLogPage } from './pages/admin/AuditLogPage'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -134,6 +135,7 @@ function AppRoutes() {
         <Route path="promotions" element={<PromotionsPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
         <Route path="ads" element={<AdsPage />} />
+        <Route path="audit" element={<AuditLogPage />} />
       </Route>
 
       {/* CRM for painters */}

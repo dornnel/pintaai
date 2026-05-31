@@ -4,7 +4,7 @@ import {
   LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
   Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox,
   Paintbrush, BrainCircuit, Menu, X, Home, LogOut, Package, Tag,
-  CreditCard, Megaphone,
+  CreditCard, Megaphone, ClipboardList,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -28,6 +28,7 @@ const NAV = [
   { to: '/admin/cms', icon: Layout, label: 'Conteúdo' },
   { to: '/admin/conversations', icon: MessageSquare, label: 'Conversas' },
   { to: '/admin/moderation', icon: AlertTriangle, label: 'Moderação' },
+  { to: '/admin/audit', icon: ClipboardList, label: 'Auditoria' },
 ]
 
 export function AdminLayout() {
