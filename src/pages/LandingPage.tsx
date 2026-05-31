@@ -707,7 +707,7 @@ export function LandingPage() {
             <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.04] tracking-tight mb-8"
-              style={{ color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.18)' }}>
+              style={{ color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
               O pintor certo<br />
               para o seu<br />
               <span style={{ color: '#FF7A30' }}>espaço.</span>
@@ -735,7 +735,7 @@ export function LandingPage() {
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <a href="#como-funciona"
                   className="flex items-center gap-2 px-6 py-3.5 font-bold rounded text-sm transition-colors"
-                  style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
+                  style={{ background: 'rgba(74,186,100,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff' }}>
                   Ver como funciona
                 </a>
               </motion.div>
