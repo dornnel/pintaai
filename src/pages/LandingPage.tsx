@@ -219,12 +219,54 @@ const PLACEHOLDER_CYCLE = [
   { prop: 'minha fachada', local: 'na Costeira' },
 ]
 
-const MOBILE_BG = [
+const MOBILE_BG_FALLBACK = [
   'radial-gradient(ellipse at 15% 30%, rgba(227,90,26,0.22) 0%, transparent 55%)',
   'radial-gradient(ellipse at 85% 70%, rgba(255,180,100,0.18) 0%, transparent 55%)',
   'radial-gradient(ellipse at 80% 10%, rgba(255,120,60,0.12) 0%, transparent 50%)',
   '#fdf8f5',
 ].join(', ')
+
+// ─── Video background mobile ──────────────────────────────────────────────────
+
+function MobileVideoBackground() {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [ended, setEnded] = useState(false)
+  const [error, setError] = useState(false)
+
+  if (error) {
+    return <div className="absolute inset-0" style={{ background: MOBILE_BG_FALLBACK }} />
+  }
+
+  return (
+    <div className="absolute inset-0 overflow-hidden rounded-none">
+      {/* Vídeo: toca uma vez, para no último frame */}
+      <motion.div
+        className="absolute inset-0"
+        animate={ended ? { scale: [1, 1.04, 1, 1.04, 1] } : { scale: 1 }}
+        transition={
+          ended
+            ? { duration: 8, ease: 'easeInOut', repeat: Infinity, repeatType: 'loop' }
+            : { duration: 0 }
+        }
+      >
+        <video
+          ref={videoRef}
+          src="/video_bkg_pintai.mp4"
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          onEnded={() => setEnded(true)}
+          onError={() => setError(true)}
+          className="w-full h-full object-cover"
+        />
+      </motion.div>
+      {/* Overlay suave para legibilidade do texto */}
+      <div className="absolute inset-0"
+        style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 60%, rgba(0,0,0,0.04) 100%)' }} />
+    </div>
+  )
+}
 
 function SimpleLanding() {
   const [input, setInput] = useState('')
@@ -638,10 +680,13 @@ export function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ── Hero mobile: Lovable-style — título + glass input + gradient ── */}
-      <section className="lg:hidden flex flex-col"
-        style={{ height: 'calc(100dvh - 136px)', marginTop: 56, background: MOBILE_BG }}>
-        <SimpleLanding />
+      {/* ── Hero mobile: vídeo background (toca 1x → zoom pulse) + SimpleLanding ── */}
+      <section className="lg:hidden relative flex flex-col"
+        style={{ height: 'calc(100dvh - 136px)', marginTop: 56 }}>
+        <MobileVideoBackground />
+        <div className="relative z-10 h-full flex flex-col">
+          <SimpleLanding />
+        </div>
       </section>
 
       {/* ── Hero desktop (foto + título + floating cards + chat widget) ── */}
