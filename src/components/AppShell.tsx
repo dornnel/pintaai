@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { BottomNav } from './mobile/BottomNav'
+import { CookieBanner } from './CookieBanner'
 
 // Routes where the layout must be fully fixed — no scroll at all
 const FIXED_ROUTES = ['/chat', '/visualizar-cor', '/minha-area', '/portal/pintor']
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </div>
+      <CookieBanner />
       <BottomNav />
     </div>
   )

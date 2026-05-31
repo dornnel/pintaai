@@ -34,17 +34,29 @@ import { SubscriptionsPage } from './pages/admin/SubscriptionsPage'
 import { AdsPage } from './pages/admin/AdsPage'
 import { AuditLogPage } from './pages/admin/AuditLogPage'
 import { LeadDetailPage } from './pages/admin/LeadDetailPage'
+import { TermsPage } from './pages/TermsPage'
+import { PrivacyPage } from './pages/PrivacyPage'
+
+const Spinner = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+  </div>
+)
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { user, loading } = useAuth()
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
+  if (loading) return <Spinner />
   if (!user) return <Navigate to="/login" replace />
   if (roles && !roles.includes(user.role)) return <Navigate to={getRoleHome(user.role)} replace />
+  return <>{children}</>
+}
+
+// Super admin guard — only andre@agenscia.com
+function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+  if (loading) return <Spinner />
+  if (!user?.isSuperAdmin) return <Navigate to="/admin" replace />
   return <>{children}</>
 }
 
@@ -95,6 +107,8 @@ function AppRoutes() {
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/seja-pintor" element={<LoginPage />} />
       <Route path="/pintura/:neighborhood" element={<NeighborhoodPage />} />
+      <Route path="/termos" element={<TermsPage />} />
+      <Route path="/privacidade" element={<PrivacyPage />} />
 
       {/* Customer */}
       <Route path="/minha-area" element={
@@ -129,15 +143,18 @@ function AppRoutes() {
         <Route path="crm" element={<CRMBoard />} />
         <Route path="leads" element={<LeadsPage />} />
         <Route path="leads/:id" element={<LeadDetailPage />} />
-        <Route path="agent" element={<AgentConfigPage />} />
-        <Route path="ai" element={<AdminAgentChat />} />
         <Route path="conversations" element={<ConversationsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
         <Route path="products" element={<ProductsPage />} />
         <Route path="promotions" element={<PromotionsPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
         <Route path="ads" element={<AdsPage />} />
-        <Route path="audit" element={<AuditLogPage />} />
+        {/* Super Admin only routes */}
+        <Route path="agent" element={<RequireSuperAdmin><AgentConfigPage /></RequireSuperAdmin>} />
+        <Route path="ai" element={<RequireSuperAdmin><AdminAgentChat /></RequireSuperAdmin>} />
+        <Route path="permissions" element={<RequireSuperAdmin><PermissionsPage /></RequireSuperAdmin>} />
+        <Route path="cms" element={<RequireSuperAdmin><CMSPage /></RequireSuperAdmin>} />
+        <Route path="audit" element={<RequireSuperAdmin><AuditLogPage /></RequireSuperAdmin>} />
+        <Route path="settings" element={<RequireSuperAdmin><SettingsPage /></RequireSuperAdmin>} />
       </Route>
 
       {/* CRM for painters */}

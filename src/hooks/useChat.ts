@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import type { ChatMessage, BriefingData } from '../lib/types'
 import { generateSessionId } from '../lib/utils'
 import { supabase, uploadMedia } from '../lib/supabase'
+import { captureTracking } from '../lib/tracking'
 
 const SESSION_KEY = 'pintae_session_id'
 
@@ -472,6 +473,7 @@ export function useChat() {
       }, { onConflict: 'session_id' })
 
       if (role === 'client') {
+        const trackingData = await captureTracking()
         await supabase.from('leads').insert({
           name: data.name || 'Não informado',
           phone: data.whatsapp,
@@ -492,6 +494,7 @@ export function useChat() {
           final_notes: data.final_notes || null,
           notes_media_urls: data.notes_media_urls || [],
           tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
+          tracking_data: trackingData,
           notes: JSON.stringify({
             property_type: data.property_type,
             wall_condition: data.wall_condition,

@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { supabase } from './supabase'
 import type { User as DBUser } from './types'
 
+const SUPERADMIN_EMAIL = 'andre@agenscia.com'
+
 interface AuthUser {
   id: string
   email?: string
@@ -9,6 +11,7 @@ interface AuthUser {
   name: string
   phone?: string
   status: DBUser['status']
+  isSuperAdmin: boolean
 }
 
 interface AuthContextType {
@@ -24,7 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {}, completeOnboarding: async () => {},
 })
 
-const ADMIN_EMAILS = ['andre@agenscia.com', 'admin@pintae.com.br', 'admin@pintai.com.br']
+const ADMIN_EMAILS = [SUPERADMIN_EMAIL, 'admin@pintae.com.br', 'admin@pintai.com.br']
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -53,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single()
 
     if (data) {
-      setUser({ id: data.id, role: data.role, name: data.name, phone: data.phone, status: data.status, email: data.email })
+      setUser({ id: data.id, role: data.role, name: data.name, phone: data.phone, status: data.status, email: data.email, isSuperAdmin: data.email === SUPERADMIN_EMAIL })
       setLoading(false)
       setNeedsOnboarding(false)
       return
@@ -74,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }).select('id, role, name, phone, status, email').single()
 
     if (!error && newUser) {
-      setUser({ id: newUser.id, role: newUser.role, name: newUser.name, phone: newUser.phone, status: newUser.status, email: newUser.email })
+      setUser({ id: newUser.id, role: newUser.role, name: newUser.name, phone: newUser.phone, status: newUser.status, email: newUser.email, isSuperAdmin: newUser.email === SUPERADMIN_EMAIL })
 
       if (isAdmin) {
         await supabase.from('admin_permissions').upsert({
