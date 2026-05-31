@@ -26,6 +26,12 @@ import { ColorVisualizerPage } from './pages/ColorVisualizerPage'
 import { CRMBoard } from './pages/crm/CRMBoard'
 import { AppShell } from './components/AppShell'
 import { OnboardingPage } from './pages/OnboardingPage'
+import { ProductsPage } from './pages/admin/ProductsPage'
+import { PromotionsPage } from './pages/admin/PromotionsPage'
+import { ConversationsPage } from './pages/admin/ConversationsPage'
+import { SettingsPage } from './pages/admin/SettingsPage'
+import { SubscriptionsPage } from './pages/admin/SubscriptionsPage'
+import { AdsPage } from './pages/admin/AdsPage'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -122,8 +128,12 @@ function AppRoutes() {
         <Route path="leads" element={<LeadsPage />} />
         <Route path="agent" element={<AgentConfigPage />} />
         <Route path="ai" element={<AdminAgentChat />} />
-        <Route path="conversations" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
-        <Route path="settings" element={<div className="p-6 text-gray-400 text-sm">Em desenvolvimento</div>} />
+        <Route path="conversations" element={<ConversationsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="promotions" element={<PromotionsPage />} />
+        <Route path="subscriptions" element={<SubscriptionsPage />} />
+        <Route path="ads" element={<AdsPage />} />
       </Route>
 
       {/* CRM for painters */}

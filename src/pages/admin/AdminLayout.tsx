@@ -3,7 +3,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
   Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox,
-  Paintbrush, BrainCircuit, Menu, X, Home, LogOut,
+  Paintbrush, BrainCircuit, Menu, X, Home, LogOut, Package, Tag,
+  CreditCard, Megaphone,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -13,8 +14,12 @@ const NAV = [
   { to: '/admin/leads', icon: Inbox, label: 'Solicitações' },
   { to: '/admin/requests', icon: FileText, label: 'Pedidos' },
   { to: '/admin/payments', icon: DollarSign, label: 'Pagamentos' },
+  { to: '/admin/subscriptions', icon: CreditCard, label: 'Assinaturas' },
   { to: '/admin/users', icon: Users, label: 'Usuários' },
   { to: '/admin/painters', icon: Paintbrush, label: 'Pintores' },
+  { to: '/admin/products', icon: Package, label: 'Produtos' },
+  { to: '/admin/promotions', icon: Tag, label: 'Promoções' },
+  { to: '/admin/ads', icon: Megaphone, label: 'Anúncios' },
   { to: '/admin/reviews', icon: Star, label: 'Avaliações' },
   { to: '/admin/crm', icon: BarChart3, label: 'CRM Global' },
   { to: '/admin/agent', icon: Bot, label: 'Agente IA' },
