@@ -101,7 +101,7 @@ export function ChatInterface() {
   const showSuggestions = visibleMessages.length <= 1 && !loading
 
   return (
-    <div className="flex flex-col h-full bg-transparent">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-transparent">
       {/* Header — Koke identity */}
       <header
         className="shrink-0 border-b border-white/40"

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, AnimatePresence, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
+import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
@@ -251,7 +251,7 @@ function MobileVideoBackground() {
       >
         <video
           ref={videoRef}
-          src="/video_bkg_pintai.mp4"
+          src="/video_bkg_mobile_2.mp4"
           autoPlay
           muted
           playsInline
@@ -271,15 +271,49 @@ function MobileVideoBackground() {
 function SimpleLanding() {
   const [input, setInput] = useState('')
   const [focused, setFocused] = useState(false)
-  const [cycleIdx, setCycleIdx] = useState(0)
 
-  // Cycle through placeholder examples every 2.8s when input is empty and not focused
+  // ── Typewriter state ──────────────────────────────────────────────────────
+  const [cycleIdx, setCycleIdx] = useState(0)
+  const [charIdx, setCharIdx] = useState(0)
+  const [phase, setPhase] = useState<'typing' | 'pausing' | 'deleting'>('typing')
+  const [typeText, setTypeText] = useState('')
+
+  const fullPhrase = `${PLACEHOLDER_CYCLE[cycleIdx].prop} ${PLACEHOLDER_CYCLE[cycleIdx].local}`
+
   useEffect(() => {
     if (input || focused) return
-    const id = setInterval(() => {
-      setCycleIdx(i => (i + 1) % PLACEHOLDER_CYCLE.length)
-    }, 2800)
-    return () => clearInterval(id)
+    let t: ReturnType<typeof setTimeout>
+
+    if (phase === 'typing') {
+      if (charIdx < fullPhrase.length) {
+        t = setTimeout(() => {
+          setTypeText(fullPhrase.slice(0, charIdx + 1))
+          setCharIdx(c => c + 1)
+        }, 55)
+      } else {
+        t = setTimeout(() => setPhase('deleting'), 1800)
+      }
+    } else if (phase === 'deleting') {
+      if (charIdx > 0) {
+        t = setTimeout(() => {
+          setTypeText(fullPhrase.slice(0, charIdx - 1))
+          setCharIdx(c => c - 1)
+        }, 28)
+      } else {
+        setCycleIdx(i => (i + 1) % PLACEHOLDER_CYCLE.length)
+        setPhase('typing')
+      }
+    }
+    return () => clearTimeout(t)
+  }, [phase, charIdx, fullPhrase, input, focused])
+
+  // Reset typewriter when user clears input
+  useEffect(() => {
+    if (!input && !focused) {
+      setCharIdx(0)
+      setTypeText('')
+      setPhase('typing')
+    }
   }, [input, focused])
 
   function handleSend(text?: string) {
@@ -288,7 +322,6 @@ function SimpleLanding() {
     window.location.href = `/chat?q=${encodeURIComponent(msg)}`
   }
 
-  const current = PLACEHOLDER_CYCLE[cycleIdx]
   const showPlaceholder = !input && !focused
 
   return (
@@ -304,8 +337,8 @@ function SimpleLanding() {
           O pintor certo<br />para o seu{' '}
           <span className="text-brand">espaço.</span>
         </h1>
-        <p className="text-gray-500 text-sm mt-2.5">
-          Descreva o que precisa pintar. Grátis, sem cadastro.
+        <p className="text-white/85 text-sm mt-2.5 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
+          Descreva o que precisa pintar.
         </p>
       </motion.div>
 
@@ -322,30 +355,21 @@ function SimpleLanding() {
           border: '1px solid rgba(255,255,255,0.6)',
         }}
       >
-        {/* Avatar + input com placeholder animado */}
+        {/* Avatar + input com typewriter */}
         <div className="flex items-start gap-3 mb-3">
           <img src="/avatar_koke.jpeg" alt="Koke"
             className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" />
 
           <div className="flex-1 relative min-h-[48px]">
-            {/* Placeholder animado — visível quando input vazio e sem foco */}
+            {/* Typewriter placeholder — visível quando vazio e sem foco */}
             {showPlaceholder && (
               <div className="absolute inset-0 pointer-events-none select-none leading-relaxed text-sm"
                 style={{ paddingTop: 1 }}>
                 <span className="text-gray-400">Quero pintar </span>
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={cycleIdx}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                    className="text-gray-500 font-medium"
-                  >
-                    {current.prop}
-                  </motion.span>
-                </AnimatePresence>
-                <span className="text-gray-400"> {current.local}</span>
+                <span className="text-gray-600">{typeText}</span>
+                {/* Cursor piscante */}
+                <span className="inline-block w-px h-3.5 bg-brand ml-px align-middle"
+                  style={{ animation: 'blink 1s step-end infinite' }} />
               </div>
             )}
 

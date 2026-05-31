@@ -3,7 +3,7 @@ import { ChatInterface } from '../components/chat/ChatInterface'
 export function ChatPage() {
   return (
     <div
-      className="h-full"
+      className="flex-1 min-h-0 flex flex-col overflow-hidden"
       style={{
         background: [
           'radial-gradient(ellipse at 88% 8%, rgba(227,90,26,0.07) 0%, transparent 50%)',
