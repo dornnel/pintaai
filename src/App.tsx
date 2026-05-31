@@ -33,6 +33,7 @@ import { SettingsPage } from './pages/admin/SettingsPage'
 import { SubscriptionsPage } from './pages/admin/SubscriptionsPage'
 import { AdsPage } from './pages/admin/AdsPage'
 import { AuditLogPage } from './pages/admin/AuditLogPage'
+import { LeadDetailPage } from './pages/admin/LeadDetailPage'
 
 // Route guard: redirect unauthenticated users to login
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -127,6 +128,7 @@ function AppRoutes() {
         <Route path="cms" element={<CMSPage />} />
         <Route path="crm" element={<CRMBoard />} />
         <Route path="leads" element={<LeadsPage />} />
+        <Route path="leads/:id" element={<LeadDetailPage />} />
         <Route path="agent" element={<AgentConfigPage />} />
         <Route path="ai" element={<AdminAgentChat />} />
         <Route path="conversations" element={<ConversationsPage />} />

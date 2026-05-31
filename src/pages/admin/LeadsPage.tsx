@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Search, Send, CheckCircle, Clock, Eye, MessageCircle,
@@ -95,13 +96,23 @@ function SendToPaintersModal({ lead, onClose }: { lead: Lead; onClose: () => voi
       (lead.final_notes ? `💬 Obs do cliente: ${lead.final_notes}\n` : '') +
       `\nAcesse o Portal do Pintor para ver detalhes e enviar proposta.`
 
-    await Promise.all(Array.from(selected).map(painterId =>
+    const painterIds = Array.from(selected)
+
+    await Promise.all(painterIds.map(painterId =>
       supabase.from('messages').insert({
         channel: 'admin',
         direction: 'outbound',
         body: anonymizedBody,
         metadata: { lead_id: lead.id, painter_id: painterId, action: 'lead_sent_to_painter', protocol: lead.protocol },
       })
+    ))
+
+    // Registra interações de rastreio
+    await Promise.all(painterIds.map(painterId =>
+      supabase.from('lead_painter_interactions').upsert({
+        lead_id: lead.id, painter_id: painterId, status: 'notified',
+        notified_at: new Date().toISOString(),
+      }, { onConflict: 'lead_id,painter_id' })
     ))
 
     await supabase.from('leads').update({
@@ -435,6 +446,7 @@ function BudgetComparisonPanel({ lead }: { lead: Lead }) {
 }
 
 export function LeadsPage() {
+  const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -559,7 +571,8 @@ export function LeadsPage() {
                       className="w-7 h-7 flex items-center justify-center rounded bg-brand/10 text-brand hover:bg-brand/20 cursor-pointer transition-colors" title="Enviar para pintores">
                       <Send className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => setExpanded(expanded === lead.id ? null : lead.id)}
+                    <button onClick={() => navigate(`/admin/leads/${lead.id}`)}
+                      title="Ver detalhes"
                       className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer transition-colors">
                       <Eye className="w-3.5 h-3.5" />
                     </button>
