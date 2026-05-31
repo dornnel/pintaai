@@ -268,7 +268,7 @@ function HeroChat() {
       <motion.div
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.85 }}
-        className="flex-1 overflow-y-auto px-4 pb-3 grid grid-cols-2 gap-2 content-start"
+        className="flex-1 px-4 pb-3 grid grid-cols-2 gap-2 content-center items-center"
       >
         {HERO_CHIPS.map(({ icon: Icon, label }) => (
           <motion.button
@@ -487,13 +487,13 @@ export function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ── Hero mobile: chat fullscreen (sem foto de fundo) ── */}
+      {/* ── Hero mobile: chat fullscreen, altura = dvh - navbar(56) - bottom nav(80) ── */}
       <section className="lg:hidden flex flex-col bg-gray-50"
-        style={{ height: 'calc(100dvh - 56px)', marginTop: 56 }}>
+        style={{ height: 'calc(100dvh - 136px)', marginTop: 56 }}>
         <p className="text-xs text-gray-400 font-medium px-4 pt-3 pb-1 shrink-0">
           Seja bem-vindo! 👋
         </p>
-        <div className="flex-1 min-h-0 px-3 pb-3">
+        <div className="flex-1 min-h-0 px-3 pb-2">
           <HeroChat />
         </div>
       </section>
