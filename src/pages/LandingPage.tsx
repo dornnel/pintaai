@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
+import { motion, AnimatePresence, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
@@ -202,6 +202,18 @@ function ReviewMarquee() {
 
 const MOBILE_CHIPS = ['Sala', 'Fachada', 'Pós-obra', 'Mural', 'Enviar fotos']
 
+// Placeholder animado: "Quero pintar" + propriedade + local em loop
+const PLACEHOLDER_CYCLE = [
+  { prop: 'meu escritório', local: 'no Rio Tavares' },
+  { prop: 'meu studio', local: 'no Novo Campeche' },
+  { prop: 'minha casa de praia', local: 'no Morro das Pedras' },
+  { prop: 'meu apartamento', local: 'no Campeche' },
+  { prop: 'minha sala', local: 'no Pântano do Sul' },
+  { prop: 'meu restaurante', local: 'na Armação' },
+  { prop: 'minha loja', local: 'no Rio Tavares' },
+  { prop: 'minha fachada', local: 'na Costeira' },
+]
+
 const MOBILE_BG = [
   'radial-gradient(ellipse at 15% 30%, rgba(227,90,26,0.22) 0%, transparent 55%)',
   'radial-gradient(ellipse at 85% 70%, rgba(255,180,100,0.18) 0%, transparent 55%)',
@@ -211,12 +223,26 @@ const MOBILE_BG = [
 
 function SimpleLanding() {
   const [input, setInput] = useState('')
+  const [focused, setFocused] = useState(false)
+  const [cycleIdx, setCycleIdx] = useState(0)
+
+  // Cycle through placeholder examples every 2.8s when input is empty and not focused
+  useEffect(() => {
+    if (input || focused) return
+    const id = setInterval(() => {
+      setCycleIdx(i => (i + 1) % PLACEHOLDER_CYCLE.length)
+    }, 2800)
+    return () => clearInterval(id)
+  }, [input, focused])
 
   function handleSend(text?: string) {
     const msg = (text || input).trim()
     if (!msg) return
     window.location.href = `/chat?q=${encodeURIComponent(msg)}`
   }
+
+  const current = PLACEHOLDER_CYCLE[cycleIdx]
+  const showPlaceholder = !input && !focused
 
   return (
     <div className="h-full flex flex-col items-center justify-center px-5 gap-7">
@@ -249,18 +275,44 @@ function SimpleLanding() {
           border: '1px solid rgba(255,255,255,0.6)',
         }}
       >
-        {/* Avatar + textarea */}
+        {/* Avatar + input com placeholder animado */}
         <div className="flex items-start gap-3 mb-3">
           <img src="/avatar_koke.jpeg" alt="Koke"
             className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5" />
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder="Quero pintar minha sala no Campeche..."
-            rows={2}
-            className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none resize-none leading-relaxed"
-          />
+
+          <div className="flex-1 relative min-h-[48px]">
+            {/* Placeholder animado — visível quando input vazio e sem foco */}
+            {showPlaceholder && (
+              <div className="absolute inset-0 pointer-events-none select-none leading-relaxed text-sm"
+                style={{ paddingTop: 1 }}>
+                <span className="text-gray-400">Quero pintar </span>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={cycleIdx}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    className="text-gray-500 font-medium"
+                  >
+                    {current.prop}
+                  </motion.span>
+                </AnimatePresence>
+                <span className="text-gray-400"> {current.local}</span>
+              </div>
+            )}
+
+            <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+              rows={2}
+              className="w-full bg-transparent text-sm text-gray-800 outline-none resize-none leading-relaxed"
+              style={{ caretColor: '#E35A1A' }}
+            />
+          </div>
         </div>
 
         {/* Chips horizontais + Send */}
