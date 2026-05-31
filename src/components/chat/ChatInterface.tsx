@@ -132,24 +132,26 @@ export function ChatInterface() {
         </div>
       </header>
 
-      {/* Messages */}
+      {/* Messages — justify-end faz mensagens ficarem no fundo (padrão WhatsApp) */}
       <div
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-hide"
+        className="flex-1 overflow-y-auto scrollbar-hide"
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
       >
-        {visibleMessages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            onQuickReply={(reply) => sendMessage(reply)}
-            onQuoteSelect={(quoteId) => sendMessage(`Quero a proposta ${quoteId}`)}
-          />
-        ))}
+        <div className="flex flex-col justify-end min-h-full px-4 py-4 gap-4">
+          {visibleMessages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onQuickReply={(reply) => sendMessage(reply)}
+              onQuoteSelect={(quoteId) => sendMessage(`Quero a proposta ${quoteId}`)}
+            />
+          ))}
 
-        {loading && <TypingIndicator />}
-        <div ref={bottomRef} />
+          {loading && <TypingIndicator />}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Drag overlay */}
