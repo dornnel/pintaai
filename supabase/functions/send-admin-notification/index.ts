@@ -8,7 +8,7 @@ const supabase = createClient(
 )
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const FROM_EMAIL = 'Pintaê <noreply@pintai.com.br>'
+const FROM_EMAIL = 'Pintai <noreply@pintai.com.br>'
 
 async function getAdminEmail(): Promise<string> {
   const { data } = await supabase
@@ -30,31 +30,31 @@ async function sendEmail(to: string, subject: string, html: string) {
 
 const EVENTS: Record<string, { subject: (d: Record<string, string>) => string; html: (d: Record<string, string>) => string }> = {
   new_lead: {
-    subject: d => `[Pintaê] 🎨 Novo lead — ${d.name} · ${d.neighborhood}`,
+    subject: d => `[Pintai] 🎨 Novo lead — ${d.name} · ${d.neighborhood}`,
     html: d => `<h2>Nova solicitação recebida</h2><p><b>Cliente:</b> ${d.name}<br><b>Bairro:</b> ${d.neighborhood}<br><b>Serviço:</b> ${d.service_interest}<br><b>Protocolo:</b> ${d.protocol}</p><a href="https://pintai.agenscia.com/admin/leads">Ver no admin →</a>`,
   },
   lead_confirmed: {
-    subject: d => `[Pintaê] ✅ Pedido confirmado — ${d.protocol}`,
+    subject: d => `[Pintai] ✅ Pedido confirmado — ${d.protocol}`,
     html: d => `<h2>Pedido confirmado pelo cliente</h2><p><b>Protocolo:</b> ${d.protocol}<br><b>Cliente:</b> ${d.name}</p><a href="https://pintai.agenscia.com/admin/leads">Ver no admin →</a>`,
   },
   payment_received: {
-    subject: d => `[Pintaê] 💰 Pagamento recebido — R$ ${d.amount}`,
+    subject: d => `[Pintai] 💰 Pagamento recebido — R$ ${d.amount}`,
     html: d => `<h2>Pagamento confirmado pela Asaas</h2><p><b>Valor:</b> R$ ${d.amount}<br><b>Serviço:</b> ${d.service_request_id}</p><a href="https://pintai.agenscia.com/admin/payments">Ver pagamentos →</a>`,
   },
   new_painter: {
-    subject: d => `[Pintaê] 🖌️ Novo pintor cadastrado — ${d.name}`,
+    subject: d => `[Pintai] 🖌️ Novo pintor cadastrado — ${d.name}`,
     html: d => `<h2>Novo pintor aguarda validação</h2><p><b>Nome:</b> ${d.name}<br><b>Especialidades:</b> ${d.specialties || '—'}</p><a href="https://pintai.agenscia.com/admin/painters">Revisar cadastro →</a>`,
   },
   high_severity_flag: {
-    subject: d => `[Pintaê] 🚨 Flag de moderação HIGH — ${d.flag_type}`,
+    subject: d => `[Pintai] 🚨 Flag de moderação HIGH — ${d.flag_type}`,
     html: d => `<h2>Alerta de moderação</h2><p><b>Tipo:</b> ${d.flag_type}<br><b>Severidade:</b> HIGH<br><b>Mensagem:</b> ${d.message}</p><a href="https://pintai.agenscia.com/admin/moderation">Revisar →</a>`,
   },
   new_ad_pending: {
-    subject: d => `[Pintaê] 📢 Novo anúncio aguardando aprovação — ${d.partner}`,
+    subject: d => `[Pintai] 📢 Novo anúncio aguardando aprovação — ${d.partner}`,
     html: d => `<h2>Anúncio enviado por parceiro</h2><p><b>Parceiro:</b> ${d.partner}<br><b>Título:</b> ${d.title}</p><a href="https://pintai.agenscia.com/admin/ads">Aprovar →</a>`,
   },
   subscription_canceled: {
-    subject: d => `[Pintaê] ❌ Assinatura cancelada — ${d.user_name}`,
+    subject: d => `[Pintai] ❌ Assinatura cancelada — ${d.user_name}`,
     html: d => `<h2>Assinatura cancelada</h2><p><b>Usuário:</b> ${d.user_name}<br><b>Plano:</b> ${d.plan_name}</p><a href="https://pintai.agenscia.com/admin/subscriptions">Ver assinaturas →</a>`,
   },
 }

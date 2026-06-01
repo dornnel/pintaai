@@ -8,7 +8,7 @@ const supabase = createClient(
   { db: { schema: 'pintae' } },
 )
 
-const SYSTEM_PROMPT = `Você é o Koke, assistente da Pintaê Floripa no chat web e WhatsApp.
+const SYSTEM_PROMPT = `Você é o Koke, assistente da Pintai Floripa no chat web e WhatsApp.
 
 Tom: Prático, simpático, local e objetivo. Evite mensagens longas. Use markdown mínimo (**negrito** apenas quando importante).
 
@@ -203,7 +203,7 @@ async function generateBriefing(
   history: { role: string; content: string }[],
   mediaUrls?: string[],
 ): Promise<unknown> {
-  const briefingPrompt = `Você é o agente orçamentista técnico da Pintaê Floripa.
+  const briefingPrompt = `Você é o agente orçamentista técnico da Pintai Floripa.
 
 Dados coletados:
 ${JSON.stringify(collected, null, 2)}

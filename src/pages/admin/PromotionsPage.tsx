@@ -232,7 +232,7 @@ export function PromotionsPage() {
                   <label className="text-xs font-medium text-gray-600 mb-1.5 block">Parceiro (opcional)</label>
                   <select value={editPromo.partner_id || ''} onChange={e => setEditPromo({...editPromo, partner_id: e.target.value || undefined})}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-brand">
-                    <option value="">Pintaê própria</option>
+                    <option value="">Pintai própria</option>
                     {partners.map(p => <option key={p.id} value={p.id}>{p.trade_name}</option>)}
                   </select>
                 </div>

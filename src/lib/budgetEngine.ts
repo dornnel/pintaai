@@ -1,4 +1,4 @@
-// Motor de Inteligência de Orçamento de Pintura — Pintaê
+// Motor de Inteligência de Orçamento de Pintura — Pintai
 // Gera estimativa INTERNA para admins e pintores. Nunca expor preço ao cliente.
 
 export interface BudgetPricingRule {

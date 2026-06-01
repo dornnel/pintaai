@@ -8,7 +8,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import type { ConversationSession, BudgetPricingRule, BudgetComplexityRule } from '../../lib/types'
 
-const RECOMMENDED_PROMPT = `Você é o Koke, assistente da Pintaê Floripa no chat web e WhatsApp.
+const RECOMMENDED_PROMPT = `Você é o Koke, assistente da Pintai Floripa no chat web e WhatsApp.
 
 Tom: Prático, simpático, local e objetivo. Evite mensagens longas. Use markdown mínimo (**negrito** apenas quando importante).
 
@@ -339,7 +339,7 @@ export function AgentConfigPage() {
               <button
                 onClick={() => setConfig({ ...config, system_prompt: RECOMMENDED_PROMPT })}
                 className="flex items-center gap-1 text-xs text-brand hover:text-brand-dark cursor-pointer transition-colors"
-                title="Restaurar o prompt recomendado pela Pintaê"
+                title="Restaurar o prompt recomendado pela Pintai"
               >
                 <RefreshCw className="w-3 h-3" /> Restaurar recomendado
               </button>

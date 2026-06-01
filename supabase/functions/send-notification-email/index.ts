@@ -1,6 +1,6 @@
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
 const ADMIN_EMAIL = 'andre@agenscia.com'
-const FROM_EMAIL = 'Pintaê <noreply@pintai.com.br>'
+const FROM_EMAIL = 'Pintai <noreply@pintai.com.br>'
 
 interface EmailPayload {
   to: string
@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
 
   <div style="background:#E35A1A;padding:24px 32px">
-    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pintaê Floripa</h1>
+    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pintai Floripa</h1>
     <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:14px">O pintor certo para o seu espaço</p>
   </div>
 
@@ -94,7 +94,7 @@ Deno.serve(async (req: Request) => {
   </div>
 
   <div style="background:#fafafa;padding:16px 32px;text-align:center;border-top:1px solid #eee">
-    <p style="color:#bbb;font-size:11px;margin:0">Pintaê Floripa · pintai.agenscia.com · Florianópolis, SC</p>
+    <p style="color:#bbb;font-size:11px;margin:0">Pintai Floripa · pintai.agenscia.com · Florianópolis, SC</p>
   </div>
 </div>
 </body>
@@ -125,8 +125,8 @@ Deno.serve(async (req: Request) => {
 </html>`
 
     const [clientResult, adminResult] = await Promise.allSettled([
-      sendEmail(to, `Solicitação recebida — ${protocol} | Pintaê Floripa`, clientHtml),
-      sendEmail(ADMIN_EMAIL, `[Pintaê] Nova solicitação ${protocol} — ${name}`, adminHtml),
+      sendEmail(to, `Solicitação recebida — ${protocol} | Pintai Floripa`, clientHtml),
+      sendEmail(ADMIN_EMAIL, `[Pintai] Nova solicitação ${protocol} — ${name}`, adminHtml),
     ])
 
     console.log('Email results:', { client: clientResult.status, admin: adminResult.status })

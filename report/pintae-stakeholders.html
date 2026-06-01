@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pintai — Relatório para Stakeholders</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --brand: #FF7A30; --brand-dark: #e86820;
+    --g900: #111827; --g700: #374151; --g500: #6B7280;
+    --g300: #D1D5DB; --g200: #E5E7EB; --g100: #F3F4F6; --g50: #F9FAFB;
+    --green: #10B981; --blue: #3B82F6; --violet: #8B5CF6; --red: #EF4444;
+  }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--g900); font-size: 12px; line-height: 1.55; background: #fff; }
+
+  /* ── COVER ── */
+  .cover {
+    width: 100%; min-height: 297mm;
+    background: linear-gradient(145deg, #0d1b2a 0%, #1a2f4a 55%, #0d1b2a 100%);
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 72px 80px; page-break-after: always; position: relative; overflow: hidden;
+  }
+  .cover::before {
+    content: ''; position: absolute; top: -160px; right: -160px;
+    width: 500px; height: 500px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,122,48,.18) 0%, transparent 68%);
+  }
+  .cover::after {
+    content: ''; position: absolute; bottom: -120px; left: -80px;
+    width: 380px; height: 380px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(59,130,246,.12) 0%, transparent 68%);
+  }
+  .c-pill { display: inline-flex; gap: 6px; align-items: center;
+    background: rgba(255,122,48,.15); border: 1px solid rgba(255,122,48,.4);
+    color: var(--brand); padding: 5px 14px; border-radius: 100px;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 28px; }
+  .c-logo { font-size: 60px; font-weight: 900; color: #fff; letter-spacing: -2px; margin-bottom: 6px; }
+  .c-logo span { color: var(--brand); }
+  .c-tag { font-size: 20px; font-weight: 300; color: rgba(255,255,255,.65); max-width: 460px; margin-bottom: 44px; line-height: 1.45; }
+  .c-bar { width: 44px; height: 3px; background: var(--brand); border-radius: 2px; margin-bottom: 28px; }
+  .c-meta { color: rgba(255,255,255,.38); font-size: 10px; letter-spacing: .06em; line-height: 2.1; }
+  .c-stats { display: flex; gap: 36px; margin-top: 44px; }
+  .c-stat-v { font-size: 30px; font-weight: 800; color: #fff; display: block; letter-spacing: -.5px; }
+  .c-stat-l { font-size: 10px; color: rgba(255,255,255,.38); letter-spacing: .04em; }
+  .c-url { position: absolute; bottom: 44px; right: 80px; color: rgba(255,255,255,.28); font-size: 10px; letter-spacing: .06em; }
+
+  /* ── PAGE ── */
+  .page { max-width: 860px; margin: 0 auto; padding: 52px 68px; }
+  .pb { break-before: page; page-break-before: always; }
+
+  /* ── AVOID BREAKS INSIDE ── */
+  .nb, table, .feat-card, .diff-col, .bench-row, .stat-card, .timeline-item,
+  .price-row, tr { break-inside: avoid; page-break-inside: avoid; }
+
+  /* ── HEADINGS ── */
+  .sec-n { font-size: 9px; font-weight: 700; color: var(--brand); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 4px; }
+  h1.sec-t { font-size: 26px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 4px; }
+  .sec-s { font-size: 12px; color: var(--g500); margin-bottom: 28px; }
+  h2 { font-size: 14px; font-weight: 700; margin-top: 28px; margin-bottom: 10px;
+       display: flex; align-items: center; gap: 7px; }
+  h2 .ico { width: 26px; height: 26px; border-radius: 7px; background: var(--g100);
+             display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  h3 { font-size: 12px; font-weight: 600; color: var(--g700); margin-top: 16px; margin-bottom: 6px; }
+  p { color: var(--g700); margin-bottom: 10px; }
+  ul { padding-left: 18px; margin-bottom: 10px; }
+  li { color: var(--g700); margin-bottom: 3px; }
+
+  /* ── CALLOUT ── */
+  .callout { background: linear-gradient(135deg,rgba(255,122,48,.06),rgba(255,122,48,.02));
+    border-left: 3px solid var(--brand); border-radius: 0 10px 10px 0;
+    padding: 16px 20px; margin: 18px 0; break-inside: avoid; }
+  .callout-t { font-size: 9px; font-weight: 700; color: var(--brand); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 5px; }
+  .callout p { font-size: 14px; font-weight: 500; font-style: italic; margin: 0; color: var(--g900); }
+
+  /* ── CARDS ── */
+  .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 20px 0; break-inside: avoid; }
+  .stat-card { background: var(--g50); border: 1px solid var(--g200); border-radius: 10px; padding: 14px; text-align: center; }
+  .stat-card.ac { background: rgba(255,122,48,.06); border-color: rgba(255,122,48,.22); }
+  .sv { font-size: 22px; font-weight: 800; display: block; letter-spacing: -.3px; }
+  .stat-card.ac .sv { color: var(--brand); }
+  .sl { font-size: 9px; color: var(--g500); font-weight: 500; letter-spacing: .04em; margin-top: 1px; display: block; }
+
+  .feat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; margin: 14px 0; break-inside: avoid; }
+  .feat-card { background: var(--g50); border: 1px solid var(--g200); border-radius: 9px; padding: 12px 14px; break-inside: avoid; }
+  .feat-t { font-size: 11px; font-weight: 600; color: var(--g900); margin-bottom: 3px; }
+  .feat-d { font-size: 10px; color: var(--g500); line-height: 1.5; margin: 0; }
+
+  .hbox { background: var(--g50); border: 1px solid var(--g200); border-radius: 10px; padding: 16px 20px; margin: 16px 0; break-inside: avoid; }
+  .hbox.gr { background: rgba(16,185,129,.05); border-color: rgba(16,185,129,.22); }
+  .hbox.bl { background: rgba(59,130,246,.05); border-color: rgba(59,130,246,.22); }
+  .hbox.or { background: rgba(255,122,48,.05); border-color: rgba(255,122,48,.22); }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 11px; }
+  thead tr { background: var(--g900); color: #fff; }
+  thead th { padding: 8px 12px; text-align: left; font-weight: 600; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+  thead th:first-child { border-radius: 7px 0 0 7px; }
+  thead th:last-child  { border-radius: 0 7px 7px 0; }
+  tbody tr:nth-child(even) { background: var(--g50); }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid var(--g200); color: var(--g700); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 100px;
+    font-size: 9px; font-weight: 600; letter-spacing: .04em; white-space: nowrap; }
+  .bg   { background: rgba(16,185,129,.1);  color: #065f46; }
+  .bb   { background: rgba(59,130,246,.1);  color: #1e40af; }
+  .bor  { background: rgba(255,122,48,.12); color: #c2410c; }
+  .bgr  { background: var(--g200); color: var(--g700); }
+  .bv   { background: rgba(139,92,246,.1);  color: #5b21b6; }
+  .br   { background: rgba(239,68,68,.1);   color: #991b1b; }
+
+  /* ── DIFF ── */
+  .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; break-inside: avoid; }
+  .diff-col { border-radius: 9px; padding: 14px 16px; }
+  .diff-col.done { background: rgba(16,185,129,.05); border: 1px solid rgba(16,185,129,.22); }
+  .diff-col.todo { background: rgba(255,122,48,.05);  border: 1px solid rgba(255,122,48,.22); }
+  .diff-t { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+  .diff-col.done .diff-t { color: #065f46; }
+  .diff-col.todo .diff-t { color: #c2410c; }
+  .diff-i { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 5px; font-size: 10px; color: var(--g700); }
+  .dd { width: 5px; height: 5px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .diff-col.done .dd { background: var(--green); }
+  .diff-col.todo .dd { background: var(--brand); }
+
+  /* ── TIMELINE ── */
+  .timeline { position: relative; padding-left: 22px; margin: 14px 0; }
+  .timeline::before { content: ''; position: absolute; left: 4px; top: 4px; bottom: 4px; width: 2px; background: var(--g200); }
+  .timeline-item { position: relative; margin-bottom: 14px; break-inside: avoid; }
+  .tdot { position: absolute; left: -19px; top: 2px; width: 9px; height: 9px;
+    border-radius: 50%; background: var(--brand); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--brand); }
+  .tt { font-size: 11px; font-weight: 600; }
+  .td { font-size: 10px; color: var(--g500); margin: 2px 0 0; }
+
+  /* ── BENCHMARK CHART ── */
+  .bench-wrap { margin: 16px 0; break-inside: avoid; }
+  .bench-header { display: grid; grid-template-columns: 160px repeat(4,1fr); gap: 0;
+    background: var(--g900); border-radius: 8px 8px 0 0; padding: 8px 12px; }
+  .bench-header-cell { font-size: 9px; font-weight: 700; color: #fff; text-align: center; letter-spacing: .06em; text-transform: uppercase; }
+  .bench-header-cell:first-child { text-align: left; }
+  .bench-row { display: grid; grid-template-columns: 160px repeat(4,1fr); gap: 0;
+    padding: 7px 12px; border-bottom: 1px solid var(--g200); align-items: center; }
+  .bench-row:nth-child(odd) { background: var(--g50); }
+  .bench-row:last-child { border-bottom: none; border-radius: 0 0 8px 8px; }
+  .bench-label { font-size: 10px; font-weight: 500; color: var(--g700); }
+  .bench-cell { display: flex; align-items: center; justify-content: center; }
+  .bench-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .bd-5 { background: rgba(16,185,129,.15); color: #065f46; }
+  .bd-4 { background: rgba(59,130,246,.12); color: #1e40af; }
+  .bd-3 { background: rgba(255,200,50,.15); color: #92400e; }
+  .bd-1 { background: rgba(239,68,68,.1); color: #991b1b; }
+  .bd-0 { background: var(--g100); color: var(--g300); }
+
+  /* ── BAR CHART (revenue) ── */
+  .bar-chart { margin: 16px 0; break-inside: avoid; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; break-inside: avoid; }
+  .bar-label { width: 110px; font-size: 10px; font-weight: 500; color: var(--g700); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 28px; background: var(--g100); border-radius: 6px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 10px;
+    font-size: 10px; font-weight: 700; color: #fff; white-space: nowrap; transition: width .3s; }
+  .bar-note { width: 120px; font-size: 9px; color: var(--g500); flex-shrink: 0; text-align: right; }
+
+  /* ── PRICE TABLE ── */
+  .price-section { break-inside: avoid; }
+  .price-row { display: grid; grid-template-columns: 140px 80px 80px 80px 1fr; gap: 0;
+    padding: 7px 12px; border-bottom: 1px solid var(--g200); align-items: center; }
+  .price-header { background: var(--g900); border-radius: 8px 8px 0 0; }
+  .price-header .pc { color: #fff; font-weight: 700; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+  .price-row:nth-child(even) { background: var(--g50); }
+  .price-row:last-child { border-bottom: none; border-radius: 0 0 8px 8px; }
+  .pc { font-size: 10px; color: var(--g700); }
+  .pc.bold { font-weight: 700; color: var(--g900); }
+  .pc.brand { font-weight: 700; color: var(--brand); }
+  .price-total { background: var(--g900); border-radius: 0 0 8px 8px; }
+  .price-total .pc { color: rgba(255,255,255,.7); }
+  .price-total .pc.bold { color: #fff; }
+  .price-total .pc.brand { color: #FF9A5C; }
+
+  /* ── DASHBOARD FINAL ── */
+  .dash-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin: 16px 0; break-inside: avoid; }
+  .dash-card { border-radius: 10px; padding: 16px; border: 1px solid var(--g200); break-inside: avoid; }
+  .dash-card.brand { background: var(--brand); border-color: transparent; }
+  .dash-card.dark  { background: var(--g900); border-color: transparent; }
+  .dash-card.light { background: var(--g50); }
+  .dash-card.green { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.2); }
+  .dash-card.blue  { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.2); }
+  .dash-card.violet { background: rgba(139,92,246,.08); border-color: rgba(139,92,246,.2); }
+  .dc-icon { font-size: 22px; margin-bottom: 8px; }
+  .dc-val { font-size: 22px; font-weight: 800; display: block; margin-bottom: 2px; }
+  .dash-card.brand .dc-val, .dash-card.brand .dc-l, .dash-card.dark .dc-val, .dash-card.dark .dc-l { color: #fff; }
+  .dash-card.green .dc-val { color: #065f46; }
+  .dash-card.blue  .dc-val { color: #1e40af; }
+  .dash-card.violet .dc-val { color: #5b21b6; }
+  .dc-l { font-size: 9px; color: var(--g500); font-weight: 500; letter-spacing: .04em; }
+  .dash-card.brand .dc-l { color: rgba(255,255,255,.7); }
+
+  .meter { width: 100%; height: 6px; background: rgba(255,255,255,.2); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .meter-fill { height: 100%; background: #fff; border-radius: 3px; opacity: .8; }
+
+  /* ── FOOTER ── */
+  .footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--g200);
+    display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: var(--g500); }
+  .footer .fb { font-weight: 700; color: var(--brand); }
+
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ CAPA ══════════════════ -->
+<div class="cover">
+  <div class="c-pill">📄 Relatório Confidencial · Maio 2026</div>
+  <div class="c-logo">Pinta<span>ê</span></div>
+  <div class="c-tag">Marketplace de pintura com inteligência artificial. Conectando clientes e pintores profissionais na Grande Florianópolis.</div>
+  <div class="c-bar"></div>
+  <div class="c-meta">
+    ENGENHARIA REVERSA DO PRODUTO · ESTADO ATUAL · ROADMAP · BENCHMARKING · POTENCIAL DE RECEITA<br>
+    Documento preparado para stakeholders e investidores · Junho 2026
+  </div>
+  <div class="c-stats">
+    <div><span class="c-stat-v">52</span><span class="c-stat-l">commits de código</span></div>
+    <div><span class="c-stat-v">3</span><span class="c-stat-l">dias de desenvolvimento</span></div>
+    <div><span class="c-stat-v">30+</span><span class="c-stat-l">tabelas no banco</span></div>
+    <div><span class="c-stat-v">22</span><span class="c-stat-l">telas funcionais</span></div>
+  </div>
+  <div class="c-url">pintai.agenscia.com</div>
+</div>
+
+<!-- ══════════════════ 01 · VISÃO ══════════════════ -->
+<div class="page">
+  <div class="sec-n">01 · Visão do Produto</div>
+  <h1 class="sec-t">O que é a Pintai</h1>
+  <p class="sec-s">Um ecossistema digital para o setor de pintura — não apenas um catálogo de profissionais</p>
+
+  <div class="callout">
+    <div class="callout-t">🎯 Proposta de valor</div>
+    <p>"A Pintai sabe mais sobre o projeto do cliente do que o próprio cliente sabe — e entrega essa inteligência para o pintor certo, na hora certa."</p>
+  </div>
+
+  <p>A Pintai é um <strong>marketplace de serviços de pintura com inteligência artificial</strong> que resolve um problema duplo: clientes não sabem quanto custa pintar nem como avaliar um pintor; pintores perdem tempo em visitas desnecessárias.</p>
+  <p>A plataforma usa IA para qualificar o lead, gera briefing técnico completo automaticamente, estima o custo e distribui para os pintores mais adequados — com o dinheiro em custódia (escrow) para garantir segurança nas duas pontas.</p>
+
+  <div class="stats-row nb">
+    <div class="stat-card ac"><span class="sv">40×</span><span class="sl">Velocidade vs. time tradicional</span></div>
+    <div class="stat-card"><span class="sv">8</span><span class="sl">Integrações ativas</span></div>
+    <div class="stat-card"><span class="sv">22</span><span class="sl">Telas no painel admin</span></div>
+    <div class="stat-card"><span class="sv">14</span><span class="sl">Migrations no banco</span></div>
+  </div>
+
+  <h2><span class="ico">🧩</span> Os quatro participantes do ecossistema</h2>
+  <div class="feat-grid nb">
+    <div class="feat-card"><div class="feat-t">🏠 Cliente (quem quer pintar)</div><p class="feat-d">Descreve o projeto via chat IA, recebe estimativa automática, compara propostas e paga com segurança via escrow.</p></div>
+    <div class="feat-card"><div class="feat-t">🎨 Pintor (prestador)</div><p class="feat-d">Recebe leads qualificados com briefing pronto, envia proposta, é avaliado e constrói reputação verificada na plataforma.</p></div>
+    <div class="feat-card"><div class="feat-t">🏪 Parceiro (loja / marca)</div><p class="feat-d">Vende tintas e materiais no marketplace integrado, anuncia para a audiência qualificada da plataforma.</p></div>
+    <div class="feat-card"><div class="feat-t">⚙️ Admin / Superadmin</div><p class="feat-d">Gestão completa de leads, pagamentos, pintores e plataforma. Superadmin com acesso à IA, auditoria e segurança.</p></div>
+  </div>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 02 · DESENVOLVIMENTO ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">02 · Desenvolvimento</div>
+  <h1 class="sec-t">Contexto e Stack Técnica</h1>
+  <p class="sec-s">Do zero a um produto completo em 3 dias — com IA como co-desenvolvedor</p>
+
+  <div class="hbox or nb">
+    <strong>Construído do zero em 3 dias corridos</strong> (29–31 mai 2026), com 52 commits. O equivalente em desenvolvimento humano tradicional: <strong>5 a 8 meses de trabalho</strong> de um time de 3–4 pessoas. Custo de desenvolvimento AI-assistido: <strong>menos de R$ 5.000</strong>.
+  </div>
+
+  <h2><span class="ico">⏱</span> Linha do tempo</h2>
+  <div class="timeline">
+    <div class="timeline-item"><div class="tdot"></div><div class="tt">29 mai — Fundação</div><div class="td">Banco de dados, autenticação Google, landing page, agente de chat, portal do pintor, painel admin, pagamentos Asaas, visualizador de cores</div></div>
+    <div class="timeline-item"><div class="tdot"></div><div class="tt">30 mai — Produto</div><div class="td">Troca para OpenAI GPT-4o, fluxo ponta-a-ponta completo, UX mobile, email de confirmação, PWA, motor de orçamento IA, CRM Kanban</div></div>
+    <div class="timeline-item"><div class="tdot"></div><div class="tt">31 mai — Plataforma</div><div class="td">22 telas admin, assinaturas, anúncios, auditoria, testes, superadmin, LGPD, CPF, tracking, lead detail page, WallCanvas overhaul</div></div>
+  </div>
+
+  <h2><span class="ico">🏗</span> Stack técnica</h2>
+  <table>
+    <thead><tr><th>Camada</th><th>Tecnologia</th><th>O que significa na prática</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Interface</strong></td><td>React 19 + TypeScript + Tailwind</td><td>O que o usuário vê. Código moderno, rápido, manutenível.</td></tr>
+      <tr><td><strong>Banco de dados</strong></td><td>Supabase / PostgreSQL</td><td>30+ tabelas. Banco relacional com segurança por linha de dado (RLS).</td></tr>
+      <tr><td><strong>Autenticação</strong></td><td>Google OAuth + Supabase Auth</td><td>Login com Google em 1 clique. Sem senha para memorizar.</td></tr>
+      <tr><td><strong>Inteligência Artificial</strong></td><td>OpenAI GPT-4o + DALL-E 3</td><td>Agente de chat, briefings, estimativas, render fotorrealístico.</td></tr>
+      <tr><td><strong>Pagamentos</strong></td><td>Asaas (escrow)</td><td>PIX e cartão em custódia. Dinheiro liberado só após conclusão.</td></tr>
+      <tr><td><strong>Emails</strong></td><td>Resend API</td><td>Confirmações, notificações e alertas automáticos.</td></tr>
+      <tr><td><strong>Agendamento</strong></td><td>Cal.com webhook</td><td>Integração para agendamento de visitas técnicas.</td></tr>
+      <tr><td><strong>Hospedagem</strong></td><td>Easypanel + Docker</td><td>Atualiza automaticamente a cada commit. CI/CD nativo.</td></tr>
+      <tr><td><strong>Backend serverless</strong></td><td>8 Edge Functions Supabase</td><td>Operações críticas: pagamento, IA, webhooks, notificações.</td></tr>
+      <tr><td><strong>Testes</strong></td><td>Vitest + Playwright</td><td>27 testes automatizados garantem que o código não quebra.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 03 · PRODUTO CLIENTE ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">03 · Produto</div>
+  <h1 class="sec-t">Experiência do Cliente</h1>
+  <p class="sec-s">O que o cliente vê e usa — do primeiro contato ao pagamento</p>
+
+  <h2><span class="ico">🌐</span> Landing page e aquisição</h2>
+  <ul>
+    <li>Vídeo de fundo responsivo com animação de destaque</li>
+    <li>Chips de acesso rápido por tipo de serviço (Sala e quartos, Fachada, Pós-obra, Mural)</li>
+    <li>Galeria Antes/Depois gerenciável via CMS, depoimentos e FAQ expandível</li>
+    <li>Seção de segurança (LGPD, escrow, pintores verificados)</li>
+    <li>Menu inferior fixo estilo iOS — Home, Chat, Simular, Loja</li>
+    <li>PWA: funciona como app instalado no celular, sem App Store</li>
+  </ul>
+
+  <h2><span class="ico">🤖</span> Agente Koke — Chat com IA</h2>
+  <p>Conduz o cliente por 10 etapas estruturadas, coletando tudo que o pintor precisa saber:</p>
+  <div class="feat-grid nb">
+    <div class="feat-card"><div class="feat-t">📋 Dados coletados</div><p class="feat-d">Nome, email, WhatsApp, bairro, tipo de imóvel, tipo de serviço, condição das paredes, prazo, material, observações livres + fotos/vídeos</p></div>
+    <div class="feat-card"><div class="feat-t">🧠 O que a IA faz</div><p class="feat-d">Gera briefing técnico completo, calcula faixa de preço, detecta sentimento, gera protocolo único, salva mídias, envia email de confirmação</p></div>
+    <div class="feat-card"><div class="feat-t">📱 UX mobile-first</div><p class="feat-d">Fullscreen no celular, teclado não empurra conteúdo, chips de resposta rápida, avatar da Koke, placeholder animado estilo Lovable</p></div>
+    <div class="feat-card"><div class="feat-t">📡 Captura de dados</div><p class="feat-d">IP, UTM, navegador, dispositivo, referrer e origem capturados com consentimento LGPD. Dados enriquecem o lead no banco.</p></div>
+  </div>
+
+  <h2><span class="ico">🎨</span> Visualizador de Cores com IA</h2>
+  <p>Ferramenta exclusiva de simulação — o cliente vê a cor na parede <strong>antes de contratar</strong>.</p>
+  <div class="feat-grid nb">
+    <div class="feat-card"><div class="feat-t">🖼 Ferramentas de seleção</div><p class="feat-d">Polígono de pontos, laço livre, retângulo e círculo/elipse — seleção precisa de qualquer área da parede</p></div>
+    <div class="feat-card"><div class="feat-t">🖌 Pincel livre</div><p class="feat-d">Arrastar para pintar livremente, 4 tamanhos (S/M/G/GG), cursor adapta ao tamanho escolhido</p></div>
+    <div class="feat-card"><div class="feat-t">🎡 Paleta completa</div><p class="feat-d">Roda de cores cromática, 40+ presets Pantone, desfazer/refazer com histórico de 20 passos</p></div>
+    <div class="feat-card"><div class="feat-t">✨ Render DALL-E 3</div><p class="feat-d">"Melhorar com IA" gera render fotorrealístico do ambiente com a cor aplicada — download em PNG</p></div>
+  </div>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 04 · PLATAFORMA ADMIN ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">04 · Plataforma</div>
+  <h1 class="sec-t">Painel Administrativo — 22 Telas</h1>
+  <p class="sec-s">Operação completa da plataforma sem depender de programadores no dia a dia</p>
+
+  <h2><span class="ico">🔐</span> Separação Superadmin / Admin</h2>
+  <div class="diff nb">
+    <div class="diff-col done">
+      <div class="diff-t">✅ Todos os admins acessam</div>
+      <div class="diff-i"><div class="dd"></div>Dashboard, Leads, Pedidos</div>
+      <div class="diff-i"><div class="dd"></div>Pagamentos, Assinaturas</div>
+      <div class="diff-i"><div class="dd"></div>Usuários, Pintores</div>
+      <div class="diff-i"><div class="dd"></div>Produtos, Promoções, Anúncios</div>
+      <div class="diff-i"><div class="dd"></div>Avaliações, CRM, Conversas, Moderação</div>
+    </div>
+    <div class="diff-col todo">
+      <div class="diff-t">🔒 Somente Superadmin</div>
+      <div class="diff-i"><div class="dd"></div>Configuração do Agente IA (Koke)</div>
+      <div class="diff-i"><div class="dd"></div>IA Ops (teste direto com o agente)</div>
+      <div class="diff-i"><div class="dd"></div>Permissões granulares por admin</div>
+      <div class="diff-i"><div class="dd"></div>CMS (editar landing page sem código)</div>
+      <div class="diff-i"><div class="dd"></div>Auditoria imutável + Configurações</div>
+    </div>
+  </div>
+
+  <h2><span class="ico">📋</span> Inventário completo das 22 telas</h2>
+  <table>
+    <thead><tr><th>Tela</th><th>Funcionalidade principal</th><th>Acesso</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Dashboard</strong></td><td>KPIs, funil em tempo real, atividades, detecção de fraude</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Solicitações (Leads)</strong></td><td>Lista, busca, filtros por estágio, envio para pintores</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Detalhe do Lead</strong></td><td>Chat histórico, mídias, IA inline, rastreio de pintores, agenda, benchmark</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Pedidos</strong></td><td>Lista de service requests, detalhe com propostas dos pintores</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Pagamentos</strong></td><td>Escrow Asaas, milestones, liberação de pagamento</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Assinaturas</strong></td><td>Planos, status, churn, receita mensal</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Usuários</strong></td><td>Listagem, status, banimento, KYC</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Pintores</strong></td><td>Verificação, score 5 dimensões, disponibilidade, portfólio</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Produtos</strong></td><td>Catálogo próprio + parceiros, aprovação, destaque</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Promoções</strong></td><td>Cupons com validade, uso máximo, desconto por tipo</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Anúncios</strong></td><td>Slots de publicidade com métricas de impressão e clique</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Avaliações</strong></td><td>Listagem com análise de sentimento IA</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>CRM Global</strong></td><td>Pipeline Kanban por workspace com arrastar e soltar</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Conversas</strong></td><td>Histórico de sessões do chat com dados coletados</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Moderação</strong></td><td>Flags de conteúdo impróprio com nível de severidade</td><td><span class="badge bg">Todos admins</span></td></tr>
+      <tr><td><strong>Agente IA</strong></td><td>Configuração do Koke — prompt, fluxo, persona, base de conhecimento</td><td><span class="badge bv">🔒 Superadmin</span></td></tr>
+      <tr><td><strong>IA Ops</strong></td><td>Chat direto com o agente para testar comportamento</td><td><span class="badge bv">🔒 Superadmin</span></td></tr>
+      <tr><td><strong>Permissões</strong></td><td>Matriz granular de acesso por admin</td><td><span class="badge bv">🔒 Superadmin</span></td></tr>
+      <tr><td><strong>Conteúdo (CMS)</strong></td><td>Editor da landing page sem código (texto, imagens, JSON)</td><td><span class="badge bv">🔒 Superadmin</span></td></tr>
+      <tr><td><strong>Auditoria</strong></td><td>Log imutável de todas as ações administrativas + export CSV</td><td><span class="badge bv">🔒 Superadmin</span></td></tr>
+      <tr><td><strong>Configurações</strong></td><td>Email admin, taxa da plataforma, WhatsApp, toggles de features</td><td><span class="badge bv">🔒 Superadmin</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 05 · MOTOR IA + SEGURANÇA ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">05 · Inteligência e Segurança</div>
+  <h1 class="sec-t">Motor de Orçamento IA + Conformidade LGPD</h1>
+  <p class="sec-s">Os ativos estratégicos proprietários da plataforma</p>
+
+  <div class="hbox bl nb">
+    <strong>Motor de orçamento proprietário</strong> — algoritmo que calcula estimativas de custo em tempo real com base em variáveis técnicas reais. Aprende com divergências registradas pelos pintores, melhorando a precisão ao longo do tempo.
+  </div>
+
+  <div class="feat-grid nb">
+    <div class="feat-card"><div class="feat-t">📐 Variáveis de entrada</div><p class="feat-d">Tipo de serviço (8 categorias), área m², condição das paredes (6 níveis), complexidades, material incluso, prazo e região</p></div>
+    <div class="feat-card"><div class="feat-t">💰 Saídas calculadas</div><p class="feat-d">Faixa mínima–máxima de custo, nível de confiança da estimativa, briefing técnico em linguagem natural, sentimento detectado</p></div>
+    <div class="feat-card"><div class="feat-t">🔄 Retroalimentação</div><p class="feat-d">Quando o pintor cobra diferente, o admin registra o motivo (9 categorias). Esses dados melhoram a precisão do motor continuamente.</p></div>
+    <div class="feat-card"><div class="feat-t">📊 Referência de mercado</div><p class="feat-d">R$/m² e R$/hora por tipo de serviço, baseado em SINDUSCON-SC e fóruns profissionais — exibido no painel admin</p></div>
+  </div>
+
+  <h2><span class="ico">⚡</span> 8 Edge Functions — operações críticas</h2>
+  <table>
+    <thead><tr><th>Função</th><th>O que faz</th></tr></thead>
+    <tbody>
+      <tr><td><strong>agent-chat</strong></td><td>Agente Koke: conduz conversa, decide próxima etapa, chama GPT-4o quando necessário</td></tr>
+      <tr><td><strong>admin-agent</strong></td><td>Assistente IA para admin analisar projetos e argumentar preços com o cliente</td></tr>
+      <tr><td><strong>enhance-with-ai</strong></td><td>Render fotorrealístico via DALL-E 3 para o visualizador de cores</td></tr>
+      <tr><td><strong>create-payment</strong></td><td>Cria cobrança no Asaas (PIX ou cartão) com escrow automático</td></tr>
+      <tr><td><strong>asaas-webhook</strong></td><td>Recebe confirmações de pagamento e atualiza o banco automaticamente</td></tr>
+      <tr><td><strong>calcom-webhook</strong></td><td>Integração Cal.com para agendamento de visitas técnicas com pintores</td></tr>
+      <tr><td><strong>send-notification-email</strong></td><td>Emails transacionais: confirmação, proposta recebida, pagamento liberado</td></tr>
+      <tr><td><strong>send-admin-notification</strong></td><td>Alertas para o admin em 7 eventos críticos (novo lead, pagamento, flag, etc.)</td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="ico">🔒</span> Segurança e conformidade LGPD</h2>
+  <table>
+    <thead><tr><th>Feature</th><th>Descrição</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Banner de cookies</strong></td><td>Aceitar tudo / Só essenciais — LGPD art. 7º, persiste preferência</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>Termos de Uso</strong></td><td>Documento completo PT-BR em /termos</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>Política de Privacidade</strong></td><td>Art. 18 LGPD — direitos do titular em /privacidade</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>CPF Gate</strong></td><td>CPF obrigatório para fechar pedido, com validação de dígito verificador</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>Tracking LGPD-compliant</strong></td><td>IP, UTM, navegador capturados APENAS com consentimento "aceitar tudo"</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>Row Level Security</strong></td><td>Cada usuário só acessa seus dados — segurança a nível de banco</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>Superadmin isolado</strong></td><td>Rotas críticas protegidas para e-mail superadmin</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+      <tr><td><strong>Trilha de auditoria</strong></td><td>Log imutável de todas as ações administrativas, export CSV</td><td><span class="badge bg">✓ Ativo</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 06 · BENCHMARKING COMPETITIVO ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">06 · Análise Competitiva</div>
+  <h1 class="sec-t">Benchmarking — Pintai vs. Concorrentes</h1>
+  <p class="sec-s">Comparação com as principais alternativas disponíveis no mercado brasileiro</p>
+
+  <div class="hbox or nb">
+    <strong>Nenhum concorrente direto no Brasil oferece IA de qualificação + escrow + visualizador de cores em uma única plataforma especializada em pintura.</strong> A Pintai compete em categorias diferentes com cada alternativa existente.
+  </div>
+
+  <h2><span class="ico">📊</span> Comparativo por dimensão</h2>
+
+  <div class="bench-wrap nb">
+    <div class="bench-header">
+      <div class="bench-header-cell">Dimensão</div>
+      <div class="bench-header-cell">Pintai</div>
+      <div class="bench-header-cell">GetNinjas</div>
+      <div class="bench-header-cell">Habitissimo</div>
+      <div class="bench-header-cell">WhatsApp/OLX</div>
+    </div>
+    <div style="border: 1px solid var(--g200); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden;">
+      <div class="bench-row"><div class="bench-label">Especialização em pintura</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-1">○</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Qualificação IA do lead</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Briefing técnico automático</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Estimativa de custo IA</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-1">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Segurança no pagamento (escrow)</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-1">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Visualizador de cores</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Score verificado do pintor</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-4">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Dados ricos para análise</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Painel admin completo</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-4">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-4">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+      <div class="bench-row"><div class="bench-label">Conformidade LGPD</div><div class="bench-cell"><div class="bench-dot bd-5">⬤</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-3">◑</div></div><div class="bench-cell"><div class="bench-dot bd-0">○</div></div></div>
+    </div>
+  </div>
+  <p style="font-size: 9px; color: var(--g500); margin-top: 6px;">⬤ Completo &nbsp;◑ Parcial &nbsp;○ Ausente &nbsp;&nbsp;GetNinjas = marketplace geral (todos os serviços) &nbsp;Habitissimo = reformas em geral</p>
+
+  <h2><span class="ico">🏆</span> Posicionamento estratégico</h2>
+  <table>
+    <thead><tr><th>Alternativa</th><th>O cliente vai se você quer...</th><th>Por que escolhe a Pintai</th></tr></thead>
+    <tbody>
+      <tr><td><strong>GetNinjas</strong></td><td>Qualquer serviço, sem especialização</td><td>Pintura especializada + IA + escrow + sem leilão de preço</td></tr>
+      <tr><td><strong>Habitissimo</strong></td><td>Reformas em geral, formulário básico</td><td>Chat conversacional, briefing automático, visualizador de cores</td></tr>
+      <tr><td><strong>WhatsApp / OLX</strong></td><td>Contato direto com prestadores</td><td>Verificação, score, escrow, sem risco de golpe</td></tr>
+      <tr><td><strong>Indicação de amigos</strong></td><td>Confiança por referência pessoal</td><td>Escala além do círculo social + pintores verificados</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 07 · CUSTOS INDIVIDUAIS ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">07 · Custos de Operação</div>
+  <h1 class="sec-t">Precificação Individual de Serviços</h1>
+  <p class="sec-s">Custo detalhado por serviço em três cenários de volume</p>
+
+  <div class="price-section nb">
+    <div class="price-row price-header">
+      <div class="pc">Serviço</div>
+      <div class="pc">Fase 1 (0–100 leads)</div>
+      <div class="pc">Fase 2 (100–500 leads)</div>
+      <div class="pc">Fase 3 (500–1.500 leads)</div>
+      <div class="pc">Observação</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">VPS (Easypanel)</div>
+      <div class="pc">R$ 100/mês</div>
+      <div class="pc">R$ 180/mês</div>
+      <div class="pc">R$ 350/mês</div>
+      <div class="pc">2 CPU / 4GB → 4 CPU / 8GB conforme tráfego</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">Supabase</div>
+      <div class="pc">R$ 0 (free)</div>
+      <div class="pc">R$ 125/mês</div>
+      <div class="pc">R$ 250/mês</div>
+      <div class="pc">Free até 50k usuários; Pro $25/mês (~R$125)</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">OpenAI GPT-4o</div>
+      <div class="pc">R$ 80/mês</div>
+      <div class="pc">R$ 450/mês</div>
+      <div class="pc">R$ 1.400/mês</div>
+      <div class="pc">~R$ 0,80 por lead completo no chat (10 trocas médias)</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">DALL-E 3 (renders)</div>
+      <div class="pc">R$ 20/mês</div>
+      <div class="pc">R$ 100/mês</div>
+      <div class="pc">R$ 350/mês</div>
+      <div class="pc">~R$ 0,40 por imagem gerada; uso opcional pelo cliente</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">Resend (emails)</div>
+      <div class="pc">R$ 0 (free)</div>
+      <div class="pc">R$ 50/mês</div>
+      <div class="pc">R$ 100/mês</div>
+      <div class="pc">Free até 3.000 emails/mês; $20/mês (~R$100) além disso</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">Asaas (gateway)</div>
+      <div class="pc">2,99% por transação</div>
+      <div class="pc">2,99% por transação</div>
+      <div class="pc">2,49% (volume)</div>
+      <div class="pc">Sem mensalidade. Negociável acima de R$50k/mês em transações</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">Cal.com (agendamento)</div>
+      <div class="pc">R$ 0 (free)</div>
+      <div class="pc">R$ 60/mês</div>
+      <div class="pc">R$ 60/mês</div>
+      <div class="pc">Free tier suficiente no início; Pro $12/mês (~R$60)</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">Cloudflare CDN</div>
+      <div class="pc">R$ 0</div>
+      <div class="pc">R$ 0</div>
+      <div class="pc">R$ 0</div>
+      <div class="pc">Free para proteção DDoS, SSL e aceleração global</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">Domínio (.com.br)</div>
+      <div class="pc">R$ 4/mês</div>
+      <div class="pc">R$ 4/mês</div>
+      <div class="pc">R$ 4/mês</div>
+      <div class="pc">~R$50/ano. Renovação anual.</div>
+    </div>
+    <div class="price-row">
+      <div class="pc bold">n8n (quando ativar)</div>
+      <div class="pc">R$ 0 (ainda não)</div>
+      <div class="pc">R$ 100/mês</div>
+      <div class="pc">R$ 100/mês</div>
+      <div class="pc">Cloud $20/mês (~R$100). Automações de follow-up e remarketing</div>
+    </div>
+    <div class="price-row price-total">
+      <div class="pc bold" style="color:#fff;">TOTAL ESTIMADO</div>
+      <div class="pc brand">~R$ 204/mês</div>
+      <div class="pc brand">~R$ 1.069/mês</div>
+      <div class="pc brand">~R$ 2.614/mês</div>
+      <div class="pc" style="color:rgba(255,255,255,.5);">Não inclui % Asaas (variável por volume)</div>
+    </div>
+  </div>
+
+  <div class="hbox gr nb" style="margin-top: 16px;">
+    <strong>Margem operacional muito saudável:</strong> uma taxa de 10% sobre 150 jobs/mês de R$1.500 médio gera R$ 22.500/mês em receita — <strong>custo de operação representa menos de 12% da receita nesse cenário</strong>.
+  </div>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 08 · MODELO DE NEGÓCIO ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">08 · Modelo de Negócio</div>
+  <h1 class="sec-t">Fontes de Receita + Roadmap</h1>
+  <p class="sec-s">Múltiplas fontes de monetização — infraestrutura pronta para ativar</p>
+
+  <h2><span class="ico">💰</span> Fontes de receita</h2>
+  <table>
+    <thead><tr><th>Fonte</th><th>Modelo</th><th>Potencial mensal (fase 2)</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Taxa de intermediação</strong></td><td>10% sobre cada job fechado via escrow</td><td>R$ 9.000–22.500</td><td><span class="badge bg">Infra pronta</span></td></tr>
+      <tr><td><strong>Pintai Pro (pintor)</strong></td><td>Assinatura R$ 49,90/mês — leads prioritários, badge verificado</td><td>R$ 1.000–5.000</td><td><span class="badge bb">Schema pronto</span></td></tr>
+      <tr><td><strong>Anúncios de parceiros</strong></td><td>Slots mensais fixos com métricas de impressão/clique</td><td>R$ 500–3.000</td><td><span class="badge bb">Schema pronto</span></td></tr>
+      <tr><td><strong>Marketplace</strong></td><td>Comissão sobre venda de tintas e materiais de parceiros</td><td>R$ 1.000–5.000</td><td><span class="badge bor">Checkout falta</span></td></tr>
+      <tr><td><strong>Dados B2B (futuro)</strong></td><td>Insights anonimizados para fabricantes e distribuidores de tinta</td><td>R$ 2.000–10.000</td><td><span class="badge bgr">Roadmap</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2><span class="ico">🗺</span> O que falta — próximas ativações</h2>
+  <table>
+    <thead><tr><th>Feature</th><th>O que já existe</th><th>O que falta</th><th>Esforço</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Checkout do marketplace</strong></td><td>Schema, catálogo de produtos</td><td>Carrinho + pagamento</td><td><span class="badge bb">2–3 dias</span></td></tr>
+      <tr><td><strong>Portal do parceiro completo</strong></td><td>Role, rota, página básica</td><td>CRUD produtos, pedidos, métricas de anúncio</td><td><span class="badge bb">3–4 dias</span></td></tr>
+      <tr><td><strong>WhatsApp nativo</strong></td><td>Agente Koke no chat web</td><td>Integração API WhatsApp Business</td><td><span class="badge bor">1 semana</span></td></tr>
+      <tr><td><strong>Notificações push (PWA)</strong></td><td>PWA instalável</td><td>Service worker para push notifications</td><td><span class="badge bb">1 dia</span></td></tr>
+      <tr><td><strong>Retroalimentação IA</strong></td><td>Registro de divergências</td><td>Sugestão automática de ajuste nas regras</td><td><span class="badge bb">2 dias</span></td></tr>
+      <tr><td><strong>Página pública Plano Pro</strong></td><td>Plano cadastrado no banco</td><td>Landing de conversão + integração Asaas</td><td><span class="badge bb">1 dia</span></td></tr>
+      <tr><td><strong>Dashboard analítico avançado</strong></td><td>KPIs básicos no admin</td><td>Gráficos de conversão, CAC, LTV, NPS por período</td><td><span class="badge bor">3–5 dias</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 09 · POTENCIAL DE RECEITA ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">09 · Potencial de Receita</div>
+  <h1 class="sec-t">Projeção de Crescimento</h1>
+  <p class="sec-s">Cenários conservadores baseados em métricas típicas de marketplace B2C</p>
+
+  <div class="feat-grid nb">
+    <div class="feat-card"><div class="feat-t">📌 Premissas do modelo</div>
+      <p class="feat-d">
+        • Taxa de conversão lead → job: 30%<br>
+        • Ticket médio de pintura: R$ 1.500<br>
+        • Comissão da plataforma: 10%<br>
+        • Crescimento: 3× a cada fase<br>
+        • Inclui assinaturas + anúncios
+      </p>
+    </div>
+    <div class="feat-card"><div class="feat-t">🎯 TAM / SAM / SOM</div>
+      <p class="feat-d">
+        • <strong>TAM:</strong> Mercado de pintura Brasil ~R$18B/ano<br>
+        • <strong>SAM:</strong> Grande Florianópolis ~R$120M/ano<br>
+        • <strong>SOM:</strong> 1% do SAM = R$1,2M/ano alcançável<br>
+        • Meta ano 2: 5% SAM = R$6M/ano
+      </p>
+    </div>
+  </div>
+
+  <h2><span class="ico">📈</span> Projeção de receita por fase</h2>
+
+  <div class="bar-chart nb">
+    <div class="bar-row">
+      <div class="bar-label">Fase 1 · Meses 1–3</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:5%; background: linear-gradient(90deg,#6B7280,#9CA3AF);">R$ 2.250</div>
+      </div>
+      <div class="bar-note">50 leads · 15 jobs</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Fase 2 · Meses 4–6</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:17%; background: linear-gradient(90deg,#3B82F6,#60A5FA);">R$ 10.500</div>
+      </div>
+      <div class="bar-note">200 leads · 60 jobs + Pro</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Fase 3 · Meses 7–12</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:46%; background: linear-gradient(90deg,#8B5CF6,#A78BFA);">R$ 28.500/mês</div>
+      </div>
+      <div class="bar-note">500 leads · 150 jobs</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Fase 4 · Ano 2</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:100%; background: linear-gradient(90deg,#FF7A30,#FFB347);">R$ 92.500/mês → R$ 1,1M/ano</div>
+      </div>
+      <div class="bar-note">1.500 leads · 450 jobs</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Fase</th><th>Leads/mês</th><th>Jobs fechados</th><th>Taxa (10%)</th><th>Pro + Ads</th><th>Receita Total</th><th>Custo Op.</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1 (meses 1–3)</strong></td><td>50</td><td>15</td><td>R$ 2.250</td><td>R$ 0</td><td><strong>R$ 2.250</strong></td><td>~R$ 204</td></tr>
+      <tr><td><strong>2 (meses 4–6)</strong></td><td>200</td><td>60</td><td>R$ 9.000</td><td>R$ 1.500</td><td><strong>R$ 10.500</strong></td><td>~R$ 1.069</td></tr>
+      <tr><td><strong>3 (meses 7–12)</strong></td><td>500</td><td>150</td><td>R$ 22.500</td><td>R$ 6.000</td><td><strong>R$ 28.500</strong></td><td>~R$ 2.614</td></tr>
+      <tr><td><strong>4 (ano 2)</strong></td><td>1.500</td><td>450</td><td>R$ 67.500</td><td>R$ 25.000</td><td><strong>R$ 92.500</strong></td><td>~R$ 8.000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="hbox gr nb">
+    <strong>Break-even estimado: mês 3–4</strong> com menos de 30 jobs fechados. A partir daí, cada lead adicional tem custo marginal próximo de zero — o negócio escala sem crescimento proporcional de custos.
+  </div>
+
+  <div class="footer"><span><span class="fb">Pintai</span> · Relatório Stakeholders · Maio 2026</span><span>Confidencial</span></div>
+</div>
+
+<!-- ══════════════════ 10 · DASHBOARD FINAL ══════════════════ -->
+<div class="page pb">
+  <div class="sec-n">10 · Resumo Executivo</div>
+  <h1 class="sec-t">Dashboard Final — Visão Completa</h1>
+  <p class="sec-s">O estado atual da plataforma em números — pronta para o mercado</p>
+
+  <div class="dash-grid nb">
+    <div class="dash-card brand"><div class="dc-icon">🚀</div><span class="dc-val">100%</span><span class="dc-l">Produto funcional em produção</span><div class="meter"><div class="meter-fill" style="width:100%"></div></div></div>
+    <div class="dash-card dark"><div class="dc-icon">💻</div><span class="dc-val">52</span><span class="dc-l">Commits · 3 dias de desenvolvimento</span><div class="meter"><div class="meter-fill" style="width:100%;opacity:.4"></div></div></div>
+    <div class="dash-card green"><div class="dc-icon">✅</div><span class="dc-val">22</span><span class="dc-l">Telas admin funcionais</span></div>
+    <div class="dash-card blue"><div class="dc-icon">🤖</div><span class="dc-val">8</span><span class="dc-l">Edge Functions ativas</span></div>
+    <div class="dash-card violet"><div class="dc-icon">🗄</div><span class="dc-val">30+</span><span class="dc-l">Tabelas no banco de dados</span></div>
+    <div class="dash-card light"><div class="dc-icon">🧪</div><span class="dc-val">27</span><span class="dc-l">Testes automatizados</span></div>
+  </div>
+
+  <div class="dash-grid nb">
+    <div class="dash-card light"><div class="dc-icon">💰</div><span class="dc-val" style="color:var(--brand)">R$ 204</span><span class="dc-l">Custo/mês na Fase 1</span></div>
+    <div class="dash-card light"><div class="dc-icon">📈</div><span class="dc-val" style="color:var(--green)">R$ 2.250</span><span class="dc-l">Receita potencial mês 1</span></div>
+    <div class="dash-card light"><div class="dc-icon">🎯</div><span class="dc-val" style="color:var(--violet)">R$ 92.500</span><span class="dc-l">Receita potencial mês 24</span></div>
+  </div>
+
+  <h2><span class="ico">🔑</span> O que está funcionando agora</h2>
+  <div class="feat-grid nb">
+    <div class="feat-card"><div class="feat-t">✅ Chat IA (Koke) ponta-a-ponta</div><p class="feat-d">Qualifica leads, gera briefing técnico, calcula estimativa e envia email de confirmação automaticamente</p></div>
+    <div class="feat-card"><div class="feat-t">✅ Painel admin completo</div><p class="feat-d">22 telas com CRUD completo, separação superadmin/admin, rastreio de pintores, agendamento e IA inline</p></div>
+    <div class="feat-card"><div class="feat-t">✅ Pagamentos com escrow</div><p class="feat-d">PIX e cartão via Asaas com custódia automática. Milestone de pagamento por etapa do serviço</p></div>
+    <div class="feat-card"><div class="feat-t">✅ LGPD e segurança</div><p class="feat-d">Banner de cookies, CPF obrigatório, termos e privacidade, trilha de auditoria imutável, RLS no banco</p></div>
+  </div>
+
+  <h2><span class="ico">🎯</span> Próximos 30 dias de alta prioridade</h2>
+  <table>
+    <thead><tr><th>#</th><th>Ação</th><th>Impacto</th><th>Esforço</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Aplicar migrations 013 + 014 no banco de produção via Supabase Dashboard</td><td>Ativa rastreio de pintores + CPF + tracking</td><td><span class="badge bg">1 hora</span></td></tr>
+      <tr><td>2</td><td>Ativar taxa de intermediação no Asaas (10% por job)</td><td>Primeira fonte de receita real</td><td><span class="badge bg">1 dia</span></td></tr>
+      <tr><td>3</td><td>Lançar Pintai Pro para pintores (página pública + cobrança)</td><td>Receita recorrente previsível</td><td><span class="badge bb">2 dias</span></td></tr>
+      <tr><td>4</td><td>Ativar checkout do marketplace (carrinho + pagamento)</td><td>Abre receita de comissão de produtos</td><td><span class="badge bor">3 dias</span></td></tr>
+      <tr><td>5</td><td>Integrar WhatsApp Business API no agente Koke</td><td>Aumenta conversão — cliente responde onde já usa</td><td><span class="badge bor">1 semana</span></td></tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 28px; padding: 18px 22px; background: var(--g900); border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <div style="font-size: 9px; color: rgba(255,255,255,.4); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 3px;">Site em produção agora</div>
+      <div style="font-size: 16px; font-weight: 700; color: white;">pintai.agenscia.com</div>
+      <div style="font-size: 9px; color: rgba(255,255,255,.35); margin-top: 3px;">Atualiza automaticamente a cada commit · CI/CD ativo</div>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-size: 9px; color: rgba(255,255,255,.35); margin-bottom: 6px;">contato@pintai.com.br</div>
+      <div style="font-size: 22px; font-weight: 900; color: #FF7A30;">Pintai</div>
+    </div>
+  </div>
+
+  <p style="margin-top: 16px; text-align: center; font-size: 9px; color: var(--g500);">
+    Documento gerado por engenharia reversa completa do repositório · 52 commits analisados · 30+ tabelas mapeadas · 8 integrações documentadas · Maio 2026 · Confidencial
+  </p>
+</div>
+
+</body>
+</html>

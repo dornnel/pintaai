@@ -145,7 +145,7 @@ export function ProductsPage() {
         <select value={filterOrigin} onChange={e => setFilterOrigin(e.target.value)}
           className="border border-gray-200 rounded-xl text-sm px-3 py-2.5 bg-white focus:outline-none focus:border-brand">
           <option value="all">Todas origens</option>
-          <option value="pintai">Pintaê próprio</option>
+          <option value="pintai">Pintai próprio</option>
           <option value="partner">Parceiro</option>
         </select>
       </div>
@@ -190,7 +190,7 @@ export function ProductsPage() {
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${product.origin === 'pintai' ? 'bg-brand/10 text-brand' : 'bg-gray-100 text-gray-600'}`}>
-                      {product.origin === 'pintai' ? 'Pintaê' : 'Parceiro'}
+                      {product.origin === 'pintai' ? 'Pintai' : 'Parceiro'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -288,7 +288,7 @@ export function ProductsPage() {
                   <label className="text-xs font-medium text-gray-600 mb-1.5 block">Parceiro (opcional)</label>
                   <select value={editProduct.partner_id || ''} onChange={e => setEditProduct({...editProduct, partner_id: e.target.value || undefined, origin: e.target.value ? 'partner' : 'pintai'})}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-brand">
-                    <option value="">Produto próprio da Pintaê</option>
+                    <option value="">Produto próprio da Pintai</option>
                     {partners.map(p => <option key={p.id} value={p.id}>{p.trade_name}</option>)}
                   </select>
                 </div>

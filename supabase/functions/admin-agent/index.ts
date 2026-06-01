@@ -8,7 +8,7 @@ const supabase = createClient(
   { db: { schema: 'pintae' } },
 )
 
-const SYSTEM_PROMPT = `Você é o assistente de inteligência operacional da Pintaê Floripa.
+const SYSTEM_PROMPT = `Você é o assistente de inteligência operacional da Pintai Floripa.
 
 Você tem acesso em tempo real a: leads, conversas, pedidos, pintores, reviews e métricas.
 

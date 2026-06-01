@@ -75,7 +75,7 @@ export function AdminLayout() {
         {/* Header */}
         <div className="h-14 px-4 flex items-center justify-between border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-brand">Pintaê</span>
+            <span className="text-base font-bold text-brand">Pintai</span>
             <span className="text-xs bg-gradient-to-r from-[#FF7A30] to-brand text-white px-2 py-0.5 rounded font-medium">
               {user?.isSuperAdmin ? 'Super Admin' : 'Admin'}
             </span>
@@ -132,7 +132,7 @@ export function AdminLayout() {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-brand">Pintaê</span>
+            <span className="text-sm font-bold text-brand">Pintai</span>
             <span className="text-xs bg-gradient-to-r from-[#FF7A30] to-brand text-white px-2 py-0.5 rounded font-medium">
               {user?.isSuperAdmin ? 'Super Admin' : 'Admin'}
             </span>

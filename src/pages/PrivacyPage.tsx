@@ -16,7 +16,7 @@ export function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">1. Controlador dos Dados</h2>
-            <p><strong>Pintaê Tecnologia Ltda.</strong>, Florianópolis — SC. Contato do encarregado (DPO): <a href="mailto:privacidade@pintai.com.br" className="text-brand hover:underline">privacidade@pintai.com.br</a></p>
+            <p><strong>Pintai Tecnologia Ltda.</strong>, Florianópolis — SC. Contato do encarregado (DPO): <a href="mailto:privacidade@pintai.com.br" className="text-brand hover:underline">privacidade@pintai.com.br</a></p>
           </section>
 
           <section>
