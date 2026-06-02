@@ -57,6 +57,7 @@ type ChatState =
   | 'role_select'
   | 'neighborhood' | 'property_type' | 'service_type'
   | 'media_upload' | 'wall_condition' | 'deadline' | 'material'
+  | 'preferred_professional' | 'estimated_budget' | 'current_color'
   | 'final_notes'
   | 'confirmation'
   | 'generating_briefing' | 'briefing_ready' | 'waiting_quotes'
@@ -85,6 +86,9 @@ interface CollectedData {
   wall_condition?: string
   deadline?: string
   material?: string
+  preferred_professional?: string
+  estimated_budget?: string
+  current_color?: string
   confirmed?: string
   painter_neighborhoods?: string
   painter_specialties?: string
@@ -193,6 +197,28 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
     type: 'quick_reply',
     quickReplies: ['Incluso no serviço', 'Vou comprar separado', 'O pintor que indique'],
     field: 'material',
+    next: 'preferred_professional',
+  },
+  // ── CAMPOS EXTRAS DO BRIEFING ────────────────────────────────────────────────
+  preferred_professional: {
+    question: () => 'Tem algum **pintor de preferência** ou já trabalhou com alguém antes? (pode pular)',
+    type: 'text',
+    quickReplies: ['Pular'],
+    field: 'preferred_professional',
+    next: 'estimated_budget',
+  },
+  estimated_budget: {
+    question: () => 'Tem alguma **faixa de orçamento** em mente para o projeto?',
+    type: 'quick_reply',
+    quickReplies: ['Até R$500', 'R$500 – R$2.000', 'R$2.000 – R$5.000', 'Acima de R$5.000', 'Sem preferência'],
+    field: 'estimated_budget',
+    next: 'current_color',
+  },
+  current_color: {
+    question: () => 'Qual a **cor atual** das paredes? Isso ajuda o pintor a planejar a cobertura. (pode pular)',
+    type: 'text',
+    quickReplies: ['Pular'],
+    field: 'current_color',
     next: 'final_notes',
   },
   // ── OBSERVAÇÕES FINAIS ───────────────────────────────────────────────────────
@@ -218,9 +244,12 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
       `🧱 Paredes: ${d.wall_condition}\n` +
       `⏱ Prazo: ${d.deadline}\n` +
       `🪣 Material: ${d.material}\n` +
+      (d.preferred_professional && d.preferred_professional !== 'Pular' ? `🤝 Profissional preferido: ${d.preferred_professional}\n` : '') +
+      (d.estimated_budget ? `💰 Orçamento estimado: ${d.estimated_budget}\n` : '') +
+      (d.current_color && d.current_color !== 'Pular' ? `🎨 Cor atual: ${d.current_color}\n` : '') +
       (d.final_notes ? `📝 Obs: ${d.final_notes}\n` : '') +
       (d.notes_media_urls?.length ? `📎 Mídias extras: ${d.notes_media_urls.length} arquivo(s)\n` : '') +
-      `\nAo confirmar, você declara que as informações são verídicas e concorda com nossa Política de Privacidade (LGPD). **Podemos enviar para os pintores?**`,
+      `\nAo confirmar, você declara que as informações são verídicas e concorda com nossa [Política de Privacidade](/privacidade) (LGPD). **Podemos enviar para os pintores?**`,
     type: 'quick_reply',
     quickReplies: ['✅ Confirmar e enviar', '✏️ Corrigir algum dado'],
     field: 'confirmed',
@@ -500,6 +529,9 @@ export function useChat() {
             wall_condition: data.wall_condition,
             deadline: data.deadline,
             material: data.material,
+            preferred_professional: data.preferred_professional && data.preferred_professional !== 'Pular' ? data.preferred_professional : null,
+            estimated_budget: data.estimated_budget || null,
+            current_color: data.current_color && data.current_color !== 'Pular' ? data.current_color : null,
             media_count: data.media_urls?.length || 0,
             metadata: metadataRef.current,
           }),
