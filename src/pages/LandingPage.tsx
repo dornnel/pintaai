@@ -913,9 +913,9 @@ export function LandingPage() {
       {/* ── How it works — desktop only ── */}
       <section id="como-funciona" className="hidden lg:block py-28 px-4 relative overflow-hidden" style={{ background: '#FAF8F5' }}>
 
-        {/* Brush stroke background — Pantone 7506 C warm sand, parallax */}
+        {/* Brush stroke background — Pantone 7506 C warm sand, parallax bidirectional */}
         <motion.div
-          style={{ y: useTransform(scrollY, [100, 1400], [0, -90]) }}
+          style={{ y: useTransform(scrollY, [400, 2000], [60, -60]) }}
           className="absolute inset-0 pointer-events-none overflow-hidden"
         >
           <svg viewBox="0 0 1440 500" className="absolute top-0 left-0 w-full h-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.06 }}>
@@ -936,7 +936,7 @@ export function LandingPage() {
           <motion.div
             key={text}
             style={{
-              y: useTransform(scrollY, [200, 1400], parallax),
+              y: useTransform(scrollY, [400, 2000], [parallax[1] * -0.5, parallax[1]]),
               position: 'absolute',
               ...(side === 'left' ? { left: '2%' } : { right: '2%' }),
               ...(top ? { top } : { bottom }),
@@ -955,10 +955,14 @@ export function LandingPage() {
         ))}
 
         <div className="max-w-4xl mx-auto relative">
-          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <span className="text-xs font-bold text-brand uppercase tracking-widest">Como funciona</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-3" style={{ letterSpacing: '-0.02em' }}>Do problema ao profissional certo</h2>
-            <p className="text-gray-400 max-w-sm mx-auto text-sm">Sem achismo. Só o pintor adequado para o seu espaço.</p>
+          {/* Heading with its own parallax speed (moves slower than BG) */}
+          <motion.div style={{ y: useTransform(scrollY, [400, 2000], [20, -20]) }} className="text-center mb-16">
+            <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+              <span className="text-xs font-bold text-brand uppercase tracking-widest">Como funciona</span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-3" style={{ letterSpacing: '-0.02em' }}>Do problema ao profissional certo</h2>
+              <p className="text-gray-400 max-w-sm mx-auto text-sm">Sem achismo. Só o pintor adequado para o seu espaço.</p>
+            </motion.div>
           </motion.div>
           <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.1 }} className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {[
@@ -1027,9 +1031,9 @@ export function LandingPage() {
 
       {/* ── Service types — desktop only ── */}
       <section className="py-24 px-4 relative overflow-hidden" style={{ background: '#F7F5F2' }}>
-        {/* Parallax brush stroke — cool steel blue */}
+        {/* Parallax brush stroke — cool steel blue, bidirectional */}
         <motion.div
-          style={{ y: useTransform(scrollY, [1200, 2800], [0, -80]) }}
+          style={{ y: useTransform(scrollY, [1800, 3600], [70, -70]) }}
           className="absolute inset-0 pointer-events-none overflow-hidden"
         >
           <svg viewBox="0 0 1440 500" className="absolute bottom-0 left-0 w-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.05 }}>
@@ -1037,14 +1041,26 @@ export function LandingPage() {
               stroke="#9BB5C8" strokeWidth="300" fill="none" strokeLinecap="round"/>
           </svg>
         </motion.div>
+        {/* Large painted orb — slow parallax background accent */}
+        <motion.div
+          style={{
+            y: useTransform(scrollY, [1600, 3800], [80, -80]),
+            background: 'radial-gradient(circle, rgba(196,168,130,0.08) 0%, transparent 70%)',
+          }}
+          className="absolute -left-40 top-0 w-96 h-96 rounded-full pointer-events-none"
+        />
 
         <div className="max-w-5xl mx-auto relative">
-          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          {/* Heading with own parallax speed */}
+          <motion.div
+            style={{ y: useTransform(scrollY, [1600, 3200], [30, -30]) }}
             className="text-center mb-12">
-            <span className="text-xs font-bold text-brand uppercase tracking-widest">Serviços</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2" style={{ letterSpacing: '-0.02em' }}>Para todo tipo de espaço</h2>
-            <p className="text-gray-400 mt-2 text-sm">Clique para começar o orçamento gratuito</p>
+            <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+              <span className="text-xs font-bold text-brand uppercase tracking-widest">Serviços</span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2" style={{ letterSpacing: '-0.02em' }}>Para todo tipo de espaço</h2>
+              <p className="text-gray-400 mt-2 text-sm">Clique para começar o orçamento gratuito</p>
+            </motion.div>
           </motion.div>
           <motion.div variants={stagger} initial="hidden" whileInView="show"
             viewport={{ once: true, amount: 0.1 }} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
