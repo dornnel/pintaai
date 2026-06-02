@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { Paintbrush, Mail, Lock, Phone, User, Eye, EyeOff, ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
+import { Paintbrush, Mail, Lock, Phone, User, Eye, EyeOff, ArrowLeft, Loader2, CheckCircle, KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth, getRoleHome } from '../lib/auth'
 
-type Tab = 'login' | 'register'
+type Tab = 'login' | 'register' | 'forgot'
 type RegisterRole = 'customer' | 'painter' | 'partner'
 
 const ROLE_OPTIONS: { value: RegisterRole; label: string; desc: string }[] = [
@@ -27,6 +27,7 @@ export function LoginPage() {
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<RegisterRole>(defaultRole)
   const [showPw, setShowPw] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -89,21 +90,73 @@ export function LoginPage() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
+    if (!termsAccepted) { setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade.'); return }
     setLoading(true); setError('')
-    const { data, error: err } = await supabase.auth.signUp({ email, password })
-    if (err) { setError(err.message); setLoading(false); return }
-    if (data.user) {
-      const { error: insertErr } = await supabase.from('users').insert({
-        auth_user_id: data.user.id,
-        role,
-        name,
-        phone: phone || null,
-        email,
-        status: 'pending',
-      })
-      if (insertErr) console.error('Profile insert error:', insertErr)
-      setSuccess('Conta criada! Verifique seu e-mail para confirmar o cadastro.')
+
+    const { data, error: err } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: { name, role },
+      },
+    })
+
+    if (err) {
+      const msg = err.message.includes('already registered')
+        ? 'Este e-mail já está cadastrado. Tente fazer login.'
+        : err.message
+      setError(msg)
+      setLoading(false)
+      return
     }
+
+    if (data.user) {
+      // Check if there's a pending invite record (admin created) → update it
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle()
+
+      if (existing) {
+        await supabase.from('users').update({
+          auth_user_id: data.user.id,
+          name: name || undefined,
+          role,
+          status: 'pending',
+          terms_accepted_at: new Date().toISOString(),
+        }).eq('id', existing.id)
+      } else {
+        await supabase.from('users').insert({
+          auth_user_id: data.user.id,
+          role,
+          name,
+          phone: phone || null,
+          email,
+          status: 'pending',
+          terms_accepted_at: new Date().toISOString(),
+        })
+      }
+
+      if (data.session) {
+        // Email confirmation disabled — user is already logged in
+        setWaitingRedirect(true)
+      } else {
+        setSuccess('Conta criada! Enviamos um e-mail de confirmação — verifique sua caixa de entrada e spam.')
+      }
+    }
+    setLoading(false)
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true); setError('')
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    })
+    if (err) { setError(err.message); setLoading(false); return }
+    setSuccess('Email de redefinição de senha enviado! Verifique sua caixa de entrada.')
     setLoading(false)
   }
 
@@ -166,6 +219,13 @@ export function LoginPage() {
               </button>
             ))}
           </div>
+          {tab === 'forgot' && (
+            <div className="px-8 pt-3">
+              <p className="text-xs text-brand font-medium flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5" /> Redefinir senha
+              </p>
+            </div>
+          )}
 
           <div className="px-8 py-6">
             <AnimatePresence mode="wait">
@@ -209,6 +269,34 @@ export function LoginPage() {
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Entrar
                   </motion.button>
+                  <button type="button" onClick={() => switchTab('forgot')}
+                    className="w-full text-xs text-gray-400 hover:text-brand transition-colors text-center mt-1 cursor-pointer">
+                    Esqueci minha senha
+                  </button>
+                </motion.form>
+              ) : tab === 'forgot' ? (
+                <motion.form key="forgot" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }} onSubmit={handleForgotPassword} className="space-y-4">
+                  <p className="text-sm text-gray-600">Informe seu e-mail e enviaremos um link para redefinir sua senha.</p>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">E-mail</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email"
+                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand bg-gray-50"
+                        placeholder="seu@email.com" />
+                    </div>
+                  </div>
+                  {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+                  <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    className="w-full py-3 bg-brand text-white font-semibold rounded-xl hover:bg-brand-dark transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+                    {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Enviar link de redefinição
+                  </motion.button>
+                  <button type="button" onClick={() => switchTab('login')}
+                    className="w-full text-xs text-gray-400 hover:text-brand transition-colors text-center cursor-pointer">
+                    ← Voltar ao login
+                  </button>
                 </motion.form>
               ) : (
                 <motion.form key="register" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
@@ -264,8 +352,20 @@ export function LoginPage() {
                       </button>
                     </div>
                   </div>
+                  {/* Termos LGPD */}
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
+                      className="mt-0.5 accent-brand w-4 h-4 shrink-0" />
+                    <span className="text-xs text-gray-500 leading-relaxed">
+                      Li e aceito os{' '}
+                      <Link to="/termos" target="_blank" className="text-brand hover:underline">Termos de Uso</Link>
+                      {' '}e a{' '}
+                      <Link to="/privacidade" target="_blank" className="text-brand hover:underline">Política de Privacidade</Link>
+                      {' '}(LGPD).
+                    </span>
+                  </label>
                   {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-                  <motion.button type="submit" disabled={loading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  <motion.button type="submit" disabled={loading || !termsAccepted} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                     className="w-full py-3 bg-brand text-white font-semibold rounded-xl hover:bg-brand-dark transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Criar conta

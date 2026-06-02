@@ -62,6 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Fallback: check by email for pending invites (admin pre-created profiles)
+    const email = authUser.email || ''
+    const { data: byEmail } = await supabase
+      .from('users')
+      .select('id, role, name, phone, status, email')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (byEmail) {
+      await supabase.from('users').update({ auth_user_id: authUser.id, status: 'active' }).eq('id', byEmail.id)
+      setUser({ id: byEmail.id, role: byEmail.role, name: byEmail.name, phone: byEmail.phone, status: 'active', email: byEmail.email, isSuperAdmin: byEmail.email === SUPERADMIN_EMAIL })
+      setLoading(false)
+      setNeedsOnboarding(false)
+      return
+    }
+
     // Sem registro — auto-criar para OAuth users
     const email = authUser.email || ''
     const isAdmin = ADMIN_EMAILS.includes(email)
