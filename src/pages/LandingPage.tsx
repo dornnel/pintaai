@@ -90,30 +90,39 @@ const stagger: Variants = {
 
 // ─── Hero background (alternating parede1 / parede2) ─────────────────────────
 
-function HeroBackground() {
-  const [active, setActive] = useState(0)
-
+function DesktopVideoBackground({
+  videoRef,
+  onPaused,
+}: {
+  videoRef: React.RefObject<HTMLVideoElement | null>
+  onPaused: () => void
+}) {
   useEffect(() => {
-    const id = setInterval(() => setActive(a => (a + 1) % 2), 5000)
-    return () => clearInterval(id)
-  }, [])
-
-  const imgs = ['/parede1.png', '/parede2.png']
+    const v = videoRef.current
+    if (!v) return
+    let triggered = false
+    const check = () => {
+      if (!triggered && v.duration && v.currentTime >= v.duration - 0.5) {
+        triggered = true
+        v.pause()
+        onPaused()
+      }
+    }
+    v.addEventListener('timeupdate', check)
+    return () => v.removeEventListener('timeupdate', check)
+  }, [videoRef, onPaused])
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      {imgs.map((src, i) => (
-        <motion.div
-          key={src}
-          className="absolute inset-0"
-          animate={{ opacity: active === i ? 1 : 0, scale: active === i ? 1.04 : 1 }}
-          transition={{ duration: 1.2, ease: 'easeInOut' }}
-          initial={{ opacity: i === 0 ? 1 : 0, scale: 1 }}
-        >
-          <img src={src} alt="" className="w-full h-full object-cover" />
-        </motion.div>
-      ))}
-      {/* Very light vignette only at edges — keep photo visible */}
+      <video
+        ref={videoRef}
+        src="/pincel_desktop.mp4"
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        className="w-full h-full object-cover"
+      />
       <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-white" />
     </div>
@@ -654,6 +663,48 @@ export function LandingPage() {
   const { scrollY } = useScroll()
   const heroBgY = useTransform(scrollY, [0, 800], [0, -120])
 
+  // ── Desktop video scroll-lock ──────────────────────────────────────────────
+  const desktopVideoRef = useRef<HTMLVideoElement>(null)
+  const [videoPhase, setVideoPhase] = useState<'playing' | 'paused' | 'animating' | 'released'>('playing')
+  const lockParallaxY = useMotionValue(0)
+  const lockParallaxSpring = useSpring(lockParallaxY, { stiffness: 55, damping: 22 })
+
+  const startScrollAnimation = useCallback(() => {
+    const v = desktopVideoRef.current
+    if (!v) return
+    setVideoPhase('animating')
+    lockParallaxY.set(-200)
+    v.play()
+    const onEnded = () => {
+      v.removeEventListener('ended', onEnded)
+      setVideoPhase('released')
+      requestAnimationFrame(() => window.scrollTo({ top: 280, behavior: 'smooth' }))
+    }
+    v.addEventListener('ended', onEnded)
+  }, [lockParallaxY])
+
+  useEffect(() => {
+    if (videoPhase !== 'paused') return
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY <= 0) return
+      e.preventDefault()
+      startScrollAnimation()
+    }
+    const onTouchMove = (e: TouchEvent) => { e.preventDefault() }
+    window.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('touchmove', onTouchMove)
+    }
+  }, [videoPhase, startScrollAnimation])
+
+  // Y parallax: durante animating/released usa lockParallaxSpring, senão heroBgY scroll-based
+  const activeHeroBgY = videoPhase === 'animating' || videoPhase === 'released'
+    ? lockParallaxSpring
+    : heroBgY
+  // ── fim scroll-lock ────────────────────────────────────────────────────────
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = heroRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -717,12 +768,29 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Hero desktop (foto + título + floating cards + chat widget) ── */}
+      {/* ── Hero desktop (vídeo + título + floating cards + chat widget) ── */}
       <section ref={heroRef} onMouseMove={handleMouseMove}
         className="hidden lg:flex relative min-h-screen items-center pt-14 overflow-hidden bg-white">
-        <motion.div className="absolute inset-0" style={{ y: heroBgY }}>
-          <HeroBackground />
+        <motion.div className="absolute inset-0" style={{ y: activeHeroBgY }}>
+          <DesktopVideoBackground
+            videoRef={desktopVideoRef}
+            onPaused={() => setVideoPhase('paused')}
+          />
         </motion.div>
+
+        {/* Hint: "role para continuar" quando vídeo pausou antes do fim */}
+        {videoPhase === 'paused' && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 pointer-events-none"
+          >
+            <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 1.4, repeat: Infinity }}>
+              <ChevronDown className="w-5 h-5 text-white/70" />
+            </motion.div>
+            <span className="text-[10px] font-semibold tracking-widest uppercase text-white/60">Role para continuar</span>
+          </motion.div>
+        )}
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div>
