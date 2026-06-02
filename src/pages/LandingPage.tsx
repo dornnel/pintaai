@@ -910,37 +910,35 @@ export function LandingPage() {
           </svg>
         </motion.div>
 
-        {/* Floating VALUE_PROPS trust signals */}
-        <motion.div
-          style={{ y: useTransform(scrollY, [200, 1400], [0, -45]) }}
-          className="absolute top-14 left-10 pointer-events-none"
-          initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/70 rounded-full px-4 py-2 shadow-sm">
-            <ShieldCheck className="w-3.5 h-3.5 text-brand shrink-0" />
-            <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Pintores verificados</span>
-          </div>
-        </motion.div>
-        <motion.div
-          style={{ y: useTransform(scrollY, [200, 1400], [0, -70]) }}
-          className="absolute top-20 right-10 pointer-events-none"
-          initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.45 }}
-        >
-          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/70 rounded-full px-4 py-2 shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-brand shrink-0" />
-            <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Briefing gerado por IA</span>
-          </div>
-        </motion.div>
-        <motion.div
-          style={{ y: useTransform(scrollY, [200, 1400], [0, -35]) }}
-          className="absolute bottom-24 left-12 pointer-events-none"
-          initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.6 }}
-        >
-          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/70 rounded-full px-4 py-2 shadow-sm">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Propostas transparentes</span>
-          </div>
-        </motion.div>
+        {/* Floating benefit pills — parallax at different speeds */}
+        {[
+          { text: 'Pintores verificados',    Icon: ShieldCheck,  color: 'text-brand',       side: 'left',  top: '8%',   delay: 0.3,  parallax: [0,-45]  as [number,number] },
+          { text: 'Briefing gerado por IA',  Icon: Sparkles,     color: 'text-brand',       side: 'right', top: '12%',  delay: 0.45, parallax: [0,-70]  as [number,number] },
+          { text: 'Pagamento em escrow',     Icon: CreditCard,   color: 'text-emerald-600', side: 'left',  top: '36%',  delay: 0.55, parallax: [0,-30]  as [number,number] },
+          { text: 'Meet virtual incluso',    Icon: Video,        color: 'text-sky-500',     side: 'right', top: '50%',  delay: 0.65, parallax: [0,-55]  as [number,number] },
+          { text: 'Propostas transparentes', Icon: CheckCircle,  color: 'text-emerald-500', side: 'left',  bottom: '18%', delay: 0.5, parallax: [0,-35] as [number,number] },
+          { text: 'Serviço com registro',    Icon: BadgeCheck,   color: 'text-pink-500',    side: 'right', bottom: '22%', delay: 0.7, parallax: [0,-50] as [number,number] },
+        ].map(({ text, Icon, color, side, top, bottom, delay, parallax }) => (
+          <motion.div
+            key={text}
+            style={{
+              y: useTransform(scrollY, [200, 1400], parallax),
+              position: 'absolute',
+              ...(side === 'left' ? { left: '2%' } : { right: '2%' }),
+              ...(top ? { top } : { bottom }),
+            }}
+            className="pointer-events-none z-10"
+            initial={{ opacity: 0, x: side === 'left' ? -24 : 24 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="flex items-center gap-2 bg-white/85 backdrop-blur-xl border border-white/80 rounded-full px-3.5 py-2 shadow-md">
+              <Icon className={`w-3.5 h-3.5 shrink-0 ${color}`} />
+              <span className="text-[11px] font-semibold text-gray-700 whitespace-nowrap">{text}</span>
+            </div>
+          </motion.div>
+        ))}
 
         <div className="max-w-4xl mx-auto relative">
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
@@ -988,20 +986,22 @@ export function LandingPage() {
             ].map(({ step, title, desc, color, Icon, isNew }) => (
               <motion.div key={step} variants={fadeUp}
                 whileHover={{ y: -4, boxShadow: '0 20px 48px rgba(0,0,0,0.08)' }}
-                className={`bg-white rounded-2xl p-6 border flex gap-4 items-start shadow-sm transition-shadow ${isNew ? 'border-l-2 border-gray-100/80' : 'border-gray-100/80'}`}
-                style={isNew ? { borderLeftColor: color } : {}}>
+                className="relative bg-white rounded-2xl p-6 border border-gray-100/80 flex gap-4 items-start shadow-sm overflow-hidden group transition-all">
+                {/* Left color bar — only visible on hover */}
+                {isNew && (
+                  <div className="absolute left-0 top-0 bottom-0 w-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: color }} />
+                )}
+                {/* NOVO badge — top right corner */}
+                {isNew && (
+                  <span className="absolute top-3 right-3 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: color }}>
+                    NOVO
+                  </span>
+                )}
                 <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${color}18` }}>
                   <Icon className="w-5 h-5" style={{ color }} />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-bold text-gray-300 tracking-widest">{step}</span>
-                    {isNew && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: color }}>
-                        NOVO
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-[10px] font-bold text-gray-300 tracking-widest block mb-1">{step}</span>
                   <h3 className="font-bold text-gray-900 text-sm mb-1.5 leading-tight">{title}</h3>
                   <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
                 </div>
