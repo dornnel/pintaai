@@ -62,8 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Fallback: check by email for pending invites (admin pre-created profiles)
     const email = authUser.email || ''
+
+    // Fallback: check by email for pending invites (admin pre-created profiles)
     const { data: byEmail } = await supabase
       .from('users')
       .select('id, role, name, phone, status, email')
@@ -79,7 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Sem registro — auto-criar para OAuth users
-    const email = authUser.email || ''
     const isAdmin = ADMIN_EMAILS.includes(email)
     const role: DBUser['role'] = isAdmin ? 'admin' : 'customer'
 
