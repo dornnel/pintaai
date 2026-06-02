@@ -97,6 +97,8 @@ function DesktopVideoBackground({
   videoRef: React.RefObject<HTMLVideoElement | null>
   onPaused: () => void
 }) {
+  const [ended, setEnded] = useState(false)
+
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
@@ -105,6 +107,7 @@ function DesktopVideoBackground({
       if (!triggered && v.duration && v.currentTime >= v.duration - 0.5) {
         triggered = true
         v.pause()
+        setEnded(true)
         onPaused()
       }
     }
@@ -114,15 +117,21 @@ function DesktopVideoBackground({
 
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <video
-        ref={videoRef}
-        src="/pincel_desktop.mp4"
-        autoPlay
-        muted
-        playsInline
-        preload="auto"
-        className="w-full h-full object-cover"
-      />
+      <motion.div
+        className="absolute inset-0"
+        animate={ended ? { scale: [1, 1.025, 1] } : { scale: 1 }}
+        transition={ended ? { duration: 9, ease: 'easeInOut', repeat: Infinity, repeatType: 'loop' } : { duration: 0 }}
+      >
+        <video
+          ref={videoRef}
+          src="/pincel_desktop.mp4"
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          className="w-full h-full object-cover"
+        />
+      </motion.div>
       <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-transparent" />
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-white" />
     </div>
@@ -699,10 +708,8 @@ export function LandingPage() {
     }
   }, [videoPhase, startScrollAnimation])
 
-  // Y parallax: durante animating/released usa lockParallaxSpring, senão heroBgY scroll-based
-  const activeHeroBgY = videoPhase === 'animating' || videoPhase === 'released'
-    ? lockParallaxSpring
-    : heroBgY
+  // Y parallax: só durante 'animating' usa lockParallaxSpring; todos os outros estados usam heroBgY
+  const activeHeroBgY = videoPhase === 'animating' ? lockParallaxSpring : heroBgY
   // ── fim scroll-lock ────────────────────────────────────────────────────────
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -802,39 +809,30 @@ export function LandingPage() {
 
             <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.04] tracking-tight mb-8"
-              style={{ color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
+              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.02] mb-10"
+              style={{ color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.12)', letterSpacing: '-0.03em' }}>
               O pintor certo<br />
               para o seu<br />
               <span style={{ color: '#FF7A30' }}>espaço.</span>
             </motion.h1>
 
-            <motion.div variants={stagger} initial="hidden" animate="show" className="flex flex-wrap gap-2 mb-10">
-              {VALUE_PROPS.map(({ text }) => (
-                <motion.span key={text} variants={fadeUp}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded font-semibold"
-                  style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }}>
-                  <CheckCircle className="w-3 h-3 shrink-0" style={{ color: '#4ade80' }} />{text}
-                </motion.span>
-              ))}
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
-              className="flex flex-wrap gap-3">
-              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}
+              className="flex flex-col items-start gap-4">
+              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                 <Link to="/chat"
-                  className="flex items-center gap-2 px-6 py-3.5 bg-brand text-white font-bold rounded hover:bg-brand-dark transition-colors text-sm"
-                  style={{ boxShadow: '0 4px 16px rgba(227,90,26,0.4)' }}>
+                  className="flex items-center gap-2 px-7 py-4 bg-brand text-white font-bold rounded-xl hover:bg-brand-dark transition-colors text-sm tracking-wide"
+                  style={{ boxShadow: '0 6px 24px rgba(227,90,26,0.38)' }}>
                   Encontrar meu pintor <ArrowRight className="w-4 h-4" />
                 </Link>
               </motion.div>
-              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                <a href="#como-funciona"
-                  className="flex items-center gap-2 px-6 py-3.5 font-bold rounded text-sm transition-colors"
-                  style={{ background: 'rgba(74,186,100,0.88)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff' }}>
-                  Ver como funciona
-                </a>
-              </motion.div>
+              {/* Scroll indicator — minimal Apple style */}
+              <a href="#como-funciona"
+                className="flex flex-col items-center gap-1 text-white/40 hover:text-white/60 transition-colors cursor-pointer mt-2">
+                <span className="text-[9px] font-semibold tracking-[0.2em] uppercase">Como funciona</span>
+                <motion.div animate={{ y: [0, 5, 0] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}>
+                  <ChevronDown className="w-4 h-4" />
+                </motion.div>
+              </a>
             </motion.div>
           </div>
 
@@ -897,14 +895,58 @@ export function LandingPage() {
       </section>
 
       {/* ── How it works — desktop only ── */}
-      <section id="como-funciona" className="hidden lg:block py-24 px-4" style={{ background: '#FFFBF5' }}>
-        <div className="max-w-4xl mx-auto">
+      <section id="como-funciona" className="hidden lg:block py-28 px-4 relative overflow-hidden" style={{ background: '#FAF8F5' }}>
+
+        {/* Brush stroke background — Pantone 7506 C warm sand, parallax */}
+        <motion.div
+          style={{ y: useTransform(scrollY, [100, 1400], [0, -90]) }}
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+        >
+          <svg viewBox="0 0 1440 500" className="absolute top-0 left-0 w-full h-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.06 }}>
+            <path d="M-120,280 Q180,100 500,260 Q780,400 1080,200 Q1280,100 1580,280"
+              stroke="#C4A882" strokeWidth="320" fill="none" strokeLinecap="round"/>
+          </svg>
+        </motion.div>
+
+        {/* Floating VALUE_PROPS trust signals */}
+        <motion.div
+          style={{ y: useTransform(scrollY, [200, 1400], [0, -45]) }}
+          className="absolute top-14 left-10 pointer-events-none"
+          initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/70 rounded-full px-4 py-2 shadow-sm">
+            <ShieldCheck className="w-3.5 h-3.5 text-brand shrink-0" />
+            <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Pintores verificados</span>
+          </div>
+        </motion.div>
+        <motion.div
+          style={{ y: useTransform(scrollY, [200, 1400], [0, -70]) }}
+          className="absolute top-20 right-10 pointer-events-none"
+          initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.45 }}
+        >
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/70 rounded-full px-4 py-2 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-brand shrink-0" />
+            <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Briefing gerado por IA</span>
+          </div>
+        </motion.div>
+        <motion.div
+          style={{ y: useTransform(scrollY, [200, 1400], [0, -35]) }}
+          className="absolute bottom-24 left-12 pointer-events-none"
+          initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.6 }}
+        >
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border border-white/70 rounded-full px-4 py-2 shadow-sm">
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">Propostas transparentes</span>
+          </div>
+        </motion.div>
+
+        <div className="max-w-4xl mx-auto relative">
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
             <span className="text-xs font-bold text-brand uppercase tracking-widest">Como funciona</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2 mb-3 tracking-tight">Do problema ao profissional certo</h2>
-            <p className="text-gray-500 max-w-md mx-auto text-sm">Sem achismo. Só o pintor adequado para o seu espaço.</p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-3" style={{ letterSpacing: '-0.02em' }}>Do problema ao profissional certo</h2>
+            <p className="text-gray-400 max-w-sm mx-auto text-sm">Sem achismo. Só o pintor adequado para o seu espaço.</p>
           </motion.div>
-          <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               {
                 step: '01', title: 'Descreva no chat', desc: 'Envie fotos e diga o bairro. A IA entende o projeto.',
@@ -968,8 +1010,8 @@ export function LandingPage() {
                 ),
               },
             ].map(({ step, title, desc, icon }) => (
-              <motion.div key={step} variants={fadeUp} whileHover={{ y: -4, boxShadow: '0 16px 40px rgba(0,0,0,0.1)' }}
-                className="bg-white rounded p-6 border border-gray-100 flex gap-5 items-start">
+              <motion.div key={step} variants={fadeUp} whileHover={{ y: -4, boxShadow: '0 20px 48px rgba(0,0,0,0.08)' }}
+                className="bg-white rounded-2xl p-7 border border-gray-100/80 flex gap-5 items-start shadow-sm">
                 <div className="shrink-0">{icon}</div>
                 <div>
                   <span className="text-xs font-bold text-gray-300 tracking-widest block mb-1">{step}</span>

@@ -116,14 +116,14 @@ export function ChatInterface() {
           WebkitBackdropFilter: 'blur(16px)',
         }}
       >
-        <div className="flex items-center gap-3 px-4" style={{ height: 52 }}>
+        <div className="flex items-center gap-2.5 px-3.5" style={{ height: 44 }}>
           <img src="/avatar_koke.jpeg" alt="Koke"
-            className="w-9 h-9 rounded-full object-cover shrink-0" />
+            className="w-8 h-8 rounded-full object-cover shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-gray-900 leading-none">Koke</p>
+            <p className="text-xs font-bold text-gray-900 leading-none">Koke</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0" />
-              <span className="text-xs text-emerald-600">Online agora · orçamento grátis</span>
+              <span className="text-[10px] text-emerald-600">Online agora · orçamento grátis</span>
             </div>
           </div>
           <button
@@ -210,7 +210,7 @@ export function ChatInterface() {
       </AnimatePresence>
 
       {/* Input area */}
-      <div className="px-4 pb-3 pt-2 border-t border-white/40 shrink-0"
+      <div className="px-3 pb-2.5 pt-1.5 border-t border-white/40 shrink-0"
         style={{
           background: 'rgba(255,255,255,0.88)',
           backdropFilter: 'blur(16px)',
@@ -224,13 +224,13 @@ export function ChatInterface() {
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4 }}
-              className="flex flex-wrap gap-2 mb-3"
+              className="flex flex-wrap gap-1.5 mb-2"
             >
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   onClick={() => sendMessage(s)}
-                  className="px-3.5 py-2 text-sm border border-brand/40 text-brand rounded-full bg-orange-50 hover:bg-brand hover:text-white transition-colors cursor-pointer"
+                  className="px-2.5 py-1 text-xs border border-brand/30 text-brand rounded-lg bg-orange-50/70 hover:bg-brand hover:text-white transition-colors cursor-pointer font-medium"
                 >
                   {s}
                 </button>
@@ -290,7 +290,7 @@ export function ChatInterface() {
         <div className={`flex items-end gap-2 border rounded-2xl bg-white transition-colors ${dragging ? 'border-brand bg-orange-50' : 'border-gray-200'}`}>
           <button
             onClick={() => fileRef.current?.click()}
-            className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
             title="Enviar fotos, vídeo ou arquivo"
           >
             <Paperclip className="w-4 h-4" />
@@ -318,14 +318,14 @@ export function ChatInterface() {
           <button
             onClick={handleSend}
             disabled={loading || (!text.trim() && files.length === 0)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-brand text-white hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-brand text-white hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-1.5">
-          🛡️ Grátis · dados protegidos pela LGPD
+        <p className="text-center text-[10px] text-gray-400 mt-1">
+          🛡️ Grátis · LGPD
         </p>
       </div>
     </div>
