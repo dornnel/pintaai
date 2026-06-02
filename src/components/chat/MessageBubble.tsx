@@ -26,7 +26,7 @@ export function MessageBubble({ message, onQuickReply, onQuoteSelect }: Props) {
         {/* Text bubble */}
         <div
           className={cn(
-            'px-4 py-3 rounded-2xl text-sm leading-relaxed',
+            'px-3.5 py-2.5 rounded-2xl text-[13px] leading-snug',
             isAgent
               ? 'bg-white border border-gray-100 shadow-sm rounded-bl-sm text-gray-800'
               : 'bg-brand text-white rounded-br-sm',

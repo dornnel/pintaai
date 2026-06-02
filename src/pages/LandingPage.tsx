@@ -814,19 +814,11 @@ export function LandingPage() {
               className="flex flex-col items-start gap-4">
               <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                 <Link to="/chat"
-                  className="flex items-center gap-2 px-7 py-4 bg-brand text-white font-bold rounded-xl hover:bg-brand-dark transition-colors text-sm tracking-wide"
-                  style={{ boxShadow: '0 6px 24px rgba(227,90,26,0.38)' }}>
+                  className="flex items-center gap-2 px-7 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors text-sm tracking-wide"
+                  style={{ boxShadow: '0 6px 24px rgba(5,150,105,0.32)' }}>
                   Encontrar meu pintor <ArrowRight className="w-4 h-4" />
                 </Link>
               </motion.div>
-              {/* Scroll indicator — minimal Apple style */}
-              <a href="#como-funciona"
-                className="flex flex-col items-center gap-1 text-white/40 hover:text-white/60 transition-colors cursor-pointer mt-2">
-                <span className="text-[9px] font-semibold tracking-[0.2em] uppercase">Como funciona</span>
-                <motion.div animate={{ y: [0, 5, 0] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}>
-                  <ChevronDown className="w-4 h-4" />
-                </motion.div>
-              </a>
             </motion.div>
           </div>
 
@@ -885,6 +877,19 @@ export function LandingPage() {
             </FloatingCard>
           </div>
         </div>
+        {/* "Como funciona" — centered at section bottom, above white fade */}
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
+          <a href="#como-funciona"
+            className="flex flex-col items-center gap-1 text-white/40 hover:text-white/65 transition-colors cursor-pointer">
+            <span className="text-[9px] font-semibold tracking-[0.2em] uppercase">Como funciona</span>
+            <motion.div animate={{ y: [0, 5, 0] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}>
+              <ChevronDown className="w-4 h-4" />
+            </motion.div>
+          </a>
+        </motion.div>
+
         <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-white pointer-events-none" />
       </section>
 
