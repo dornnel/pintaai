@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
+import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll, useInView } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
+import { useScrollContainer } from '../contexts/scroll'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 // CTA primary: slate-900 (dark, not orange — makes orange elements pop)
@@ -75,12 +76,24 @@ const DEFAULT_PAINTER_REVIEWS = [
 // ─── Motion variants ─────────────────────────────────────────────────────────
 
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+  hidden: { opacity: 0, y: 32 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
 }
 const stagger: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.09 } },
+}
+// Premium section entrance — slides up with blur
+const sectionReveal: Variants = {
+  hidden: { opacity: 0, y: 48, filter: 'blur(6px)' },
+  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+}
+
+// Reusable hook — section ref + animate when entering viewport
+function useSectionReveal() {
+  const ref = useRef<HTMLDivElement>(null)
+  const inView = useInView(ref, { once: true, margin: '-80px 0px' })
+  return { ref, inView }
 }
 
 // ─── Hero background (alternating parede1 / parede2) ─────────────────────────
@@ -663,8 +676,9 @@ export function LandingPage() {
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
 
-  // Parallax: hero background moves at 40% scroll speed
-  const { scrollY } = useScroll()
+  // Use the AppShell scroll container so parallax tracks the real scroll
+  const scrollContainer = useScrollContainer()
+  const { scrollY } = useScroll({ container: scrollContainer ?? undefined })
   const heroBgY = useTransform(scrollY, [0, 800], [0, -120])
 
   // ── Desktop video scroll-lock ──────────────────────────────────────────────
