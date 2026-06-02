@@ -667,7 +667,8 @@ export function LandingPage() {
   // Use the AppShell scroll container so parallax tracks the real scroll
   const scrollContainer = useScrollContainer()
   const { scrollY } = useScroll({ container: scrollContainer ?? undefined })
-  const heroBgY = useTransform(scrollY, [0, 800], [0, -120])
+  // Parallax moves DOWN with scroll (slower than content) — no bottom gap
+  const heroBgY = useTransform(scrollY, [0, 800], [0, 80])
 
   // ── Desktop video scroll-lock ──────────────────────────────────────────────
   const desktopVideoRef = useRef<HTMLVideoElement>(null)
@@ -901,9 +902,9 @@ export function LandingPage() {
       {/* ── How it works — desktop only ── */}
       <section id="como-funciona" className="hidden lg:block py-28 px-4 relative overflow-hidden" style={{ background: '#FAF8F5' }}>
 
-        {/* Brush stroke background — Pantone 7506 C warm sand, parallax bidirectional */}
+        {/* Brush stroke background — Pantone 7506 C warm sand, parallax down */}
         <motion.div
-          style={{ y: useTransform(scrollY, [400, 2000], [60, -60]) }}
+          style={{ y: useTransform(scrollY, [400, 2200], [-40, 80]) }}
           className="absolute inset-0 pointer-events-none overflow-hidden"
         >
           <svg viewBox="0 0 1440 500" className="absolute top-0 left-0 w-full h-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.06 }}>
@@ -924,7 +925,7 @@ export function LandingPage() {
           <motion.div
             key={text}
             style={{
-              y: useTransform(scrollY, [400, 2000], [parallax[1] * -0.5, parallax[1]]),
+              y: useTransform(scrollY, [400, 2200], [parallax[1] * 0.3, parallax[1] * -0.7]),
               position: 'absolute',
               ...(side === 'left' ? { left: '2%' } : { right: '2%' }),
               ...(top ? { top } : { bottom }),
@@ -944,7 +945,7 @@ export function LandingPage() {
 
         <div className="max-w-4xl mx-auto relative">
           {/* Heading with its own parallax speed (moves slower than BG) */}
-          <motion.div style={{ y: useTransform(scrollY, [400, 2000], [20, -20]) }} className="text-center mb-16">
+          <motion.div style={{ y: useTransform(scrollY, [400, 2200], [-10, 30]) }} className="text-center mb-16">
             <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
               <span className="text-xs font-bold text-brand uppercase tracking-widest">Como funciona</span>
@@ -993,10 +994,8 @@ export function LandingPage() {
               <motion.div key={step} variants={fadeUp}
                 whileHover={{ y: -4, boxShadow: '0 20px 48px rgba(0,0,0,0.08)' }}
                 className="relative bg-white rounded-2xl p-6 border border-gray-100/80 flex gap-4 items-start shadow-sm overflow-hidden group transition-all">
-                {/* Left color bar — only visible on hover */}
-                {isNew && (
-                  <div className="absolute left-0 top-0 bottom-0 w-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: color }} />
-                )}
+                {/* Left color bar — visible on hover for ALL cards */}
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ background: color }} />
                 {/* NOVO badge — top right corner */}
                 {isNew && (
                   <span className="absolute top-3 right-3 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: color }}>
@@ -1019,9 +1018,9 @@ export function LandingPage() {
 
       {/* ── Service types — desktop only ── */}
       <section className="py-24 px-4 relative overflow-hidden" style={{ background: '#F7F5F2' }}>
-        {/* Parallax brush stroke — cool steel blue, bidirectional */}
+        {/* Parallax brush stroke — cool steel blue, moves down */}
         <motion.div
-          style={{ y: useTransform(scrollY, [1800, 3600], [70, -70]) }}
+          style={{ y: useTransform(scrollY, [1600, 3800], [-30, 90]) }}
           className="absolute inset-0 pointer-events-none overflow-hidden"
         >
           <svg viewBox="0 0 1440 500" className="absolute bottom-0 left-0 w-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.05 }}>
@@ -1029,10 +1028,10 @@ export function LandingPage() {
               stroke="#9BB5C8" strokeWidth="300" fill="none" strokeLinecap="round"/>
           </svg>
         </motion.div>
-        {/* Large painted orb — slow parallax background accent */}
+        {/* Large painted orb — slow parallax */}
         <motion.div
           style={{
-            y: useTransform(scrollY, [1600, 3800], [80, -80]),
+            y: useTransform(scrollY, [1600, 3800], [-20, 100]),
             background: 'radial-gradient(circle, rgba(196,168,130,0.08) 0%, transparent 70%)',
           }}
           className="absolute -left-40 top-0 w-96 h-96 rounded-full pointer-events-none"
@@ -1041,7 +1040,7 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto relative">
           {/* Heading with own parallax speed */}
           <motion.div
-            style={{ y: useTransform(scrollY, [1600, 3200], [30, -30]) }}
+            style={{ y: useTransform(scrollY, [1600, 3200], [-10, 40]) }}
             className="text-center mb-12">
             <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
@@ -1053,32 +1052,45 @@ export function LandingPage() {
           <motion.div variants={stagger} initial="hidden" whileInView="show"
             viewport={{ once: true, amount: 0.1 }} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { label: 'Residencial', desc: 'Casas, apartamentos, quartos e salas', color: '#C4843A', Icon: Home },
-              { label: 'Comercial',   desc: 'Lojas, restaurantes, escritórios',     color: '#3E6FA3', Icon: Building2 },
-              { label: 'Fachada',     desc: 'Externas, muros, garagens',             color: '#7A5EA3', Icon: Layers },
-              { label: 'Pós-obra',   desc: 'Reboco novo, acabamento fino',          color: '#C76B3A', Icon: Wrench },
-              { label: 'Arte / Mural', desc: 'Grafite, decoração artística',         color: '#B83A8C', Icon: Palette },
-              { label: 'Manutenção', desc: 'Rachaduras, mofo, manchas',              color: '#3D7A5E', Icon: Droplets },
-            ].map(({ label, desc, color, Icon }) => (
+              { label: 'Residencial',  desc: 'Casas, apartamentos e quartos', color: '#C4843A', Icon: Home,      n: '01' },
+              { label: 'Comercial',    desc: 'Lojas, restaurantes, escritórios', color: '#3E6FA3', Icon: Building2, n: '02' },
+              { label: 'Fachada',      desc: 'Externas, muros, garagens',      color: '#7A5EA3', Icon: Layers,    n: '03' },
+              { label: 'Pós-obra',     desc: 'Reboco novo, acabamento fino',   color: '#C76B3A', Icon: Wrench,    n: '04' },
+              { label: 'Arte / Mural', desc: 'Grafite, decoração artística',   color: '#B83A8C', Icon: Palette,   n: '05' },
+              { label: 'Manutenção',   desc: 'Rachaduras, mofo, manchas',      color: '#3D7A5E', Icon: Droplets,  n: '06' },
+            ].map(({ label, desc, color, Icon, n }) => (
               <motion.div key={label} variants={fadeUp}
-                whileHover={{ y: -6, boxShadow: `0 20px 48px ${color}18` }}
+                whileHover={{ y: -8 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { window.location.href = `/chat?q=${encodeURIComponent(label)}` }}
-                className="relative bg-white border border-gray-100 rounded-2xl p-6 cursor-pointer group overflow-hidden transition-all">
-                {/* Colored top bar */}
-                <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl transition-all group-hover:h-1.5"
+                className="relative rounded-2xl cursor-pointer group overflow-hidden transition-all"
+                style={{
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                  background: 'white',
+                }}>
+                {/* Full background fill on hover */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{ background: `${color}0d` }} />
+                {/* Colored top bar — grows on hover */}
+                <div className="absolute top-0 left-0 right-0 h-0.5 group-hover:h-1 transition-all duration-300"
                   style={{ background: color }} />
-                {/* Icon */}
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-200"
-                  style={{ background: `${color}18` }}>
-                  <Icon className="w-6 h-6" style={{ color }} />
-                </div>
-                <p className="font-bold text-gray-900 mb-1">{label}</p>
-                <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
-                {/* CTA on hover */}
-                <div className="flex items-center gap-1 mt-3 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                  style={{ color }}>
-                  Pedir orçamento <ArrowRight className="w-3 h-3" />
+                <div className="relative p-6">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between mb-5">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg"
+                      style={{ background: `${color}18` }}>
+                      <Icon className="w-7 h-7 transition-colors duration-300" style={{ color }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-gray-200 group-hover:text-gray-300 transition-colors"
+                      style={{ fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+                  </div>
+                  <p className="font-bold text-gray-900 text-base mb-1.5 leading-tight">{label}</p>
+                  <p className="text-xs text-gray-400 leading-relaxed mb-4">{desc}</p>
+                  {/* CTA — slides in on hover */}
+                  <div className="flex items-center gap-1.5 text-xs font-semibold translate-y-1 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200"
+                    style={{ color }}>
+                    Solicitar orçamento <ArrowRight className="w-3 h-3" />
+                  </div>
                 </div>
               </motion.div>
             ))}
