@@ -751,7 +751,7 @@ export function LandingPage() {
               <>
                 <Link to="/login" className="text-sm text-white/60 hover:text-white transition-colors px-3 py-1.5">Entrar</Link>
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Link to="/login" className="px-4 py-2 border border-white/40 text-white text-sm font-medium rounded hover:bg-white/10 transition-colors">
+                  <Link to="/login?tab=register" className="px-4 py-2 border border-white/40 text-white text-sm font-medium rounded hover:bg-white/10 transition-colors">
                     Inscreva-se
                   </Link>
                 </motion.div>
