@@ -463,39 +463,39 @@ function HeroChat() {
       initial={{ opacity: 0, y: 24, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="h-full flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100"
-      style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}
+      className="flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100"
+      style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.06)', minHeight: 560, width: 320 }}
     >
       {/* Agent header */}
-      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100 shrink-0">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 shrink-0">
         <img src="/avatar_koke.jpeg" alt="Koke"
-          className="w-10 h-10 rounded-full object-cover shrink-0" />
+          className="w-8 h-8 rounded-full object-cover shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-900 leading-none">Koke</p>
+          <p className="text-xs font-bold text-gray-900 leading-none">Koke</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shrink-0" />
-            <span className="text-xs text-emerald-600">Online agora · orçamento grátis</span>
+            <span className="text-[10px] text-emerald-600">Online agora · orçamento grátis</span>
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
-          {[1,2,3].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-300" />)}
+          {[1,2,3].map(i => <span key={i} className="w-1 h-1 rounded-full bg-gray-300" />)}
         </div>
       </div>
 
       {/* Welcome message */}
-      <div className="px-4 py-4 shrink-0">
+      <div className="px-3.5 py-3.5 shrink-0">
         <motion.div
           initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.6, duration: 0.4 }}
-          className="bg-orange-50 rounded-2xl rounded-tl-sm px-4 py-3"
+          className="bg-orange-50 rounded-2xl rounded-tl-sm px-3.5 py-2.5"
         >
-          <p className="text-sm text-gray-800 leading-relaxed">
+          <p className="text-[13px] text-gray-800 leading-snug">
             Olá! Eu sou o Koke 👋
           </p>
-          <p className="text-sm text-gray-700 leading-relaxed mt-1">
+          <p className="text-[13px] text-gray-700 leading-snug mt-1">
             Me conte o que você precisa pintar ou envie <strong>FOTOS</strong> do ambiente.
           </p>
-          <p className="text-sm text-gray-700 leading-relaxed mt-1">
+          <p className="text-[13px] text-gray-600 leading-snug mt-1">
             Vou te ajudar a encontrar o pintor certo.
           </p>
         </motion.div>
@@ -505,7 +505,7 @@ function HeroChat() {
       <motion.div
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.85 }}
-        className="flex-1 px-4 pb-3 grid grid-cols-2 gap-2 content-center items-center"
+        className="flex-1 px-3.5 pb-3 grid grid-cols-2 gap-1.5 content-start pt-1"
       >
         {HERO_CHIPS.map(({ icon: Icon, label }) => (
           <motion.button
@@ -513,36 +513,36 @@ function HeroChat() {
             whileTap={{ scale: 0.96 }}
             whileHover={{ borderColor: '#E35A1A', color: '#E35A1A' }}
             onClick={() => handleSend(label)}
-            className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-white border border-gray-100 text-left text-xs text-gray-600 font-medium transition-colors cursor-pointer"
-            style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-gray-100 text-left text-[11px] text-gray-600 font-medium transition-colors cursor-pointer"
+            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
           >
-            <Icon className="w-4.5 h-4.5 text-brand shrink-0" style={{ width: 18, height: 18 }} />
+            <Icon className="text-brand shrink-0" style={{ width: 14, height: 14 }} />
             <span className="leading-tight">{label}</span>
           </motion.button>
         ))}
       </motion.div>
 
       {/* Input area */}
-      <div className="border-t border-gray-100 px-3 pt-2.5 pb-2 shrink-0">
+      <div className="border-t border-gray-100 px-3 pt-2 pb-2.5 shrink-0">
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-          <Paperclip className="w-4 h-4 text-gray-400 shrink-0" />
+          <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder="Ex: quero pintar 2 quartos e a sala"
-            className="flex-1 bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none"
+            className="flex-1 bg-transparent text-xs text-gray-700 placeholder:text-gray-400 outline-none"
           />
           <motion.button
             whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
             onClick={() => handleSend()}
             disabled={!input.trim()}
-            className="w-8 h-8 rounded-lg bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer shrink-0"
+            className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer shrink-0"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3 h-3" />
           </motion.button>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-1.5">🛡️ Grátis</p>
+        <p className="text-center text-[10px] text-gray-400 mt-1">🛡️ Grátis · LGPD</p>
       </div>
     </motion.div>
   )
@@ -815,8 +815,10 @@ export function LandingPage() {
               className="flex flex-col items-start gap-4">
               <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                 <Link to="/chat"
-                  className="flex items-center gap-2 px-7 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors text-sm tracking-wide"
-                  style={{ boxShadow: '0 6px 24px rgba(5,150,105,0.32)' }}>
+                  className="flex items-center gap-2 px-7 py-4 text-white font-bold rounded-xl transition-colors text-sm tracking-wide"
+                  style={{ background: '#25D366' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#1dbd5a')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '#25D366')}>
                   Encontrar meu pintor <ArrowRight className="w-4 h-4" />
                 </Link>
               </motion.div>
@@ -824,7 +826,7 @@ export function LandingPage() {
           </div>
 
           {/* Right: Chat + floating cards — px-16 gives room for outside cards */}
-          <div className="relative flex justify-center lg:justify-end items-center px-16 lg:px-20" style={{ minHeight: 460 }}>
+          <div className="relative flex justify-center lg:justify-end items-center px-16 lg:px-20" style={{ minHeight: 580 }}>
             <motion.div initial={{ opacity: 0, y: 32, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
               <HeroChat />
