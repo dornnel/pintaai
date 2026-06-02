@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll, useInView } from 'motion/react'
+import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
@@ -82,18 +82,6 @@ const fadeUp: Variants = {
 const stagger: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.09 } },
-}
-// Premium section entrance — slides up with blur
-const sectionReveal: Variants = {
-  hidden: { opacity: 0, y: 48, filter: 'blur(6px)' },
-  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
-}
-
-// Reusable hook — section ref + animate when entering viewport
-function useSectionReveal() {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '-80px 0px' })
-  return { ref, inView }
 }
 
 // ─── Hero background (alternating parede1 / parede2) ─────────────────────────
