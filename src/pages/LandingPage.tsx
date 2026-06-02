@@ -71,12 +71,6 @@ const DEFAULT_PAINTER_REVIEWS = [
 
 // ─── Before/after data ───────────────────────────────────────────────────────
 
-const VALUE_PROPS = [
-  { text: 'Pintores com histórico verificado' },
-  { text: 'Briefing técnico gerado por IA' },
-  { text: 'Propostas comparáveis e transparentes' },
-]
-
 // ─── Motion variants ─────────────────────────────────────────────────────────
 
 const fadeUp: Variants = {
