@@ -4,7 +4,8 @@ import { motion, type Variants, useMotionValue, useSpring, useTransform, useScro
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
-  Home, Building2, Droplets, ImagePlus,
+  Home, Building2, Droplets, ImagePlus, Video, Layers, Wrench, Palette,
+  Bot, CalendarDays, FileText, UserCheck, BadgeCheck,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
@@ -945,77 +946,62 @@ export function LandingPage() {
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-3 mb-3" style={{ letterSpacing: '-0.02em' }}>Do problema ao profissional certo</h2>
             <p className="text-gray-400 max-w-sm mx-auto text-sm">Sem achismo. Só o pintor adequado para o seu espaço.</p>
           </motion.div>
-          <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <motion.div variants={stagger} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.1 }} className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               {
-                step: '01', title: 'Descreva no chat', desc: 'Envie fotos e diga o bairro. A IA entende o projeto.',
-                gradient: 'from-blue-500 to-blue-700',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <rect x="4" y="8" width="40" height="28" rx="4" fill="url(#g1)"/>
-                    <rect x="8" y="16" width="14" height="2.5" rx="1.25" fill="white" opacity="0.9"/>
-                    <rect x="8" y="21" width="22" height="2.5" rx="1.25" fill="white" opacity="0.6"/>
-                    <rect x="8" y="26" width="18" height="2.5" rx="1.25" fill="white" opacity="0.6"/>
-                    <path d="M16 36 L22 44 L28 36" fill="url(#g1)"/>
-                    <circle cx="36" cy="20" r="6" fill="white" opacity="0.25"/>
-                    <path d="M33 20 L35 22 L39 18" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#3B82F6"/><stop offset="1" stopColor="#1D4ED8"/></linearGradient></defs>
-                  </svg>
-                ),
+                step: '01', title: 'Descreva no chat',
+                desc: 'Envie fotos, vídeos e descreva o espaço em linguagem natural. Sem formulários chatos.',
+                color: '#3B82F6', Icon: Send, isNew: false,
               },
               {
-                step: '02', title: 'IA analisa e classifica', desc: 'Metragem, estado da parede, riscos — tudo vira briefing técnico.',
-                gradient: 'from-violet-500 to-purple-700',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <circle cx="24" cy="24" r="20" fill="url(#g2)"/>
-                    <path d="M16 24 Q20 16 24 24 Q28 32 32 24" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.8"/>
-                    <circle cx="24" cy="24" r="3" fill="white"/>
-                    <circle cx="16" cy="24" r="2" fill="white" opacity="0.6"/>
-                    <circle cx="32" cy="24" r="2" fill="white" opacity="0.6"/>
-                    <path d="M24 10 L25.5 14 L30 14.5 L26.5 17.5 L27.5 22 L24 19.5 L20.5 22 L21.5 17.5 L18 14.5 L22.5 14 Z" fill="white" opacity="0.9"/>
-                    <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#8B5CF6"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs>
-                  </svg>
-                ),
+                step: '02', title: 'IA gera o briefing',
+                desc: 'Metragem estimada, condição das paredes, material sugerido e riscos. Um documento técnico completo.',
+                color: '#8B5CF6', Icon: Bot, isNew: false,
               },
               {
-                step: '03', title: 'Match com o profissional', desc: 'Não o mais barato. O mais adequado por especialidade e histórico.',
-                gradient: 'from-orange-400 to-brand',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <circle cx="24" cy="16" r="8" fill="url(#g3)"/>
-                    <path d="M8 40 C8 32 14 28 24 28 C34 28 40 32 40 40" fill="url(#g3)" opacity="0.85"/>
-                    <circle cx="38" cy="14" r="5" fill="white" opacity="0.25"/>
-                    <path d="M36 14 L37.5 15.5 L41 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <circle cx="10" cy="14" r="5" fill="white" opacity="0.25"/>
-                    <path d="M8 14 L9.5 15.5 L13 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#FB923C"/><stop offset="1" stopColor="#E35A1A"/></linearGradient></defs>
-                  </svg>
-                ),
+                step: '03', title: 'Pintores recebem e avaliam',
+                desc: 'Profissionais verificados recebem o briefing e avaliam viabilidade — antes de se deslocar.',
+                color: '#F97316', Icon: UserCheck, isNew: false,
               },
               {
-                step: '04', title: 'Pague, agende e acompanhe', desc: 'Pagamento retido, agendamento no chat, liberação por etapas.',
-                gradient: 'from-emerald-400 to-emerald-700',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <rect x="6" y="10" width="36" height="28" rx="4" fill="url(#g4)"/>
-                    <rect x="6" y="16" width="36" height="4" fill="white" opacity="0.2"/>
-                    <rect x="12" y="25" width="10" height="2" rx="1" fill="white" opacity="0.8"/>
-                    <rect x="12" y="30" width="14" height="2" rx="1" fill="white" opacity="0.5"/>
-                    <circle cx="36" cy="28" r="6" fill="white" opacity="0.2"/>
-                    <path d="M33 28 L35 30 L39 26" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <defs><linearGradient id="g4" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#34D399"/><stop offset="1" stopColor="#059669"/></linearGradient></defs>
-                  </svg>
-                ),
+                step: '04', title: 'Meet virtual',
+                desc: 'Para projetos maiores, o pintor agenda uma videochamada. Alinha expectativas e evita deslocamento desnecessário.',
+                color: '#0EA5E9', Icon: Video, isNew: true,
               },
-            ].map(({ step, title, desc, icon }) => (
-              <motion.div key={step} variants={fadeUp} whileHover={{ y: -4, boxShadow: '0 20px 48px rgba(0,0,0,0.08)' }}
-                className="bg-white rounded-2xl p-7 border border-gray-100/80 flex gap-5 items-start shadow-sm">
-                <div className="shrink-0">{icon}</div>
-                <div>
-                  <span className="text-xs font-bold text-gray-300 tracking-widest block mb-1">{step}</span>
-                  <h3 className="font-bold text-gray-900 mb-1.5">{title}</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+              {
+                step: '05', title: 'Proposta detalhada',
+                desc: 'Material, mão de obra, prazo e condições de pagamento — tudo em uma proposta comparável e transparente.',
+                color: '#10B981', Icon: FileText, isNew: false,
+              },
+              {
+                step: '06', title: 'Serviço com registro',
+                desc: 'Com autorização do cliente, o andamento pode ser filmado. Protocolo de qualidade e segurança para todos.',
+                color: '#EC4899', Icon: Video, isNew: true,
+              },
+              {
+                step: '07', title: 'Pagamento por etapas',
+                desc: 'O valor fica retido e é liberado ao pintor conforme cada etapa é concluída e confirmada. Zero risco.',
+                color: '#059669', Icon: BadgeCheck, isNew: false,
+              },
+            ].map(({ step, title, desc, color, Icon, isNew }) => (
+              <motion.div key={step} variants={fadeUp}
+                whileHover={{ y: -4, boxShadow: '0 20px 48px rgba(0,0,0,0.08)' }}
+                className={`bg-white rounded-2xl p-6 border flex gap-4 items-start shadow-sm transition-shadow ${isNew ? 'border-l-2 border-gray-100/80' : 'border-gray-100/80'}`}
+                style={isNew ? { borderLeftColor: color } : {}}>
+                <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${color}18` }}>
+                  <Icon className="w-5 h-5" style={{ color }} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-gray-300 tracking-widest">{step}</span>
+                    {isNew && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: color }}>
+                        NOVO
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-gray-900 text-sm mb-1.5 leading-tight">{title}</h3>
+                  <p className="text-xs text-gray-500 leading-relaxed">{desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -1024,106 +1010,56 @@ export function LandingPage() {
       </section>
 
       {/* ── Service types — desktop only ── */}
-      <section className="py-24 px-4 bg-white">
-        <div className="max-w-5xl mx-auto">
+      <section className="py-24 px-4 relative overflow-hidden" style={{ background: '#F7F5F2' }}>
+        {/* Parallax brush stroke — cool steel blue */}
+        <motion.div
+          style={{ y: useTransform(scrollY, [1200, 2800], [0, -80]) }}
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+        >
+          <svg viewBox="0 0 1440 500" className="absolute bottom-0 left-0 w-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.05 }}>
+            <path d="M-100,350 Q280,160 680,340 Q1000,480 1260,280 Q1380,200 1580,320"
+              stroke="#9BB5C8" strokeWidth="300" fill="none" strokeLinecap="round"/>
+          </svg>
+        </motion.div>
+
+        <div className="max-w-5xl mx-auto relative">
           <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="text-center mb-12">
             <span className="text-xs font-bold text-brand uppercase tracking-widest">Serviços</span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2 tracking-tight">Para todo tipo de espaço</h2>
-            <p className="text-gray-400 mt-2 text-sm">Clique para começar o orçamento</p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2" style={{ letterSpacing: '-0.02em' }}>Para todo tipo de espaço</h2>
+            <p className="text-gray-400 mt-2 text-sm">Clique para começar o orçamento gratuito</p>
           </motion.div>
           <motion.div variants={stagger} initial="hidden" whileInView="show"
-            viewport={{ once: true, amount: 0.15 }} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            viewport={{ once: true, amount: 0.1 }} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              {
-                label: 'Residencial', desc: 'Casas, apartamentos, quartos',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <path d="M24 6 L42 22 L42 42 L6 42 L6 22 Z" fill="url(#sv1)"/>
-                    <rect x="18" y="28" width="12" height="14" rx="2" fill="white" opacity="0.9"/>
-                    <rect x="28" y="16" width="8" height="8" rx="1.5" fill="white" opacity="0.5"/>
-                    <path d="M12 22 L24 11 L36 22" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.4"/>
-                    <defs><linearGradient id="sv1" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#F59E0B"/><stop offset="1" stopColor="#D97706"/></linearGradient></defs>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Comercial', desc: 'Lojas, restaurantes, escritórios',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <rect x="8" y="10" width="32" height="32" rx="4" fill="url(#sv2)"/>
-                    <rect x="14" y="18" width="6" height="8" rx="1" fill="white" opacity="0.9"/>
-                    <rect x="24" y="18" width="6" height="8" rx="1" fill="white" opacity="0.6"/>
-                    <rect x="14" y="30" width="16" height="2" rx="1" fill="white" opacity="0.4"/>
-                    <rect x="8" y="10" width="32" height="5" rx="4" fill="white" opacity="0.15"/>
-                    <defs><linearGradient id="sv2" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#3B82F6"/><stop offset="1" stopColor="#1D4ED8"/></linearGradient></defs>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Fachada', desc: 'Externas, muros, garagens',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <rect x="4" y="8" width="40" height="32" rx="4" fill="url(#sv3)"/>
-                    <rect x="4" y="8" width="40" height="10" rx="4" fill="white" opacity="0.15"/>
-                    <rect x="10" y="22" width="28" height="3" rx="1.5" fill="white" opacity="0.7"/>
-                    <rect x="10" y="29" width="20" height="3" rx="1.5" fill="white" opacity="0.5"/>
-                    <circle cx="36" cy="35" r="6" fill="white" opacity="0.2"/>
-                    <path d="M33 35 L35.5 37.5 L39 32" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <defs><linearGradient id="sv3" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#8B5CF6"/><stop offset="1" stopColor="#6D28D9"/></linearGradient></defs>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Pós-obra', desc: 'Reboco novo, acabamento fino',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <rect x="6" y="14" width="36" height="26" rx="4" fill="url(#sv4)"/>
-                    <path d="M6 20 L42 20" stroke="white" strokeWidth="2" opacity="0.2"/>
-                    <rect x="12" y="26" width="8" height="8" rx="2" fill="white" opacity="0.8"/>
-                    <rect x="24" y="26" width="12" height="3" rx="1.5" fill="white" opacity="0.5"/>
-                    <rect x="24" y="31" width="8" height="3" rx="1.5" fill="white" opacity="0.3"/>
-                    <path d="M28 8 L32 14 L24 14 Z" fill="url(#sv4)" opacity="0.6"/>
-                    <defs><linearGradient id="sv4" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#F97316"/><stop offset="1" stopColor="#E35A1A"/></linearGradient></defs>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Arte / Mural', desc: 'Grafite, decoração artística',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <circle cx="24" cy="24" r="20" fill="url(#sv5)"/>
-                    <circle cx="16" cy="20" r="4" fill="white" opacity="0.8"/>
-                    <circle cx="28" cy="16" r="3" fill="white" opacity="0.6"/>
-                    <circle cx="32" cy="28" r="4" fill="white" opacity="0.7"/>
-                    <circle cx="20" cy="32" r="3" fill="white" opacity="0.5"/>
-                    <path d="M16 20 Q22 18 28 16 Q30 22 32 28 Q26 30 20 32 Q18 26 16 20Z" fill="white" opacity="0.15"/>
-                    <defs><linearGradient id="sv5" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#EC4899"/><stop offset="1" stopColor="#BE185D"/></linearGradient></defs>
-                  </svg>
-                ),
-              },
-              {
-                label: 'Manutenção', desc: 'Rachaduras, mofo, manchas',
-                icon: (
-                  <svg viewBox="0 0 48 48" className="w-10 h-10" fill="none">
-                    <circle cx="24" cy="24" r="20" fill="url(#sv6)"/>
-                    <path d="M16 32 L24 16 L32 32" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.9"/>
-                    <path d="M19 27 L29 27" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.7"/>
-                    <circle cx="24" cy="34" r="2" fill="white" opacity="0.9"/>
-                    <defs><linearGradient id="sv6" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox"><stop stopColor="#10B981"/><stop offset="1" stopColor="#059669"/></linearGradient></defs>
-                  </svg>
-                ),
-              },
-            ].map(({ label, desc, icon }) => (
+              { label: 'Residencial', desc: 'Casas, apartamentos, quartos e salas', color: '#C4843A', Icon: Home },
+              { label: 'Comercial',   desc: 'Lojas, restaurantes, escritórios',     color: '#3E6FA3', Icon: Building2 },
+              { label: 'Fachada',     desc: 'Externas, muros, garagens',             color: '#7A5EA3', Icon: Layers },
+              { label: 'Pós-obra',   desc: 'Reboco novo, acabamento fino',          color: '#C76B3A', Icon: Wrench },
+              { label: 'Arte / Mural', desc: 'Grafite, decoração artística',         color: '#B83A8C', Icon: Palette },
+              { label: 'Manutenção', desc: 'Rachaduras, mofo, manchas',              color: '#3D7A5E', Icon: Droplets },
+            ].map(({ label, desc, color, Icon }) => (
               <motion.div key={label} variants={fadeUp}
-                whileHover={{ y: -6, boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}
+                whileHover={{ y: -6, boxShadow: `0 20px 48px ${color}18` }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { window.location.href = `/chat?q=${encodeURIComponent(label)}` }}
-                className="bg-white border border-gray-100 rounded-2xl p-5 cursor-pointer group transition-shadow">
-                <div className="mb-3 group-hover:scale-110 transition-transform duration-200 w-fit">{icon}</div>
-                <p className="font-bold text-gray-900 text-sm mb-1">{label}</p>
-                <p className="text-xs text-gray-400">{desc}</p>
+                className="relative bg-white border border-gray-100 rounded-2xl p-6 cursor-pointer group overflow-hidden transition-all">
+                {/* Colored top bar */}
+                <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl transition-all group-hover:h-1.5"
+                  style={{ background: color }} />
+                {/* Icon */}
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-105 duration-200"
+                  style={{ background: `${color}18` }}>
+                  <Icon className="w-6 h-6" style={{ color }} />
+                </div>
+                <p className="font-bold text-gray-900 mb-1">{label}</p>
+                <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
+                {/* CTA on hover */}
+                <div className="flex items-center gap-1 mt-3 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{ color }}>
+                  Pedir orçamento <ArrowRight className="w-3 h-3" />
+                </div>
               </motion.div>
             ))}
           </motion.div>
