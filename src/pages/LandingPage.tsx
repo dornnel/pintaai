@@ -5,7 +5,7 @@ import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
   MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
   Home, Building2, Droplets, ImagePlus, Video, Layers, Wrench, Palette,
-  Bot, CalendarDays, FileText, UserCheck, BadgeCheck,
+  Bot, FileText, UserCheck, BadgeCheck,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
