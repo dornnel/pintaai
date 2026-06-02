@@ -506,7 +506,7 @@ function HeroChat() {
       <motion.div
         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.85 }}
-        className="flex-1 px-3.5 pb-3 grid grid-cols-2 gap-1.5 content-start pt-1"
+        className="flex-1 px-3.5 pb-4 grid grid-cols-2 gap-1.5 content-end"
       >
         {HERO_CHIPS.map(({ icon: Icon, label }) => (
           <motion.button
@@ -851,7 +851,7 @@ export function LandingPage() {
 
             {/* Bottom-left */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.8} delay={1.2}
-              className="-bottom-6 -left-6 lg:-left-20 p-3 w-40 z-20">
+              className="bottom-14 -left-6 lg:-left-20 p-3 w-40 z-20">
               <div className="flex items-center gap-2">
                 <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
                 <div><p className="text-gray-900 text-xs font-semibold leading-none">Carlos M.</p><p className="text-gray-400 text-[9px]">87 jobs · Campeche</p></div>
@@ -874,7 +874,7 @@ export function LandingPage() {
 
             {/* Bottom-right */}
             <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.9} delay={1.6}
-              className="-bottom-6 -right-4 lg:-right-12 p-2.5 w-44 z-20">
+              className="bottom-14 -right-4 lg:-right-12 p-2.5 w-44 z-20">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0"><CreditCard className="w-3 h-3 text-emerald-600" /></div>
                 <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Pagamento seguro</p><p className="text-gray-400 text-[9px]">retido até conclusão</p></div>
