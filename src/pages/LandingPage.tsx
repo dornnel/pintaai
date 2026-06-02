@@ -811,7 +811,7 @@ export function LandingPage() {
               style={{ color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.12)', letterSpacing: '-0.03em' }}>
               O pintor certo<br />
               para o seu<br />
-              <span style={{ color: '#FF7A30' }}>espaço.</span>
+              <span style={{ color: '#FF7A30', textShadow: 'none' }}>espaço.</span>
             </motion.h1>
 
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}
