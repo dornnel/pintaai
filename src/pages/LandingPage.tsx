@@ -1020,22 +1020,20 @@ export function LandingPage() {
       <section className="py-28 px-4 relative overflow-hidden" style={{ background: '#0F172A' }}>
 
         {/* ── Parallax blobs de fundo — múltiplas camadas de cor ── */}
-        <motion.div style={{ y: useTransform(scrollY, [1600, 3800], [-40, 80]) }}
-          className="absolute pointer-events-none"
-          style2={{ top: '-10%', left: '-5%', width: '55%', height: '70%',
-            background: 'radial-gradient(ellipse, rgba(227,90,26,0.18) 0%, transparent 70%)' }}
+        <motion.div
+          style={{ y: useTransform(scrollY, [1600, 3800], [-40, 80]), top: '-10%', left: '-5%', width: '55%', height: '70%',
+            position: 'absolute', background: 'radial-gradient(ellipse, rgba(227,90,26,0.18) 0%, transparent 70%)',
+            pointerEvents: 'none' }}
         />
         <motion.div
-          style={{ y: useTransform(scrollY, [1600, 3800], [20, -60] as [number,number]) }}
-          className="absolute pointer-events-none"
-          style={{ top: '10%', right: '-8%', width: '50%', height: '60%',
-            background: 'radial-gradient(ellipse, rgba(99,102,241,0.16) 0%, transparent 70%)' }}
+          style={{ y: useTransform(scrollY, [1600, 3800], [20, -60] as [number,number]), top: '10%', right: '-8%', width: '50%', height: '60%',
+            position: 'absolute', background: 'radial-gradient(ellipse, rgba(99,102,241,0.16) 0%, transparent 70%)',
+            pointerEvents: 'none' }}
         />
         <motion.div
-          style={{ y: useTransform(scrollY, [1600, 3800], [-10, 70] as [number,number]) }}
-          className="absolute pointer-events-none"
-          style={{ bottom: '-15%', left: '30%', width: '45%', height: '55%',
-            background: 'radial-gradient(ellipse, rgba(16,185,129,0.12) 0%, transparent 70%)' }}
+          style={{ y: useTransform(scrollY, [1600, 3800], [-10, 70] as [number,number]), bottom: '-15%', left: '30%', width: '45%', height: '55%',
+            position: 'absolute', background: 'radial-gradient(ellipse, rgba(16,185,129,0.12) 0%, transparent 70%)',
+            pointerEvents: 'none' }}
         />
         {/* Subtle grid overlay */}
         <div className="absolute inset-0 pointer-events-none" style={{

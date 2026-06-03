@@ -435,26 +435,6 @@ export function useChat() {
     )
   }
 
-  // Gera feedback de validação natural via LLM (gpt-4o-mini)
-  async function generateValidationFeedback(field: string, value: string, hint: string): Promise<string> {
-    try {
-      const { data } = await supabase.functions.invoke('agent-chat', {
-        body: {
-          session_id: sessionId.current,
-          message: '',
-          history: [],
-          action: 'generate_question',
-          collected: {
-            field: `validation_${field}`,
-            context: { field, value, hint },
-          },
-        },
-      })
-      return data?.message || hint
-    } catch {
-      return hint
-    }
-  }
 
   async function generateBriefing(data: CollectedData) {
     agentMessage('Processando seu pedido...', undefined)
