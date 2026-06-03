@@ -807,11 +807,30 @@ export function LandingPage() {
 
             <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.02] mb-10"
-              style={{ color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.12)', letterSpacing: '-0.03em' }}>
-              O pintor certo<br />
-              para o seu<br />
-              <span style={{ color: '#FF7A30', textShadow: 'none' }}>espaço.</span>
+              className="mb-10"
+              style={{ letterSpacing: '-0.03em', lineHeight: 1.0 }}>
+              {/* "O pintor" leve + "certo" pesado — contraste editorial */}
+              <span className="block" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>
+                <span style={{ fontWeight: 300, color: 'rgba(255,255,255,0.75)' }}>O pintor </span>
+                <span style={{ fontWeight: 800, color: '#fff' }}>certo</span>
+              </span>
+              {/* "para o seu" — linha secundária, menor, mais suave */}
+              <span className="block" style={{ fontSize: 'clamp(1.6rem, 4vw, 3.25rem)', fontWeight: 300, color: 'rgba(255,255,255,0.55)', letterSpacing: '-0.01em', marginTop: '0.15em' }}>
+                para o seu
+              </span>
+              {/* "espaço." — palavra âncora, grande, itálico, gradiente laranja */}
+              <span className="block" style={{
+                fontSize: 'clamp(3rem, 8vw, 6.5rem)',
+                fontWeight: 800,
+                fontStyle: 'italic',
+                marginTop: '0.05em',
+                background: 'linear-gradient(135deg, #FF9A5C 0%, #E35A1A 55%, #C84400 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
+                espaço.
+              </span>
             </motion.h1>
 
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}
