@@ -1017,76 +1017,84 @@ export function LandingPage() {
       </section>
 
       {/* ── Service types — desktop only ── */}
-      <section className="py-24 px-4 relative overflow-hidden" style={{ background: '#F7F5F2' }}>
-        {/* Parallax brush stroke — cool steel blue, moves down */}
-        <motion.div
-          style={{ y: useTransform(scrollY, [1600, 3800], [-30, 90]) }}
-          className="absolute inset-0 pointer-events-none overflow-hidden"
-        >
-          <svg viewBox="0 0 1440 500" className="absolute bottom-0 left-0 w-full" preserveAspectRatio="xMidYMid slice" style={{ opacity: 0.05 }}>
-            <path d="M-100,350 Q280,160 680,340 Q1000,480 1260,280 Q1380,200 1580,320"
-              stroke="#9BB5C8" strokeWidth="300" fill="none" strokeLinecap="round"/>
-          </svg>
-        </motion.div>
-        {/* Large painted orb — slow parallax */}
-        <motion.div
-          style={{
-            y: useTransform(scrollY, [1600, 3800], [-20, 100]),
-            background: 'radial-gradient(circle, rgba(196,168,130,0.08) 0%, transparent 70%)',
-          }}
-          className="absolute -left-40 top-0 w-96 h-96 rounded-full pointer-events-none"
+      <section className="py-28 px-4 relative overflow-hidden" style={{ background: '#0F172A' }}>
+
+        {/* ── Parallax blobs de fundo — múltiplas camadas de cor ── */}
+        <motion.div style={{ y: useTransform(scrollY, [1600, 3800], [-40, 80]) }}
+          className="absolute pointer-events-none"
+          style2={{ top: '-10%', left: '-5%', width: '55%', height: '70%',
+            background: 'radial-gradient(ellipse, rgba(227,90,26,0.18) 0%, transparent 70%)' }}
         />
+        <motion.div
+          style={{ y: useTransform(scrollY, [1600, 3800], [20, -60] as [number,number]) }}
+          className="absolute pointer-events-none"
+          style={{ top: '10%', right: '-8%', width: '50%', height: '60%',
+            background: 'radial-gradient(ellipse, rgba(99,102,241,0.16) 0%, transparent 70%)' }}
+        />
+        <motion.div
+          style={{ y: useTransform(scrollY, [1600, 3800], [-10, 70] as [number,number]) }}
+          className="absolute pointer-events-none"
+          style={{ bottom: '-15%', left: '30%', width: '45%', height: '55%',
+            background: 'radial-gradient(ellipse, rgba(16,185,129,0.12) 0%, transparent 70%)' }}
+        />
+        {/* Subtle grid overlay */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+        }} />
 
         <div className="max-w-5xl mx-auto relative">
-          {/* Heading with own parallax speed */}
-          <motion.div
-            style={{ y: useTransform(scrollY, [1600, 3200], [-10, 40]) }}
-            className="text-center mb-12">
+          {/* Heading */}
+          <motion.div style={{ y: useTransform(scrollY, [1600, 3200], [-8, 32] as [number,number]) }} className="text-center mb-14">
             <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
               <span className="text-xs font-bold text-brand uppercase tracking-widest">Serviços</span>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2" style={{ letterSpacing: '-0.02em' }}>Para todo tipo de espaço</h2>
-              <p className="text-gray-400 mt-2 text-sm">Clique para começar o orçamento gratuito</p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-3"
+                style={{ letterSpacing: '-0.02em' }}>Para todo tipo de espaço</h2>
+              <p className="text-white/40 mt-2 text-sm">Clique para começar o orçamento gratuito</p>
             </motion.div>
           </motion.div>
+
           <motion.div variants={stagger} initial="hidden" whileInView="show"
             viewport={{ once: true, amount: 0.1 }} className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { label: 'Residencial',  desc: 'Casas, apartamentos e quartos', color: '#C4843A', Icon: Home,      n: '01' },
-              { label: 'Comercial',    desc: 'Lojas, restaurantes, escritórios', color: '#3E6FA3', Icon: Building2, n: '02' },
-              { label: 'Fachada',      desc: 'Externas, muros, garagens',      color: '#7A5EA3', Icon: Layers,    n: '03' },
-              { label: 'Pós-obra',     desc: 'Reboco novo, acabamento fino',   color: '#C76B3A', Icon: Wrench,    n: '04' },
-              { label: 'Arte / Mural', desc: 'Grafite, decoração artística',   color: '#B83A8C', Icon: Palette,   n: '05' },
-              { label: 'Manutenção',   desc: 'Rachaduras, mofo, manchas',      color: '#3D7A5E', Icon: Droplets,  n: '06' },
+              { label: 'Residencial',  desc: 'Casas, apartamentos e quartos',   color: '#F97316', Icon: Home,      n: '01' },
+              { label: 'Comercial',    desc: 'Lojas, restaurantes, escritórios', color: '#3B82F6', Icon: Building2, n: '02' },
+              { label: 'Fachada',      desc: 'Externas, muros, garagens',        color: '#A855F7', Icon: Layers,    n: '03' },
+              { label: 'Pós-obra',     desc: 'Reboco novo, acabamento fino',     color: '#E35A1A', Icon: Wrench,    n: '04' },
+              { label: 'Arte / Mural', desc: 'Grafite, decoração artística',     color: '#EC4899', Icon: Palette,   n: '05' },
+              { label: 'Manutenção',   desc: 'Rachaduras, mofo, manchas',        color: '#10B981', Icon: Droplets,  n: '06' },
             ].map(({ label, desc, color, Icon, n }) => (
               <motion.div key={label} variants={fadeUp}
-                whileHover={{ y: -8 }}
+                whileHover={{ y: -10, scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => { window.location.href = `/chat?q=${encodeURIComponent(label)}` }}
-                className="relative rounded-2xl cursor-pointer group overflow-hidden transition-all"
+                className="relative rounded-2xl cursor-pointer group overflow-hidden"
                 style={{
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                  background: 'white',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  backdropFilter: 'blur(12px)',
+                  transition: 'all 0.3s cubic-bezier(0.22,1,0.36,1)',
                 }}>
-                {/* Full background fill on hover */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                  style={{ background: `${color}0d` }} />
-                {/* Colored top bar — grows on hover */}
-                <div className="absolute top-0 left-0 right-0 h-0.5 group-hover:h-1 transition-all duration-300"
-                  style={{ background: color }} />
+                {/* Hover: full color fill */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-350"
+                  style={{ background: `linear-gradient(135deg, ${color}22 0%, ${color}10 100%)` }} />
+                {/* Glow border on hover */}
+                <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-350"
+                  style={{ boxShadow: `inset 0 0 0 1px ${color}50` }} />
+
                 <div className="relative p-6">
-                  {/* Header row */}
-                  <div className="flex items-start justify-between mb-5">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg"
-                      style={{ background: `${color}18` }}>
-                      <Icon className="w-7 h-7 transition-colors duration-300" style={{ color }} />
+                  <div className="flex items-start justify-between mb-6">
+                    {/* Icon circle */}
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110"
+                      style={{ background: `${color}20` }}>
+                      <Icon className="w-6 h-6" style={{ color }} />
                     </div>
-                    <span className="text-[11px] font-bold text-gray-200 group-hover:text-gray-300 transition-colors"
-                      style={{ fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+                    <span className="text-[10px] font-bold tracking-widest"
+                      style={{ color: 'rgba(255,255,255,0.2)' }}>{n}</span>
                   </div>
-                  <p className="font-bold text-gray-900 text-base mb-1.5 leading-tight">{label}</p>
-                  <p className="text-xs text-gray-400 leading-relaxed mb-4">{desc}</p>
-                  {/* CTA — slides in on hover */}
+                  <p className="font-bold text-white text-base mb-1.5 leading-tight">{label}</p>
+                  <p className="text-xs leading-relaxed mb-5" style={{ color: 'rgba(255,255,255,0.45)' }}>{desc}</p>
                   <div className="flex items-center gap-1.5 text-xs font-semibold translate-y-1 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200"
                     style={{ color }}>
                     Solicitar orçamento <ArrowRight className="w-3 h-3" />
