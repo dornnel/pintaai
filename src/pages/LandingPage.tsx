@@ -1165,6 +1165,8 @@ export function LandingPage() {
           </div>
           <div className="flex gap-6 text-sm">
             <Link to="/chat" className="hover:text-white transition-colors">Encontrar pintor</Link>
+            <Link to="/pintores" className="hover:text-white transition-colors">Pintores</Link>
+            <Link to="/calculadora" className="hover:text-white transition-colors">Calculadora</Link>
             <Link to="/login?role=painter" className="hover:text-white transition-colors">Sou pintor</Link>
             <Link to="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
             <Link to="/login" className="hover:text-white transition-colors">Entrar</Link>

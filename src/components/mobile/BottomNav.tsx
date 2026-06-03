@@ -14,7 +14,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { to: '/', icon: Home, label: 'Início', end: true },
-  { to: '/visualizar-cor', icon: Paintbrush, label: 'Simular' },
+  { to: '/calculadora', icon: Paintbrush, label: 'Calcular' },
   { to: '/chat', icon: MessageCircle, label: 'Chat', primary: true },
   { to: '/marketplace', icon: ShoppingBag, label: 'Loja' },
   { to: '/minha-area', icon: User, label: 'Eu' },
