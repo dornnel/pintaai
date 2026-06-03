@@ -96,20 +96,26 @@ interface CollectedData {
   media_urls?: string[]
 }
 
-// ─── Name validation: reject phrases, gibberish, questions ───────────────────
-const NAME_NOISE = /\b(voce|você|pinta|pintor|quero|preciso|tenho|sou|como|que|nao|não|eu|me|meu|minha|sim|nao|oi|ola|olá|bom|dia|boa|tarde|noite)\b/i
+// ─── Name validation ──────────────────────────────────────────────────────────
+// Words that are greetings/filler — never a valid name even alone
+const NAME_NOISE_SINGLE = /^(oi|ola|olá|ok|sim|nao|não|hey|hi|opa|bom|dia|boa|tarde|noite|tudo|bem|obrigado|obrigada|tchau|vai|vamos|pode|claro|certo|isso|exato|quero|preciso|sou|como|que|eu|me|meu|minha|aqui|please|yes|no|hello|help|ai|ia|teste|test)$/i
+const NAME_NOISE_PHRASE = /\b(voce|você|pinta|pintor|quero|preciso|tenho|sou|como|que|nao|não|eu|me|meu|minha)\b/i
 
 function validateName(v: string): { ok: boolean; hint?: string } {
   const t = v.trim()
-  if (t.length < 2) return { ok: false, hint: 'Nome muito curto. Como você se chama?' }
-  if (/[?!@#$%^&*()+=<>{}[\]/\\]/.test(t)) return { ok: false, hint: 'Hmm, isso não parece um nome. Pode me dizer seu nome?' }
+  if (t.length < 2) return { ok: false, hint: 'Pode me dizer seu nome completo?' }
+  if (/^\d+$/.test(t)) return { ok: false, hint: 'Isso parece um número, não um nome. Como você se chama?' }
+  if (/[?!@#$%^&*()+=<>{}[\]/\\]/.test(t)) return { ok: false, hint: 'Hmm, isso não parece um nome. Como você se chama?' }
   const words = t.split(/\s+/)
-  if (words.length > 4) return { ok: false, hint: 'Por favor, informe só o seu nome (não uma frase).' }
-  if (NAME_NOISE.test(t) && words.length > 2) {
-    return { ok: false, hint: 'Hmm, isso não parece um nome. Como você se chama de verdade? 😊' }
+  // Single noise word (saudações, verbos, etc.)
+  if (words.length === 1 && NAME_NOISE_SINGLE.test(t)) {
+    return { ok: false, hint: `"${t}" parece uma saudação, não um nome. Como você se chama de verdade? 😊` }
   }
-  // Single word with only digits is not a name
-  if (/^\d+$/.test(t)) return { ok: false, hint: 'Por favor, informe seu nome.' }
+  // Phrase with noise (multi-word)
+  if (words.length > 4) return { ok: false, hint: 'Por favor, informe só o seu nome.' }
+  if (NAME_NOISE_PHRASE.test(t) && words.length > 2) {
+    return { ok: false, hint: 'Parece que você digitou uma frase. Qual é o seu nome? 😊' }
+  }
   return { ok: true }
 }
 
@@ -429,6 +435,27 @@ export function useChat() {
     )
   }
 
+  // Gera feedback de validação natural via LLM (gpt-4o-mini)
+  async function generateValidationFeedback(field: string, value: string, hint: string): Promise<string> {
+    try {
+      const { data } = await supabase.functions.invoke('agent-chat', {
+        body: {
+          session_id: sessionId.current,
+          message: '',
+          history: [],
+          action: 'generate_question',
+          collected: {
+            field: `validation_${field}`,
+            context: { field, value, hint },
+          },
+        },
+      })
+      return data?.message || hint
+    } catch {
+      return hint
+    }
+  }
+
   async function generateBriefing(data: CollectedData) {
     agentMessage('Processando seu pedido...', undefined)
     setLoading(true)
@@ -603,6 +630,7 @@ export function useChat() {
     // ── INIT ─────────────────────────────────────────────────────────────────
     if (text === '__init__' || currentState === 'init') {
       let prefilled: Partial<CollectedData> = {}
+      let greetingSent = false
 
       if (text !== '__init__') {
         const lower = text.toLowerCase()
@@ -611,21 +639,29 @@ export function useChat() {
         const matchedChip = Object.entries(CHIP_TO_SERVICE).find(([k]) => lower.includes(k))
 
         if (matchedChip) {
-          // Chip conhecido — NÃO chamar LLM, saudar brevemente e pré-preencher
+          // Chip conhecido — saudação + primeira pergunta em UMA SÓ mensagem (sem double message)
           prefilled = { service_type: matchedChip[1] }
-          agentMessage(`Ótimo! Vou te ajudar com **${matchedChip[1]}** 🎨 Para começar, preciso de algumas informações rápidas.`)
-          await delay(600)
+          agentMessage(
+            `Ótimo! Vou te ajudar com **${matchedChip[1]}** 🎨\n\nPara começar, qual é o seu **nome**? 😊`
+          )
+          greetingSent = true
+          await delay(400)
         } else {
-          // Input desconhecido — chamar LLM mas SEM repassar quickReplies
-          // (quickReplies do LLM conflitam com os botões do estado seguinte)
+          // Input desconhecido — chamar LLM e incluir pedido de nome na resposta
           setLoading(true)
           try {
             const res = await callEdgeFunction(text, [])
-            agentMessage(res.message) // ⚠️ sem res.quickReplies — evita confusão com estado seguinte
-            await delay(600)
+            // Combina resposta do LLM + pergunta de nome em UMA mensagem
+            const combined = res.message.endsWith('?') || res.message.endsWith('.')
+              ? `${res.message}\n\nPrimeiro, qual é o seu **nome**? 😊`
+              : `${res.message} Para começar, qual é o seu **nome**? 😊`
+            agentMessage(combined)
+            greetingSent = true
+            await delay(400)
           } catch {
-            agentMessage('Para te ajudar com seu projeto de pintura, preciso de algumas informações.')
-            await delay(600)
+            agentMessage('Para te ajudar com seu projeto de pintura, qual é o seu **nome**? 😊')
+            greetingSent = true
+            await delay(400)
           } finally {
             setLoading(false)
           }
@@ -639,11 +675,12 @@ export function useChat() {
       }
 
       saveSessionState('lead_name', dataRef.current).catch(console.error)
+      setCurrentState('lead_name')
 
-      const initState: ChatState = 'lead_name'
-      const step = FLOW[initState]!
-      setCurrentState(initState)
-      agentMessage(step.question({}), undefined) // apenas a pergunta, sem quickReplies do init
+      // Só envia a pergunta de nome se NÃO estava embutida na saudação
+      if (!greetingSent) {
+        agentMessage('Para continuarmos, me diz o seu **nome** por favor! 😊')
+      }
       return
     }
 
@@ -708,14 +745,14 @@ export function useChat() {
               dataRef.current = newData
               setCollectedData(newData)
               const nextState = typeof step.next === 'function' ? step.next(extracted, newData) : step.next
-              // Salvar lead parcial após coletar WhatsApp
               if (currentState === 'lead_whatsapp') savePartialLead(newData, nextState).catch(console.warn)
               advanceToState(nextState, newData)
               return
             }
           }
         }
-        agentMessage(validation.hint || 'Não entendi. Pode tentar de novo?', undefined)
+        // Usar o hint da validação (já personalizado com o que foi digitado)
+        agentMessage(validation.hint || 'Não entendi, pode tentar de novo? 😊')
         return
       }
     }

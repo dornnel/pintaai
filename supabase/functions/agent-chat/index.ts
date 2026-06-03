@@ -90,10 +90,22 @@ Deno.serve(async (req: Request) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'session_id' }).then(() => {}).catch(console.error)
 
-    // Generate a natural, conversational question for a specific field
+    // Generate a natural, conversational question or validation feedback
     if (action === 'generate_question' && collected) {
       const { field, context } = collected as { field: string; context: Record<string, unknown> }
-      const questionPrompt = `Você é o Koke, assistente da Pintai Floripa. Tom: amigável, direto, PT-BR natural.
+
+      let questionPrompt: string
+      if (field.startsWith('validation_')) {
+        const realField = field.replace('validation_', '')
+        const { value, hint } = context as { value: string; hint: string }
+        questionPrompt = `Você é o Koke, assistente da Pintai Floripa. Tom: amigável, empático, PT-BR natural.
+
+O usuário tentou preencher o campo "${realField}" com: "${value}"
+Problema: ${hint}
+
+Gere UMA mensagem curta e amigável explicando que esse valor não serve para "${realField}" e pedindo novamente de forma natural. Não seja repetitivo. Máx 1-2 linhas. Sem JSON.`
+      } else {
+        questionPrompt = `Você é o Koke, assistente da Pintai Floripa. Tom: amigável, direto, PT-BR natural.
 
 Dados já coletados: ${JSON.stringify(context)}
 Campo que precisa coletar agora: ${field}
@@ -101,6 +113,7 @@ Campo que precisa coletar agora: ${field}
 Gere UMA pergunta curta e natural para coletar "${field}". Varie o estilo — não seja repetitivo.
 Se tiver contexto relevante (ex: nome do usuário), use-o na pergunta.
 Retorne APENAS o texto da pergunta, sem JSON, sem aspas extras.`
+      }
 
       const resp = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
