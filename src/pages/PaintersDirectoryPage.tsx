@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { Search, Star, MapPin, Paintbrush, ShieldCheck, ArrowRight, Zap, Filter } from 'lucide-react'
+import { Search, Star, Paintbrush, ShieldCheck, ArrowRight, Zap, Filter } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface PainterListing {
