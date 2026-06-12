@@ -5,11 +5,12 @@ import {
   ArrowLeft, Phone, Mail, MessageCircle, Send, CheckCircle,
   Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2,
   Calendar, X, Bot, User, AlertTriangle, Calculator, Check, Plus,
-  FileText, Activity,
+  FileText, Activity, Play, Mic,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDate, formatRelativeTime, formatCurrency } from '../../lib/utils'
 import { calculateDivergence, BUDGET_ERROR_CATEGORIES } from '../../lib/budgetEngine'
+import { SendToPaintersModal } from '../../components/admin/SendToPaintersModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ interface Lead {
   email_confirmation_sent?: boolean; sent_to_painters_at?: string
   stage: string; stage_updated_at: string; notes?: string; tags: string[]
   created_at: string; service_request_id?: string
+  area_m2?: number; preferred_professional?: string; current_color?: string; estimated_budget?: string
+  calc_price_min?: number; calc_price_max?: number; calc_confidence?: string; calc_explanation?: string
 }
 
 interface LeadMessage {
@@ -87,114 +90,11 @@ const INTERACTION_STEPS = [
   { key: 'replied_at',        label: 'Respondeu',           icon: '✅' },
 ] as const
 
-// ─── SendToPainters Modal (com rastreio de interações) ────────────────────────
+// ─── Media helpers ──────────────────────────────────────────────────────────
 
-function SendToPaintersModal({ lead, onClose, onSent }: {
-  lead: Lead; onClose: () => void; onSent: () => void
-}) {
-  const [painters, setPainters] = useState<Painter[]>([])
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [sending, setSending] = useState(false)
-  const [done, setDone] = useState(false)
-
-  useEffect(() => {
-    supabase.from('painters').select('id, user:users(name,phone)').eq('availability_status', 'available')
-      .then(({ data }) => setPainters((data as unknown as Painter[]) || []))
-  }, [])
-
-  async function send() {
-    setSending(true)
-    const briefing = lead.ai_briefing || `${lead.service_interest} em ${lead.neighborhood}`
-    const priceEstimate = lead.ai_price_min
-      ? `R$ ${lead.ai_price_min?.toLocaleString('pt-BR')} – R$ ${lead.ai_price_max?.toLocaleString('pt-BR')}`
-      : 'A calcular'
-    const body =
-      `🎨 Nova oportunidade — ${lead.protocol}\n\n` +
-      `📍 ${lead.neighborhood} · ${lead.property_type || ''}\n` +
-      `🛠 ${lead.service_interest}\n` +
-      (lead.wall_condition ? `🧱 Paredes: ${lead.wall_condition}\n` : '') +
-      (lead.deadline ? `⏱ Prazo: ${lead.deadline}\n` : '') +
-      (lead.material ? `🪣 Material: ${lead.material}\n` : '') +
-      `💰 Estimativa IA: ${priceEstimate}\n\n${briefing}\n` +
-      (lead.final_notes ? `💬 Obs: ${lead.final_notes}\n` : '') +
-      `\nAcesse o Portal do Pintor para enviar proposta.`
-
-    const painterIds = Array.from(selected)
-
-    await Promise.all(painterIds.map(painterId =>
-      supabase.from('messages').insert({
-        channel: 'admin', direction: 'outbound', body,
-        metadata: { lead_id: lead.id, painter_id: painterId, action: 'lead_sent_to_painter', protocol: lead.protocol },
-      })
-    ))
-
-    // Registra interações de rastreio
-    await Promise.all(painterIds.map(painterId =>
-      supabase.from('lead_painter_interactions').upsert({
-        lead_id: lead.id, painter_id: painterId, status: 'notified',
-        notified_at: new Date().toISOString(),
-      }, { onConflict: 'lead_id,painter_id' })
-    ))
-
-    await supabase.from('leads').update({
-      stage: 'proposal_sent', stage_updated_at: new Date().toISOString(),
-      sent_to_painters_at: new Date().toISOString(),
-    }).eq('id', lead.id)
-
-    setDone(true); setSending(false)
-    setTimeout(() => { onClose(); onSent() }, 1500)
-  }
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
-      onClick={onClose}>
-      <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
-        transition={{ type: 'spring', damping: 24, stiffness: 280 }}
-        className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-        {done ? (
-          <div className="text-center py-4">
-            <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">Enviado para {selected.size} pintor{selected.size !== 1 ? 'es' : ''}!</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-gray-900">Enviar para pintores</h3>
-                <p className="text-xs text-gray-400 mt-0.5 font-mono text-brand">{lead.protocol}</p>
-              </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700">
-              🔒 Enviado <strong>sem dados pessoais</strong> do cliente — só briefing técnico.
-            </div>
-            <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-              {painters.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Nenhum pintor disponível</p>}
-              {painters.map(p => (
-                <label key={p.id} className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-colors ${selected.has(p.id) ? 'border-brand bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="checkbox" checked={selected.has(p.id)} className="accent-brand w-4 h-4"
-                    onChange={e => setSelected(prev => { const s = new Set(prev); e.target.checked ? s.add(p.id) : s.delete(p.id); return s })} />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{p.user?.name}</p>
-                    <p className="text-xs text-gray-400">{p.user?.phone}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded text-sm text-gray-600 cursor-pointer">Cancelar</button>
-              <button onClick={send} disabled={sending || selected.size === 0}
-                className="flex-1 py-2.5 bg-brand text-white rounded text-sm font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
-                {sending ? 'Enviando...' : <><Send className="w-3.5 h-3.5" /> Enviar ({selected.size})</>}
-              </button>
-            </div>
-          </>
-        )}
-      </motion.div>
-    </motion.div>
-  )
-}
+const VIDEO_EXT = /\.(mp4|mov|webm|m4v)(\?|$)/i
+const AUDIO_EXT = /\.(mp3|wav|ogg|m4a|aac)(\?|$)/i
+const PDF_EXT = /\.pdf(\?|$)/i
 
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 
@@ -203,8 +103,51 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
       <button className="absolute top-4 right-4 text-white/70 hover:text-white cursor-pointer"><X className="w-6 h-6" /></button>
-      <img src={url} alt="" className="max-w-full max-h-full rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+      {VIDEO_EXT.test(url) ? (
+        <video src={url} controls autoPlay className="max-w-full max-h-full rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+      ) : (
+        <img src={url} alt="" className="max-w-full max-h-full rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+      )}
     </motion.div>
+  )
+}
+
+// ─── MediaThumb ───────────────────────────────────────────────────────────────
+
+function MediaThumb({ url, onOpen }: { url: string; onOpen: () => void }) {
+  if (VIDEO_EXT.test(url)) {
+    return (
+      <button onClick={onOpen}
+        className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity cursor-pointer bg-black">
+        <video src={url} muted className="w-full h-full object-cover" />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <Play className="w-6 h-6 text-white" />
+        </div>
+      </button>
+    )
+  }
+  if (AUDIO_EXT.test(url)) {
+    return (
+      <div className="aspect-square rounded-xl border border-gray-200 bg-gray-50 p-2 flex flex-col items-center justify-center gap-1.5">
+        <Mic className="w-5 h-5 text-brand" />
+        <audio src={url} controls className="w-full max-w-full" style={{ height: 28 }} />
+      </div>
+    )
+  }
+  if (PDF_EXT.test(url)) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        className="aspect-square rounded-xl border border-gray-200 bg-gray-50 flex flex-col items-center justify-center gap-1.5 hover:bg-gray-100 transition-colors">
+        <FileText className="w-5 h-5 text-brand" />
+        <span className="text-[10px] text-gray-500">Abrir PDF</span>
+      </a>
+    )
+  }
+  return (
+    <button onClick={onOpen}
+      className="aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity cursor-pointer">
+      <img src={url} alt="" className="w-full h-full object-cover" />
+    </button>
   )
 }
 
@@ -432,8 +375,18 @@ export function LeadDetailPage() {
               {lead.wall_condition && <div><p className="text-xs text-gray-400 mb-0.5">Paredes</p><p className="font-medium">{lead.wall_condition}</p></div>}
               {lead.deadline && <div><p className="text-xs text-gray-400 mb-0.5">Prazo</p><p className="font-medium">{lead.deadline}</p></div>}
               {lead.material && <div><p className="text-xs text-gray-400 mb-0.5">Material</p><p className="font-medium">{lead.material}</p></div>}
+              {lead.area_m2 != null && <div><p className="text-xs text-gray-400 mb-0.5">Metragem (m²)</p><p className="font-medium">{lead.area_m2} m²</p></div>}
+              {lead.current_color && <div><p className="text-xs text-gray-400 mb-0.5">Cor atual</p><p className="font-medium">{lead.current_color}</p></div>}
+              {lead.preferred_professional && <div><p className="text-xs text-gray-400 mb-0.5">Profissional preferido</p><p className="font-medium">{lead.preferred_professional}</p></div>}
               <div><p className="text-xs text-gray-400 mb-0.5">Criado em</p><p className="font-medium text-xs">{formatDate(lead.created_at)}</p></div>
             </div>
+            {lead.estimated_budget && (
+              <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+                <p className="text-xs text-blue-700 font-bold mb-0.5">💭 Cliente espera pagar (faixa informada por ele)</p>
+                <p className="text-sm font-medium text-gray-800">{lead.estimated_budget}</p>
+                <p className="text-[10px] text-blue-500 mt-0.5">Não é a estimativa técnica — veja "Estimativa calculada" abaixo.</p>
+              </div>
+            )}
             {lead.final_notes && (
               <div className="mt-4 bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-3">
                 <p className="text-xs font-bold text-yellow-700 mb-1">💬 Observações do cliente</p>
@@ -462,6 +415,20 @@ export function LeadDetailPage() {
               </div>
             )}
           </section>
+
+          {/* 1.5 Estimativa calculada (motor de regras) */}
+          {(lead.calc_price_min != null || lead.calc_price_max != null) && (
+            <section className="bg-white rounded-2xl border border-gray-100 p-5">
+              <h2 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-brand" /> Estimativa calculada (motor de regras)
+              </h2>
+              <p className="text-lg font-bold text-gray-900">
+                R$ {lead.calc_price_min?.toLocaleString('pt-BR')} – R$ {lead.calc_price_max?.toLocaleString('pt-BR')}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Confiança: {lead.calc_confidence || '—'}</p>
+              {lead.calc_explanation && <p className="text-xs text-gray-400 mt-2 italic">{lead.calc_explanation}</p>}
+            </section>
+          )}
 
           {/* 2. Chat que gerou o lead */}
           {messages.length > 0 && (
@@ -501,10 +468,7 @@ export function LeadDetailPage() {
               </h2>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {allMedia.map((url, i) => (
-                  <button key={i} onClick={() => setLightboxUrl(url)}
-                    className="aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity cursor-pointer">
-                    <img src={url} alt="" className="w-full h-full object-cover" />
-                  </button>
+                  <MediaThumb key={i} url={url} onOpen={() => setLightboxUrl(url)} />
                 ))}
               </div>
             </section>

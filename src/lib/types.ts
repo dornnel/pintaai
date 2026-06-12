@@ -6,6 +6,7 @@ export type UserStatus = 'active' | 'pending' | 'blocked' | 'archived'
 export interface User {
   id: string
   role: UserRole
+  roles?: string[]
   name: string
   phone: string
   email?: string

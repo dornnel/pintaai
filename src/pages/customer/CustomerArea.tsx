@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { Plus, ArrowRight, Paintbrush } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
+import { RoleSwitcher } from '../../components/RoleSwitcher'
 import { REQUEST_STATUSES } from '../../lib/constants'
 import type { ServiceRequest } from '../../lib/types'
 import { cn, formatDate, formatCurrency } from '../../lib/utils'
@@ -32,6 +33,7 @@ export function CustomerArea() {
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="text-lg font-bold text-brand">Pintai</Link>
           <div className="flex items-center gap-3">
+            <RoleSwitcher />
             <span className="text-sm text-gray-500 hidden sm:block">{user?.name}</span>
             <button onClick={signOut} className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">Sair</button>
           </div>

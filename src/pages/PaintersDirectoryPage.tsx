@@ -290,7 +290,7 @@ export function PaintersDirectoryPage() {
         <div className="mt-10 bg-gray-900 rounded-2xl p-6 text-center">
           <p className="text-white font-bold text-lg mb-1">Você é pintor?</p>
           <p className="text-white/60 text-sm mb-4">Receba leads qualificados com briefing técnico. Sem visita desnecessária.</p>
-          <Link to="/login?role=painter&tab=register"
+          <Link to="/seja-pintor"
             className="inline-flex items-center gap-2 px-6 py-3 bg-brand text-white font-bold rounded-xl hover:bg-brand-dark transition-colors text-sm">
             Cadastrar como pintor <ArrowRight className="w-4 h-4" />
           </Link>

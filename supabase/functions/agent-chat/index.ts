@@ -256,6 +256,8 @@ ${history.map((h) => `${h.role}: ${h.content}`).join('\n')}
 
 ${mediaUrls?.length ? `Mídias enviadas: ${mediaUrls.length} imagem(ns)` : ''}
 
+IMPORTANTE: NÃO gere "preco_min_estimado"/"preco_max_estimado"/"confianca_preco" — esses valores são calculados por um motor de regras separado a partir da área (m²) informada pelo cliente. Foque em resumo_cliente, briefing_tecnico, riscos, observacoes_para_pintor. Use "metragem_estimada_m2"/"confianca_metragem" apenas como fallback (estimativa visual pelas fotos), caso o cliente não tenha informado a metragem.
+
 Gere um briefing técnico completo. Responda APENAS com JSON válido:
 {
   "resumo_cliente": "...",
@@ -265,9 +267,6 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
   "estado_parede": "...",
   "metragem_estimada_m2": null,
   "confianca_metragem": "baixa|media|alta",
-  "preco_min_estimado": null,
-  "preco_max_estimado": null,
-  "confianca_preco": "baixa|media|alta",
   "materiais_recomendados": [],
   "perguntas_faltantes": [],
   "riscos": [],
@@ -275,7 +274,6 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
   "profissional_preferido": "...",
   "orcamento_estimado_cliente": "...",
   "cor_atual_paredes": "...",
-  "perguntas_faltantes": [],
   "nivel_urgencia": "baixo|médio|alto",
   "complexidade": "simples|media|complexa"
 }`

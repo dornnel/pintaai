@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'motion/react'
+import { AnimatePresence } from 'motion/react'
 import {
-  Search, Send, CheckCircle, Clock, Eye, MessageCircle,
-  Mail, Image as ImageIcon, FileText, MapPin, Wrench, X,
+  Search, Send, Clock, Eye, MessageCircle,
+  Mail, Image as ImageIcon, FileText, MapPin, Wrench,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { cn, formatRelativeTime } from '../../lib/utils'
+import { SendToPaintersModal } from '../../components/admin/SendToPaintersModal'
 
 interface Lead {
   id: string
@@ -37,8 +38,6 @@ interface Lead {
   created_at: string
 }
 
-interface Painter { id: string; user: { name: string; phone: string } }
-
 const STAGES: Record<string, { label: string; color: string }> = {
   new: { label: 'Novo', color: 'bg-gray-100 text-gray-700' },
   contacted: { label: 'Contatado', color: 'bg-blue-100 text-blue-700' },
@@ -51,135 +50,6 @@ const STAGES: Record<string, { label: string; color: string }> = {
 const SOURCE_LABELS: Record<string, string> = {
   chat: '💬 Chat', whatsapp: '📱 WhatsApp', web: '🌐 Web',
   instagram: '📸 Instagram', admin: '🔧 Admin',
-}
-
-function SendToPaintersModal({ lead, onClose }: { lead: Lead; onClose: () => void }) {
-  const [painters, setPainters] = useState<Painter[]>([])
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [sending, setSending] = useState(false)
-  const [done, setDone] = useState(false)
-
-  useEffect(() => {
-    supabase.from('painters').select('id, user:users(name,phone)').eq('availability_status', 'available').then(({ data }) => {
-      setPainters((data as unknown as Painter[]) || [])
-    })
-  }, [])
-
-  async function send() {
-    setSending(true)
-
-    // Mensagem anonimizada — sem PII do cliente
-    const briefing = (() => {
-      if (lead.ai_briefing) return lead.ai_briefing
-      try {
-        const notes = JSON.parse(lead.notes || '{}')
-        return `${lead.service_interest} · Paredes: ${notes.wall_condition || lead.wall_condition || '?'} · Prazo: ${notes.deadline || lead.deadline || '?'}`
-      } catch {
-        return `${lead.service_interest} em ${lead.neighborhood}`
-      }
-    })()
-
-    const priceEstimate = lead.ai_price_min
-      ? `R$ ${lead.ai_price_min?.toLocaleString('pt-BR')} – R$ ${lead.ai_price_max?.toLocaleString('pt-BR')}`
-      : 'A calcular'
-
-    const anonymizedBody =
-      `🎨 Nova oportunidade — ${lead.protocol}\n\n` +
-      `📍 ${lead.neighborhood} · ${lead.property_type || ''}\n` +
-      `🛠 ${lead.service_interest}\n` +
-      (lead.wall_condition ? `🧱 Paredes: ${lead.wall_condition}\n` : '') +
-      (lead.deadline ? `⏱ Prazo: ${lead.deadline}\n` : '') +
-      (lead.material ? `🪣 Material: ${lead.material}\n` : '') +
-      `💰 Estimativa IA: ${priceEstimate}\n\n` +
-      `📝 ${briefing}\n` +
-      (lead.final_notes ? `💬 Obs do cliente: ${lead.final_notes}\n` : '') +
-      `\nAcesse o Portal do Pintor para ver detalhes e enviar proposta.`
-
-    const painterIds = Array.from(selected)
-
-    await Promise.all(painterIds.map(painterId =>
-      supabase.from('messages').insert({
-        channel: 'admin',
-        direction: 'outbound',
-        body: anonymizedBody,
-        metadata: { lead_id: lead.id, painter_id: painterId, action: 'lead_sent_to_painter', protocol: lead.protocol },
-      })
-    ))
-
-    // Registra interações de rastreio
-    await Promise.all(painterIds.map(painterId =>
-      supabase.from('lead_painter_interactions').upsert({
-        lead_id: lead.id, painter_id: painterId, status: 'notified',
-        notified_at: new Date().toISOString(),
-      }, { onConflict: 'lead_id,painter_id' })
-    ))
-
-    await supabase.from('leads').update({
-      stage: 'proposal_sent',
-      stage_updated_at: new Date().toISOString(),
-      sent_to_painters_at: new Date().toISOString(),
-    }).eq('id', lead.id)
-
-    setDone(true)
-    setSending(false)
-    setTimeout(onClose, 1500)
-  }
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
-      onClick={onClose}>
-      <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
-        transition={{ type: 'spring', damping: 24, stiffness: 280 }}
-        className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-        {done ? (
-          <div className="text-center py-4">
-            <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
-            <p className="font-semibold text-gray-900">Enviado para {selected.size} pintor{selected.size !== 1 ? 'es' : ''}!</p>
-            <p className="text-xs text-gray-400 mt-1">Dados do cliente anonimizados na mensagem.</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-gray-900">Enviar para pintores</h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  <span className="font-mono text-brand">{lead.protocol}</span> · {lead.service_interest} · {lead.neighborhood}
-                </p>
-              </div>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X className="w-4 h-4" /></button>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 text-xs text-amber-700">
-              🔒 A mensagem será enviada <strong>sem dados pessoais</strong> do cliente — só briefing técnico e estimativa.
-            </div>
-
-            <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-              {painters.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Nenhum pintor disponível</p>}
-              {painters.map(p => (
-                <label key={p.id} className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-colors ${selected.has(p.id) ? 'border-brand bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="checkbox" checked={selected.has(p.id)}
-                    onChange={e => setSelected(prev => { const s = new Set(prev); e.target.checked ? s.add(p.id) : s.delete(p.id); return s })}
-                    className="accent-brand w-4 h-4" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{p.user?.name}</p>
-                    <p className="text-xs text-gray-400">{p.user?.phone}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded text-sm text-gray-600 cursor-pointer">Cancelar</button>
-              <button onClick={send} disabled={sending || selected.size === 0}
-                className="flex-1 py-2.5 bg-brand text-white rounded text-sm font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
-                {sending ? 'Enviando...' : <><Send className="w-3.5 h-3.5" /> Enviar ({selected.size})</>}
-              </button>
-            </div>
-          </>
-        )}
-      </motion.div>
-    </motion.div>
-  )
 }
 
 export function LeadsPage() {

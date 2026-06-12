@@ -14,6 +14,7 @@ interface Painter {
   kyc_status: string
   pro_plan_status: string
   registration_source?: string
+  service_radius_km?: number
   user: { name: string; phone: string; email: string; status: string }
   score?: { overall_score: number; completed_jobs_count: number }
 }
@@ -44,6 +45,7 @@ function PainterModal({ painter, onClose, onSaved }: {
     availability_status: painter?.availability_status || 'available',
     verification_status: painter?.verification_status || 'unverified',
     kyc_status: painter?.kyc_status || 'not_started',
+    service_radius_km: painter?.service_radius_km ?? 10,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -66,6 +68,7 @@ function PainterModal({ painter, onClose, onSaved }: {
           await supabase.from('painters').update({
             bio: form.bio, years_experience: form.years_experience, specialties: form.specialties,
             availability_status: form.availability_status, verification_status: form.verification_status, kyc_status: form.kyc_status,
+            service_radius_km: form.service_radius_km,
           }).eq('id', painter.id)
         }
       } else {
@@ -81,6 +84,7 @@ function PainterModal({ painter, onClose, onSaved }: {
           user_id: newUser!.id, bio: form.bio, years_experience: form.years_experience,
           specialties: form.specialties, availability_status: form.availability_status,
           verification_status: form.verification_status, kyc_status: form.kyc_status,
+          service_radius_km: form.service_radius_km,
         })
       }
       onSaved()
@@ -123,6 +127,11 @@ function PainterModal({ painter, onClose, onSaved }: {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Anos de experiência</label>
               <input type="number" min={0} max={50} value={form.years_experience} onChange={e => setForm({...form, years_experience: Number(e.target.value)})}
+                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Raio de atendimento (km)</label>
+              <input type="number" min={1} max={100} value={form.service_radius_km} onChange={e => setForm({...form, service_radius_km: Number(e.target.value)})}
                 className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
             <div>

@@ -38,6 +38,7 @@ import { TermsPage } from './pages/TermsPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { PaintCalculatorPage } from './pages/PaintCalculatorPage'
 import { PaintersDirectoryPage } from './pages/PaintersDirectoryPage'
+import { BecomePainterPage } from './pages/BecomePainterPage'
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -50,7 +51,7 @@ function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: s
   const { user, loading } = useAuth()
   if (loading) return <Spinner />
   if (!user) return <Navigate to="/login" replace />
-  if (roles && !roles.includes(user.role)) return <Navigate to={getRoleHome(user.role)} replace />
+  if (roles && !roles.some(r => user.roles.includes(r))) return <Navigate to={getRoleHome(user.activeRole || user.role)} replace />
   return <>{children}</>
 }
 
@@ -69,7 +70,7 @@ function AuthCallback() {
   useEffect(() => {
     if (!loading) {
       if (needsOnboarding) navigate('/onboarding', { replace: true })
-      else if (user) navigate(getRoleHome(user.role), { replace: true })
+      else if (user) navigate(getRoleHome(user.activeRole || user.role), { replace: true })
       else navigate('/', { replace: true })
     }
   }, [user, loading, needsOnboarding, navigate])
@@ -107,7 +108,7 @@ function AppRoutes() {
       <Route path="/visualizar-cor" element={<ColorVisualizerPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/onboarding" element={<OnboardingPage />} />
-      <Route path="/seja-pintor" element={<LoginPage />} />
+      <Route path="/seja-pintor" element={<BecomePainterPage />} />
       <Route path="/pintura/:neighborhood" element={<NeighborhoodPage />} />
       <Route path="/termos" element={<TermsPage />} />
       <Route path="/privacidade" element={<PrivacyPage />} />

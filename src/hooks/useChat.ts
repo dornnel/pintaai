@@ -31,6 +31,20 @@ function delay(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
 
+function generateLocalProtocol(): string {
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const randPart = Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `PT-${datePart}-${randPart}`
+}
+
+// Resultado do motor de orçamento (calculatePaintingBudget), retornado pela edge function save-lead
+interface BudgetCalc {
+  estimated_min: number
+  estimated_max: number
+  confidence_label: 'baixa' | 'média' | 'alta'
+  explanation: string
+}
+
 // ─── Mapa de chips da home → service_type pré-preenchido ─────────────────────
 const CHIP_TO_SERVICE: Record<string, string> = {
   'pintar sala e quartos': 'Pintura interna',
@@ -56,6 +70,7 @@ type ChatState =
   | 'lead_name' | 'lead_email' | 'lead_whatsapp'
   | 'role_select'
   | 'neighborhood' | 'property_type' | 'service_type'
+  | 'area_m2'
   | 'media_upload' | 'wall_condition' | 'deadline' | 'material'
   | 'preferred_professional' | 'estimated_budget' | 'current_color'
   | 'final_notes'
@@ -81,6 +96,7 @@ interface CollectedData {
   neighborhood?: string
   property_type?: string
   service_type?: string
+  area_m2?: number
   final_notes?: string
   notes_media_urls?: string[]
   wall_condition?: string
@@ -168,13 +184,27 @@ const FLOW: Partial<Record<ChatState, StepConfig>> = {
     quickReplies: ['Apartamento', 'Casa', 'Loja / Comércio', 'Airbnb / Temporada', 'Outro'],
     field: 'property_type',
     // Pular service_type se já foi pré-preenchido pelo chip da home
-    next: (_v: string, data: CollectedData) => data.service_type ? 'media_upload' : 'service_type',
+    next: (_v: string, data: CollectedData) => data.service_type ? 'area_m2' : 'service_type',
   },
   service_type: {
     question: () => 'Que tipo de serviço você precisa?',
     type: 'quick_reply',
     quickReplies: ['Pintura interna', 'Fachada externa', 'Pós-obra', 'Textura / massa corrida', 'Impermeabilização', 'Arte / mural'],
     field: 'service_type',
+    next: 'area_m2',
+  },
+  area_m2: {
+    question: () => 'Você tem uma ideia da **metragem do espaço** (em m²)? Isso ajuda a calcular uma estimativa mais precisa.\n\nEx: 45 (ou "não sei" se preferir pular)',
+    type: 'text',
+    quickReplies: ['Não sei estimar'],
+    field: 'area_m2',
+    validate: (v) => {
+      const t = v.trim().toLowerCase()
+      if (t.includes('não sei') || t.includes('nao sei') || t === 'pular') return { ok: true }
+      const n = Number(t.replace(',', '.').replace(/[^\d.]/g, ''))
+      if (!n || n < 1 || n > 2000) return { ok: false, hint: 'Pode me dar um número aproximado em m²? Ex: 45 (entre 1 e 2000)' }
+      return { ok: true }
+    },
     next: 'media_upload',
   },
   media_upload: {
@@ -366,24 +396,15 @@ export function useChat() {
   async function savePartialLead(data: CollectedData, currentStep: string) {
     if (!data.email && !data.whatsapp) return
     try {
-      const protocol = (dataRef.current as CollectedData & { _partialProtocol?: string })._partialProtocol ||
-        `PT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-      ;(dataRef.current as CollectedData & { _partialProtocol?: string })._partialProtocol = protocol
-
-      await supabase.from('leads').upsert({
-        name: data.name || 'Não informado',
-        email: data.email,
-        phone: data.whatsapp,
-        source: 'chat',
-        source_detail: 'web_chat',
-        stage: 'new',
-        protocol,
-        service_interest: data.service_type,
-        neighborhood: data.neighborhood,
-        tags: ['web_chat', 'partial'],
-        notes: JSON.stringify({ partial: true, step: currentStep }),
-        stage_updated_at: new Date().toISOString(),
-      }, { onConflict: 'protocol' })
+      const refData = dataRef.current as CollectedData & { _partialProtocol?: string }
+      const { data: result, error } = await supabase.functions.invoke('save-lead', {
+        body: { protocol: refData._partialProtocol, partial: true, role: 'client', data, step: currentStep },
+      })
+      if (error) {
+        console.warn('Partial lead save error:', JSON.stringify(error))
+        return
+      }
+      if (result?.protocol) refData._partialProtocol = result.protocol
     } catch (err) {
       console.warn('Partial lead save error:', err)
     }
@@ -419,7 +440,7 @@ export function useChat() {
         generateBriefing(data)
       } else if (nextState === 'painter_done') {
         setCurrentState('painter_done')
-        saveToDatabase(data, 'painter').then(protocol => {
+        saveToDatabase(data, 'painter').then(({ protocol }) => {
           agentMessage(
             `Ótimo, **${data.name}**! Cadastro recebido.\n\nProtocolo: **${protocol}**\n\nNossa equipe vai analisar e te contatar pelo WhatsApp **${data.whatsapp}** em breve. Você receberá pedidos alinhados com seus bairros e especialidades.`,
           )
@@ -441,7 +462,7 @@ export function useChat() {
     setLoading(true)
 
     // SALVA NO DB PRIMEIRO — independente de a AI funcionar
-    const protocol = await saveToDatabase(data, 'client')
+    const { protocol, calc } = await saveToDatabase(data, 'client')
 
     let briefingData: BriefingData | null = null
     try {
@@ -481,6 +502,17 @@ export function useChat() {
       }
     }
 
+    // Estimativa REAL calculada pelo motor de regras (sobrepõe valores da IA/fallback)
+    if (calc) {
+      briefingData.preco_min_estimado = calc.estimated_min
+      briefingData.preco_max_estimado = calc.estimated_max
+      briefingData.confianca_preco = calc.confidence_label === 'média' ? 'media' : calc.confidence_label
+    }
+    if (data.area_m2) {
+      briefingData.metragem_estimada_m2 = data.area_m2
+      briefingData.confianca_metragem = 'alta'
+    }
+
     setCurrentState('briefing_ready')
     agentMessage(
       `✅ **Pedido enviado com sucesso!**\n\nProtocolo: **${protocol}**\n\nSeu pedido foi encaminhado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vamos te notificar pelo WhatsApp **${data.whatsapp}** assim que chegar.`,
@@ -490,13 +522,25 @@ export function useChat() {
     setLoading(false)
   }
 
-  async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<string> {
-    const now = new Date()
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '')
-    const randPart = Math.random().toString(36).slice(2, 6).toUpperCase()
-    const protocol = `PT-${datePart}-${randPart}`
+  async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<{ protocol: string; calc: BudgetCalc | null }> {
+    const refData = dataRef.current as CollectedData & { _partialProtocol?: string }
+    let protocol = refData._partialProtocol || generateLocalProtocol()
+    let calc: BudgetCalc | null = null
 
     try {
+      if (role === 'client') {
+        const trackingData = await captureTracking()
+        const { data: result, error } = await supabase.functions.invoke('save-lead', {
+          body: { protocol: refData._partialProtocol, partial: false, role: 'client', data: { ...data, tracking_data: trackingData } },
+        })
+        if (error) {
+          console.error('save-lead error:', JSON.stringify(error))
+        } else if (result?.protocol) {
+          protocol = result.protocol
+          calc = result.calc ?? null
+        }
+      }
+
       // Final session upsert with full collected data
       await supabase.from('conversation_sessions').upsert({
         session_id: sessionId.current,
@@ -509,41 +553,6 @@ export function useChat() {
       }, { onConflict: 'session_id' })
 
       if (role === 'client') {
-        const trackingData = await captureTracking()
-        await supabase.from('leads').insert({
-          name: data.name || 'Não informado',
-          phone: data.whatsapp,
-          email: data.email,
-          source: 'chat',
-          source_detail: 'web_chat',
-          service_interest: data.service_type,
-          neighborhood: data.neighborhood,
-          stage: 'new',
-          stage_updated_at: new Date().toISOString(),
-          protocol,
-          // Campos estruturados (novos)
-          property_type: data.property_type,
-          wall_condition: data.wall_condition,
-          deadline: data.deadline,
-          material: data.material,
-          media_urls: data.media_urls || [],
-          final_notes: data.final_notes || null,
-          notes_media_urls: data.notes_media_urls || [],
-          tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
-          tracking_data: trackingData,
-          notes: JSON.stringify({
-            property_type: data.property_type,
-            wall_condition: data.wall_condition,
-            deadline: data.deadline,
-            material: data.material,
-            preferred_professional: data.preferred_professional && data.preferred_professional !== 'Pular' ? data.preferred_professional : null,
-            estimated_budget: data.estimated_budget || null,
-            current_color: data.current_color && data.current_color !== 'Pular' ? data.current_color : null,
-            media_count: data.media_urls?.length || 0,
-            metadata: metadataRef.current,
-          }),
-        })
-
         // Enviar email de confirmação (async, não bloqueia)
         if (data.email) {
           const summaryText =
@@ -584,7 +593,7 @@ export function useChat() {
       console.error('DB save error:', err)
     }
 
-    return protocol
+    return { protocol, calc }
   }
 
   function validateInput(state: ChatState, value: string): { ok: boolean; hint?: string } {
@@ -773,11 +782,21 @@ export function useChat() {
     }
 
     // ── SAVE FIELD ────────────────────────────────────────────────────────────
+    let fieldValue: unknown = text
+    if (step.field === 'role') {
+      fieldValue = text === 'Sou pintor' ? 'painter' : 'client'
+    } else if (step.field === 'area_m2') {
+      const t = text.trim().toLowerCase()
+      if (t.includes('não sei') || t.includes('nao sei') || t === 'pular') {
+        fieldValue = undefined
+      } else {
+        const n = Number(t.replace(',', '.').replace(/[^\d.]/g, ''))
+        fieldValue = n > 0 ? n : undefined
+      }
+    }
     const newData: CollectedData = {
       ...dataRef.current,
-      [step.field]: step.field === 'role'
-        ? (text === 'Sou pintor' ? 'painter' : 'client')
-        : text,
+      [step.field]: fieldValue,
     }
     dataRef.current = newData
     setCollectedData(newData)

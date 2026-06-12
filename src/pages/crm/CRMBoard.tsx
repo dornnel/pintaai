@@ -12,7 +12,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, Phone, MessageCircle, MapPin, AlertCircle,
-  User, ArrowLeft, Filter, Globe,
+  User, ArrowLeft, Filter, Globe, Lock, Ruler,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
@@ -36,6 +36,11 @@ interface Lead {
   created_at: string
   protocol?: string
   service_request_id?: string
+  area_m2?: number
+  wall_condition?: string
+  calc_price_min?: number
+  calc_price_max?: number
+  _interaction_status?: string
 }
 
 const STAGES = [
@@ -48,6 +53,21 @@ const STAGES = [
   { id: 'lost', label: 'Perdido', color: 'bg-red-50 border-red-200', dot: 'bg-red-400' },
 ]
 
+// Colunas do CRM do pintor — baseadas em lead_painter_interactions.status
+const PAINTER_STAGES = [
+  { id: 'notified', label: 'Recebido', color: 'bg-gray-100 border-gray-200', dot: 'bg-gray-400' },
+  { id: 'proposal_viewed', label: 'Visualizado', color: 'bg-blue-50 border-blue-200', dot: 'bg-blue-500' },
+  { id: 'proposal_sent', label: 'Proposta Enviada', color: 'bg-yellow-50 border-yellow-200', dot: 'bg-yellow-500' },
+  { id: 'replied', label: 'Respondido', color: 'bg-green-50 border-green-200', dot: 'bg-green-500' },
+  { id: 'declined', label: 'Recusado', color: 'bg-red-50 border-red-200', dot: 'bg-red-400' },
+]
+
+// Status de interação ainda não tratados pelo pintor caem na coluna "Recebido"
+function painterColumnFor(status?: string): string {
+  if (!status) return 'notified'
+  return PAINTER_STAGES.some(s => s.id === status) ? status : 'notified'
+}
+
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   chat: <MessageCircle className="w-3 h-3 text-brand" />,
   whatsapp: <MessageCircle className="w-3 h-3 text-green-500" />,
@@ -59,7 +79,7 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
 
 // ─── Lead Card ────────────────────────────────────────────────────────────────
 
-function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boolean }) {
+function LeadCard({ lead, isDragging = false, painterView = false }: { lead: Lead; isDragging?: boolean; painterView?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: lead.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -67,6 +87,10 @@ function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boole
     (Date.now() - new Date(lead.stage_updated_at).getTime()) / 86400000
   )
   const isStale = daysSinceUpdate > 7
+
+  // Enquanto o pintor não demonstrou interesse, ocultar dados pessoais do cliente
+  const masked = painterView && lead._interaction_status === 'notified'
+  const displayName = masked ? `Cliente em ${lead.neighborhood || 'Florianópolis'}` : lead.name
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -82,11 +106,11 @@ function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boole
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-              {lead.name[0]?.toUpperCase()}
+              {masked ? <Lock className="w-3 h-3" /> : lead.name[0]?.toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{lead.name}</p>
-              {lead.protocol && (
+              <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
+              {!masked && lead.protocol && (
                 <p className="text-[9px] font-mono text-brand/60 leading-none">{lead.protocol}</p>
               )}
             </div>
@@ -111,8 +135,21 @@ function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boole
               <MapPin className="w-2.5 h-2.5" />{lead.neighborhood}
             </span>
           )}
-          {lead.estimated_value && (
-            <span className="text-green-600 font-medium">{formatCurrency(lead.estimated_value)}</span>
+          {lead.area_m2 != null && (
+            <span className="flex items-center gap-0.5">
+              <Ruler className="w-2.5 h-2.5" />{lead.area_m2} m²
+            </span>
+          )}
+          {painterView ? (
+            (lead.calc_price_min != null || lead.calc_price_max != null) && (
+              <span className="text-green-600 font-medium">
+                {formatCurrency(lead.calc_price_min || 0)} – {formatCurrency(lead.calc_price_max || 0)}
+              </span>
+            )
+          ) : (
+            lead.estimated_value != null && (
+              <span className="text-green-600 font-medium">{formatCurrency(lead.estimated_value)}</span>
+            )
           )}
         </div>
 
@@ -124,21 +161,23 @@ function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boole
               </span>
             )}
           </div>
-          <div className="flex gap-1">
-            {lead.phone && (
-              <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-                className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors">
-                <Phone className="w-3 h-3" />
-              </a>
-            )}
-            {lead.phone && (
-              <a href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-green-500 hover:bg-green-50 transition-colors">
-                <MessageCircle className="w-3 h-3" />
-              </a>
-            )}
-          </div>
+          {!masked && (
+            <div className="flex gap-1">
+              {lead.phone && (
+                <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+                  className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors">
+                  <Phone className="w-3 h-3" />
+                </a>
+              )}
+              {lead.phone && (
+                <a href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400 hover:text-green-500 hover:bg-green-50 transition-colors">
+                  <MessageCircle className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
@@ -147,10 +186,11 @@ function LeadCard({ lead, isDragging = false }: { lead: Lead; isDragging?: boole
 
 // ─── Stage Column ─────────────────────────────────────────────────────────────
 
-function StageColumn({ stage, leads, onAddLead }: {
-  stage: typeof STAGES[0]
+function StageColumn({ stage, leads, onAddLead, painterView = false }: {
+  stage: { id: string; label: string; color: string; dot: string }
   leads: Lead[]
-  onAddLead: (stageId: string) => void
+  onAddLead?: (stageId: string) => void
+  painterView?: boolean
 }) {
   return (
     <div className={cn('rounded-2xl border p-3 min-w-[220px] max-w-[240px] flex-shrink-0', stage.color)}>
@@ -162,15 +202,17 @@ function StageColumn({ stage, leads, onAddLead }: {
             {leads.length}
           </span>
         </div>
-        <button onClick={() => onAddLead(stage.id)}
-          className="w-5 h-5 rounded-md bg-white/80 flex items-center justify-center text-gray-400 hover:text-brand hover:bg-white transition-colors cursor-pointer">
-          <Plus className="w-3 h-3" />
-        </button>
+        {onAddLead && (
+          <button onClick={() => onAddLead(stage.id)}
+            className="w-5 h-5 rounded-md bg-white/80 flex items-center justify-center text-gray-400 hover:text-brand hover:bg-white transition-colors cursor-pointer">
+            <Plus className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-2 min-h-[60px]">
-          {leads.map(lead => <LeadCard key={lead.id} lead={lead} />)}
+          {leads.map(lead => <LeadCard key={lead.id} lead={lead} painterView={painterView} />)}
         </div>
       </SortableContext>
     </div>
@@ -273,11 +315,14 @@ function AddLeadModal({ initialStage, onClose, onSaved }: {
 
 export function CRMBoard() {
   const { user } = useAuth()
+  const isPainterView = user?.activeRole === 'painter'
+  const stages = isPainterView ? PAINTER_STAGES : STAGES
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [activeLead, setActiveLead] = useState<Lead | null>(null)
   const [addingToStage, setAddingToStage] = useState<string | null>(null)
   const [filterSource, setFilterSource] = useState<string>('all')
+  const [painterId, setPainterId] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -286,6 +331,29 @@ export function CRMBoard() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadLeads() {
+    if (isPainterView) {
+      const { data: painterRow } = await supabase.from('painters').select('id').eq('user_id', user!.id).maybeSingle()
+      if (!painterRow) {
+        setLeads([])
+        setLoading(false)
+        return
+      }
+      setPainterId(painterRow.id)
+
+      const { data } = await supabase
+        .from('lead_painter_interactions')
+        .select('status, notified_at, lead:leads(*)')
+        .eq('painter_id', painterRow.id)
+        .order('notified_at', { ascending: false })
+
+      const mapped = ((data as unknown as { status: string; notified_at: string; lead: Lead | null }[]) || [])
+        .filter(row => row.lead)
+        .map(row => ({ ...row.lead!, _interaction_status: row.status, stage: painterColumnFor(row.status) }))
+      setLeads(mapped)
+      setLoading(false)
+      return
+    }
+
     const { data } = await supabase.from('leads')
       .select('*')
       .not('stage', 'in', '("archived")')
@@ -294,7 +362,22 @@ export function CRMBoard() {
     setLoading(false)
   }
 
+  async function movePainterInteraction(leadId: string, newStatus: string) {
+    const lead = leads.find(l => l.id === leadId)
+    if (!lead || !painterId || lead._interaction_status === newStatus) return
+
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, _interaction_status: newStatus, stage: newStatus } : l))
+
+    const updatePayload: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }
+    if (['proposal_viewed', 'proposal_sent', 'replied', 'declined'].includes(newStatus)) {
+      updatePayload[`${newStatus}_at`] = new Date().toISOString()
+    }
+    await supabase.from('lead_painter_interactions').update(updatePayload).eq('lead_id', leadId).eq('painter_id', painterId)
+  }
+
   async function moveLeadToStage(leadId: string, newStage: string) {
+    if (isPainterView) return movePainterInteraction(leadId, newStage)
+
     const lead = leads.find(l => l.id === leadId)
     if (!lead || lead.stage === newStage) return
 
@@ -336,7 +419,7 @@ export function CRMBoard() {
     const { active, over } = event
     if (!over) return
     const overId = String(over.id)
-    const targetStage = STAGES.find(s => s.id === overId || leads.find(l => l.id === overId && l.stage === s.id))
+    const targetStage = stages.find(s => s.id === overId || leads.find(l => l.id === overId && l.stage === s.id))
     if (targetStage) moveLeadToStage(String(active.id), targetStage.id)
   }
 
@@ -349,7 +432,7 @@ export function CRMBoard() {
     }
   }
 
-  const filteredLeads = filterSource === 'all' ? leads : leads.filter(l => l.source === filterSource)
+  const filteredLeads = (isPainterView || filterSource === 'all') ? leads : leads.filter(l => l.source === filterSource)
   const leadsBy = (stageId: string) => filteredLeads.filter(l => l.stage === stageId)
   const totalValue = leads.filter(l => l.stage === 'won').reduce((s, l) => s + (l.estimated_value || 0), 0)
 
@@ -361,29 +444,31 @@ export function CRMBoard() {
           <div className="flex items-center gap-3">
             <Link to="/" className="text-gray-400 hover:text-brand"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
-              <p className="font-bold text-gray-900 text-sm">CRM — Pipeline de Leads</p>
+              <p className="font-bold text-gray-900 text-sm">{isPainterView ? 'Meus Leads' : 'CRM — Pipeline de Leads'}</p>
               <p className="text-xs text-gray-400">
-                {leads.length} leads · Ganhos: {formatCurrency(totalValue)}
+                {isPainterView ? `${leads.length} leads recebidos` : `${leads.length} leads · Ganhos: ${formatCurrency(totalValue)}`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-gray-400" />
-              <select value={filterSource} onChange={e => setFilterSource(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand bg-white">
-                <option value="all">Todas as origens</option>
-                <option value="chat">Chat</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="web">Web</option>
-                <option value="instagram">Globe</option>
-              </select>
+          {!isPainterView && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <Filter className="w-3.5 h-3.5 text-gray-400" />
+                <select value={filterSource} onChange={e => setFilterSource(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand bg-white">
+                  <option value="all">Todas as origens</option>
+                  <option value="chat">Chat</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="web">Web</option>
+                  <option value="instagram">Globe</option>
+                </select>
+              </div>
+              <button onClick={() => setAddingToStage('new')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#FF7A30] to-brand text-white text-xs font-semibold rounded-xl cursor-pointer">
+                <Plus className="w-3.5 h-3.5" /> Novo lead
+              </button>
             </div>
-            <button onClick={() => setAddingToStage('new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#FF7A30] to-brand text-white text-xs font-semibold rounded-xl cursor-pointer">
-              <Plus className="w-3.5 h-3.5" /> Novo lead
-            </button>
-          </div>
+          )}
         </div>
       </header>
 
@@ -396,12 +481,13 @@ export function CRMBoard() {
           <DndContext sensors={sensors} collisionDetection={closestCenter}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver}>
             <div className="flex gap-3 p-4 min-w-max">
-              {STAGES.map(stage => (
-                <StageColumn key={stage.id} stage={stage} leads={leadsBy(stage.id)} onAddLead={setAddingToStage} />
+              {stages.map(stage => (
+                <StageColumn key={stage.id} stage={stage} leads={leadsBy(stage.id)}
+                  onAddLead={isPainterView ? undefined : setAddingToStage} painterView={isPainterView} />
               ))}
             </div>
             <DragOverlay>
-              {activeLead && <LeadCard lead={activeLead} isDragging />}
+              {activeLead && <LeadCard lead={activeLead} isDragging painterView={isPainterView} />}
             </DragOverlay>
           </DndContext>
         </div>

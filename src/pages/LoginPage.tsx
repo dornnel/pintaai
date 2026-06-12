@@ -43,13 +43,13 @@ export function LoginPage() {
 
   useEffect(() => {
     if (user && waitingRedirect) {
-      navigate(getRoleHome(user.role), { replace: true })
+      navigate(getRoleHome(user.activeRole || user.role), { replace: true })
     }
   }, [user, waitingRedirect, navigate])
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate(getRoleHome(user.role), { replace: true })
+      navigate(getRoleHome(user.activeRole || user.role), { replace: true })
     }
   }, [authLoading, user, navigate])
 

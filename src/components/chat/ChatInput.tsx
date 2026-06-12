@@ -88,7 +88,7 @@ export function ChatInput({ onSend, disabled, placeholder = 'Digite uma mensagem
         <input
           ref={fileRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*,video/*,audio/*"
           multiple
           className="hidden"
           onChange={handleFiles}

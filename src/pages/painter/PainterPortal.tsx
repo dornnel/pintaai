@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   Briefcase, CheckCircle, MapPin, Send, Loader2, X,
   Star, MessageSquare, User, ChevronRight, Pencil,
-  Zap, Clock, Sparkles, Shield,
+  Zap, Clock, Sparkles, Shield, LayoutGrid,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
+import { RoleSwitcher } from '../../components/RoleSwitcher'
 import type { ServiceRequest, Quote, Review, PainterScore, Painter } from '../../lib/types'
 import { REQUEST_STATUSES } from '../../lib/constants'
 import { cn, formatCurrency } from '../../lib/utils'
@@ -428,6 +429,7 @@ export function PainterPortal() {
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="text-lg font-bold text-brand">Pintai</Link>
           <div className="flex items-center gap-3">
+            <RoleSwitcher />
             {score && score.overall_score > 0 && (
               <div className="hidden sm:flex items-center gap-1.5">
                 <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
@@ -441,9 +443,15 @@ export function PainterPortal() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Portal do Pintor</h1>
-          <p className="text-gray-500 text-sm mt-1">Oportunidades de trabalho próximas a você.</p>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Portal do Pintor</h1>
+            <p className="text-gray-500 text-sm mt-1">Oportunidades de trabalho próximas a você.</p>
+          </div>
+          <Link to="/crm"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-900 text-white text-xs font-semibold rounded-xl hover:bg-gray-800 transition-colors shrink-0">
+            <LayoutGrid className="w-3.5 h-3.5" /> Meus Leads (CRM)
+          </Link>
         </motion.div>
 
         {/* Stats */}

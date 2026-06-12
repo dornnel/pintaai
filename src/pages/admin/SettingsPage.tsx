@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { Save, Loader2, CheckCircle, Settings, Key, Bell, Store, MessageCircle } from 'lucide-react'
+import { Save, Loader2, CheckCircle, Settings, Key, Bell, Store, MessageCircle, MapPin } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 
@@ -13,9 +13,11 @@ const SETTING_DEFS = [
   { key: 'marketplace_active', label: 'Marketplace ativo', description: 'Exibir e aceitar pedidos no marketplace', type: 'boolean', group: 'Funcionalidades' },
   { key: 'chat_public', label: 'Chat público ativo', description: 'Permitir que visitantes usem o chat sem login', type: 'boolean', group: 'Funcionalidades' },
   { key: 'budget_engine_enabled', label: 'Motor de orçamento IA', description: 'Ativar estimativas automáticas de preço', type: 'boolean', group: 'Funcionalidades' },
+  { key: 'auto_assign_painters_geo', label: 'Distribuição automática por geolocalização', description: 'Novos leads são enviados automaticamente aos pintores próximos ao bairro do cliente', type: 'boolean', group: 'Distribuição de Leads' },
+  { key: 'auto_assign_radius_km_default', label: 'Raio padrão (km)', description: 'Raio de busca quando o pintor não define um valor próprio', type: 'number', group: 'Distribuição de Leads' },
 ]
 
-const GROUPS = ['Contato', 'Financeiro', 'Funcionalidades']
+const GROUPS = ['Contato', 'Financeiro', 'Funcionalidades', 'Distribuição de Leads']
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, unknown>>({})
@@ -89,6 +91,7 @@ export function SettingsPage() {
                 {group === 'Contato' && <MessageCircle className="w-4 h-4 text-blue-500" />}
                 {group === 'Financeiro' && <Store className="w-4 h-4 text-green-500" />}
                 {group === 'Funcionalidades' && <Settings className="w-4 h-4 text-brand" />}
+                {group === 'Distribuição de Leads' && <MapPin className="w-4 h-4 text-purple-500" />}
                 {group}
               </h2>
               <div className="space-y-4">
