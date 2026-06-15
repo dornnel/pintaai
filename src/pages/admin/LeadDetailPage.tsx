@@ -201,12 +201,12 @@ export function LeadDetailPage() {
       supabase.from('leads').select('*').eq('id', id).single(),
       supabase.from('messages').select('*').filter('metadata->>lead_id', 'eq', id).order('created_at'),
       supabase.from('lead_painter_interactions')
-        .select('*, painter:painters(id, user:users(name,phone))')
+        .select('*, painter:painters(id, user:users!painters_user_id_fkey(name,phone))')
         .eq('lead_id', id).order('notified_at'),
       supabase.from('visit_schedules')
-        .select('*, painter:painters(user:users(name))')
+        .select('*, painter:painters(user:users!painters_user_id_fkey(name))')
         .eq('lead_id', id).order('scheduled_at'),
-      supabase.from('painters').select('id, user:users(name,phone)').eq('availability_status', 'available'),
+      supabase.from('painters').select('id, user:users!painters_user_id_fkey(name,phone)').eq('availability_status', 'available'),
     ])
     if (leadRes.data) setLead(leadRes.data as Lead)
     setMessages((msgRes.data || []) as LeadMessage[])

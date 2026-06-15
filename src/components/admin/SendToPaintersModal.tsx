@@ -17,7 +17,7 @@ export function SendToPaintersModal({ lead, onClose, onSent }: {
   const [done, setDone] = useState(false)
 
   useEffect(() => {
-    supabase.from('painters').select('id, user:users(name,phone)').eq('availability_status', 'available')
+    supabase.from('painters').select('id, user:users!painters_user_id_fkey(name,phone)').eq('availability_status', 'available')
       .then(({ data }) => setPainters((data as unknown as Painter[]) || []))
   }, [])
 

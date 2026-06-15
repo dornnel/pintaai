@@ -213,7 +213,7 @@ export function PaintersPage() {
 
   async function load() {
     const { data } = await supabase.from('painters')
-      .select('*, user:users(name,phone,email,status), score:painter_scores(*)')
+      .select('*, user:users!painters_user_id_fkey(name,phone,email,status), score:painter_scores(*)')
       .order('created_at', { ascending: false })
     setPainters((data as unknown as Painter[]) || [])
     setLoading(false)
