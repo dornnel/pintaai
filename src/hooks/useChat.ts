@@ -1,8 +1,15 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { ChatMessage, BriefingData } from '../lib/types'
 import { generateSessionId } from '../lib/utils'
 import { supabase, uploadMedia } from '../lib/supabase'
 import { captureTracking } from '../lib/tracking'
+import { useAuth } from '../lib/auth'
+import {
+  type FlowStep, type CollectedData, type BudgetCalc,
+  CHIP_TO_SERVICE, KNOWN_NEIGHBORHOODS, SKIP_VALUES, VALIDATORS, EXTRACTABLE_VALIDATIONS,
+  branchSteps, getStep, setFieldValue, renderTemplate, computeFieldValue,
+  resolveNext, autoAdvance,
+} from './chatFlow'
 
 const SESSION_KEY = 'pintae_session_id'
 
@@ -37,298 +44,28 @@ function generateLocalProtocol(): string {
   return `PT-${datePart}-${randPart}`
 }
 
-// Resultado do motor de orçamento (calculatePaintingBudget), retornado pela edge function save-lead
-interface BudgetCalc {
-  estimated_min: number
-  estimated_max: number
-  confidence_label: 'baixa' | 'média' | 'alta'
-  explanation: string
-}
-
-// ─── Mapa de chips da home → service_type pré-preenchido ─────────────────────
-const CHIP_TO_SERVICE: Record<string, string> = {
-  'pintar sala e quartos': 'Pintura interna',
-  'sala e quartos': 'Pintura interna',
-  'fachada externa': 'Fachada externa',
-  'fachada': 'Fachada externa',
-  'pintura pós-obra': 'Pós-obra',
-  'pós-obra': 'Pós-obra',
-  'pos-obra': 'Pós-obra',
-  'mural artístico': 'Arte / mural',
-  'mural': 'Arte / mural',
-  'parede com mofo': 'Pintura interna',
-  'enviar fotos': 'Pintura interna',
-}
-
-// Bairros conhecidos para fuzzy match em texto livre
-const KNOWN_NEIGHBORHOODS = ['Campeche', 'Rio Tavares', 'Armação', 'Morro das Pedras', 'Pântano do Sul', 'Costeira', 'Ribeirão da Ilha', 'Tapera']
-
-// ─── Chat flow state machine ──────────────────────────────────────────────────
-
-type ChatState =
-  | 'init'
-  | 'lead_name' | 'lead_email' | 'lead_whatsapp'
-  | 'role_select'
-  | 'neighborhood' | 'property_type' | 'service_type'
-  | 'area_m2'
-  | 'media_upload' | 'wall_condition' | 'deadline' | 'material'
-  | 'preferred_professional' | 'estimated_budget' | 'current_color'
-  | 'final_notes'
-  | 'confirmation'
-  | 'generating_briefing' | 'briefing_ready' | 'waiting_quotes'
-  | 'painter_neighborhoods' | 'painter_specialties' | 'painter_experience' | 'painter_done'
-  | 'done'
-
-interface StepConfig {
-  question: (data: CollectedData) => string
-  type: 'text' | 'quick_reply' | 'media'
-  quickReplies?: string[]
-  field: keyof CollectedData
-  validate?: (val: string) => { ok: boolean; hint?: string }
-  next: ChatState | ((val: string, data: CollectedData) => ChatState)
-}
-
-interface CollectedData {
-  name?: string
-  email?: string
-  whatsapp?: string
-  role?: 'client' | 'painter'
-  neighborhood?: string
-  property_type?: string
-  service_type?: string
-  area_m2?: number
-  final_notes?: string
-  notes_media_urls?: string[]
-  wall_condition?: string
-  deadline?: string
-  material?: string
-  preferred_professional?: string
-  estimated_budget?: string
-  current_color?: string
-  confirmed?: string
-  painter_neighborhoods?: string
-  painter_specialties?: string
-  painter_experience?: string
-  media_urls?: string[]
-}
-
-// ─── Name validation ──────────────────────────────────────────────────────────
-// Words that are greetings/filler — never a valid name even alone
-const NAME_NOISE_SINGLE = /^(oi|ola|olá|ok|sim|nao|não|hey|hi|opa|bom|dia|boa|tarde|noite|tudo|bem|obrigado|obrigada|tchau|vai|vamos|pode|claro|certo|isso|exato|quero|preciso|sou|como|que|eu|me|meu|minha|aqui|please|yes|no|hello|help|ai|ia|teste|test)$/i
-const NAME_NOISE_PHRASE = /\b(voce|você|pinta|pintor|quero|preciso|tenho|sou|como|que|nao|não|eu|me|meu|minha)\b/i
-
-function validateName(v: string): { ok: boolean; hint?: string } {
-  const t = v.trim()
-  if (t.length < 2) return { ok: false, hint: 'Pode me dizer seu nome completo?' }
-  if (/^\d+$/.test(t)) return { ok: false, hint: 'Isso parece um número, não um nome. Como você se chama?' }
-  if (/[?!@#$%^&*()+=<>{}[\]/\\]/.test(t)) return { ok: false, hint: 'Hmm, isso não parece um nome. Como você se chama?' }
-  const words = t.split(/\s+/)
-  // Single noise word (saudações, verbos, etc.)
-  if (words.length === 1 && NAME_NOISE_SINGLE.test(t)) {
-    return { ok: false, hint: `"${t}" parece uma saudação, não um nome. Como você se chama de verdade? 😊` }
-  }
-  // Phrase with noise (multi-word)
-  if (words.length > 4) return { ok: false, hint: 'Por favor, informe só o seu nome.' }
-  if (NAME_NOISE_PHRASE.test(t) && words.length > 2) {
-    return { ok: false, hint: 'Parece que você digitou uma frase. Qual é o seu nome? 😊' }
-  }
-  return { ok: true }
-}
-
-const FLOW: Partial<Record<ChatState, StepConfig>> = {
-  lead_name: {
-    question: () => 'Para continuarmos, me diz o seu nome por favor! 😊',
-    type: 'text',
-    field: 'name',
-    validate: (v) => validateName(v),
-    next: 'lead_email',
-  },
-  lead_email: {
-    question: (d) => `Prazer, ${d.name}! Qual é o seu **e-mail**?`,
-    type: 'text',
-    field: 'email',
-    validate: (v) => ({
-      ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()),
-      hint: 'Hmm, esse não parece um e-mail válido. Ex: joao@gmail.com',
-    }),
-    next: 'lead_whatsapp',
-  },
-  lead_whatsapp: {
-    question: () => 'E o seu **WhatsApp** com DDD? Ex: (48) 9 9999-9999',
-    type: 'text',
-    field: 'whatsapp',
-    validate: (v) => ({
-      ok: v.replace(/\D/g, '').length >= 10,
-      hint: 'Informe um número com DDD. Ex: 48 9 9999-9999',
-    }),
-    next: 'role_select',
-  },
-  role_select: {
-    question: () => 'Você é **cliente** buscando pintura ou **pintor** querendo receber pedidos?',
-    type: 'quick_reply',
-    quickReplies: ['Sou cliente', 'Sou pintor'],
-    field: 'role',
-    next: (v) => (v === 'Sou pintor' ? 'painter_neighborhoods' : 'neighborhood'),
-  },
-  // ── CLIENT FLOW ──────────────────────────────────────────────────────────────
-  neighborhood: {
-    question: () => 'Em qual **bairro** fica o local a ser pintado?',
-    type: 'quick_reply',
-    quickReplies: ['Campeche', 'Rio Tavares', 'Armação', 'Morro das Pedras', 'Pântano do Sul', 'Outro bairro'],
-    field: 'neighborhood',
-    next: 'property_type',
-  },
-  property_type: {
-    question: () => 'Que tipo de **imóvel** é?',
-    type: 'quick_reply',
-    quickReplies: ['Apartamento', 'Casa', 'Loja / Comércio', 'Airbnb / Temporada', 'Outro'],
-    field: 'property_type',
-    // Pular service_type se já foi pré-preenchido pelo chip da home
-    next: (_v: string, data: CollectedData) => data.service_type ? 'area_m2' : 'service_type',
-  },
-  service_type: {
-    question: () => 'Que tipo de serviço você precisa?',
-    type: 'quick_reply',
-    quickReplies: ['Pintura interna', 'Fachada externa', 'Pós-obra', 'Textura / massa corrida', 'Impermeabilização', 'Arte / mural'],
-    field: 'service_type',
-    next: 'area_m2',
-  },
-  area_m2: {
-    question: () => 'Você tem uma ideia da **metragem do espaço** (em m²)? Isso ajuda a calcular uma estimativa mais precisa.\n\nEx: 45 (ou "não sei" se preferir pular)',
-    type: 'text',
-    quickReplies: ['Não sei estimar'],
-    field: 'area_m2',
-    validate: (v) => {
-      const t = v.trim().toLowerCase()
-      if (t.includes('não sei') || t.includes('nao sei') || t === 'pular') return { ok: true }
-      const n = Number(t.replace(',', '.').replace(/[^\d.]/g, ''))
-      if (!n || n < 1 || n > 2000) return { ok: false, hint: 'Pode me dar um número aproximado em m²? Ex: 45 (entre 1 e 2000)' }
-      return { ok: true }
-    },
-    next: 'media_upload',
-  },
-  media_upload: {
-    question: () => 'Agora me manda **fotos ou um vídeo** do local (até 1 minuto). Isso me ajuda a estimar a metragem com mais precisão.\n\nUse o clipe aqui embaixo ou clique em "Pular por agora".',
-    type: 'media',
-    quickReplies: ['Pular por agora'],
-    field: 'media_urls',
-    next: 'wall_condition',
-  },
-  wall_condition: {
-    question: () => 'Como está o **estado atual das paredes**?',
-    type: 'quick_reply',
-    quickReplies: ['Bom estado', 'Manchas / sujeira', 'Descascando', 'Rachaduras', 'Mofo', 'Pós-obra (reboco novo)'],
-    field: 'wall_condition',
-    next: 'deadline',
-  },
-  deadline: {
-    question: () => 'Qual o **prazo** que você tem em mente?',
-    type: 'quick_reply',
-    quickReplies: ['O mais rápido possível', 'Próximas 2 semanas', 'Próximo mês', 'Sem prazo definido'],
-    field: 'deadline',
-    next: 'material',
-  },
-  material: {
-    question: () => 'O **material** (tinta, primer) vai ser incluso no serviço?',
-    type: 'quick_reply',
-    quickReplies: ['Incluso no serviço', 'Vou comprar separado', 'O pintor que indique'],
-    field: 'material',
-    next: 'preferred_professional',
-  },
-  // ── CAMPOS EXTRAS DO BRIEFING ────────────────────────────────────────────────
-  preferred_professional: {
-    question: () => 'Tem algum **pintor de preferência** ou já trabalhou com alguém antes? (pode pular)',
-    type: 'text',
-    quickReplies: ['Pular'],
-    field: 'preferred_professional',
-    next: 'estimated_budget',
-  },
-  estimated_budget: {
-    question: () => 'Tem alguma **faixa de orçamento** em mente para o projeto?',
-    type: 'quick_reply',
-    quickReplies: ['Até R$500', 'R$500 – R$2.000', 'R$2.000 – R$5.000', 'Acima de R$5.000', 'Sem preferência'],
-    field: 'estimated_budget',
-    next: 'current_color',
-  },
-  current_color: {
-    question: () => 'Qual a **cor atual** das paredes? Isso ajuda o pintor a planejar a cobertura. (pode pular)',
-    type: 'text',
-    quickReplies: ['Pular'],
-    field: 'current_color',
-    next: 'final_notes',
-  },
-  // ── OBSERVAÇÕES FINAIS ───────────────────────────────────────────────────────
-  final_notes: {
-    question: () =>
-      'Alguma **observação adicional** que possa ajudar o pintor?\n\n' +
-      'Ex: "Tem móveis pesados", "Acesso difícil", "Obra em andamento"...\n\n' +
-      'Pode escrever aqui, enviar uma foto/vídeo extra, ou clique em "Pular".',
-    type: 'media',
-    quickReplies: ['Pular por agora'],
-    field: 'final_notes',
-    next: 'confirmation',
-  },
-  // ── CONFIRMAÇÃO LGPD ─────────────────────────────────────────────────────────
-  confirmation: {
-    question: (d) =>
-      `**Resumo do pedido:**\n\n` +
-      `👤 ${d.name}\n` +
-      `📧 ${d.email}\n` +
-      `📱 ${d.whatsapp}\n` +
-      `📍 ${d.neighborhood} · ${d.property_type}\n` +
-      `🎨 ${d.service_type}\n` +
-      `🧱 Paredes: ${d.wall_condition}\n` +
-      `⏱ Prazo: ${d.deadline}\n` +
-      `🪣 Material: ${d.material}\n` +
-      (d.preferred_professional && d.preferred_professional !== 'Pular' ? `🤝 Profissional preferido: ${d.preferred_professional}\n` : '') +
-      (d.estimated_budget ? `💰 Orçamento estimado: ${d.estimated_budget}\n` : '') +
-      (d.current_color && d.current_color !== 'Pular' ? `🎨 Cor atual: ${d.current_color}\n` : '') +
-      (d.final_notes ? `📝 Obs: ${d.final_notes}\n` : '') +
-      (d.notes_media_urls?.length ? `📎 Mídias extras: ${d.notes_media_urls.length} arquivo(s)\n` : '') +
-      `\nAo confirmar, você declara que as informações são verídicas e concorda com nossa [Política de Privacidade](/privacidade) (LGPD). **Podemos enviar para os pintores?**`,
-    type: 'quick_reply',
-    quickReplies: ['✅ Confirmar e enviar', '✏️ Corrigir algum dado'],
-    field: 'confirmed',
-    next: (v) => {
-      if (v.includes('Confirmar')) return 'generating_briefing'
-      if (v.includes('Corrigir')) return 'lead_name'
-      return 'confirmation' // texto livre → permanece na confirmação
-    },
-  },
-  // ── PAINTER FLOW ─────────────────────────────────────────────────────────────
-  painter_neighborhoods: {
-    question: (d) => `Legal, ${d.name}! Em quais **bairros** você atua? (ex: Campeche, Rio Tavares)`,
-    type: 'text',
-    field: 'painter_neighborhoods',
-    validate: (v) => ({ ok: v.trim().length >= 3, hint: 'Informe pelo menos um bairro onde você atua.' }),
-    next: 'painter_specialties',
-  },
-  painter_specialties: {
-    question: () => 'Quais são suas **especialidades**?',
-    type: 'quick_reply',
-    quickReplies: ['Pintura interna', 'Fachada', 'Textura / massa corrida', 'Impermeabilização', 'Arte / mural', 'Geral (todos)'],
-    field: 'painter_specialties',
-    next: 'painter_experience',
-  },
-  painter_experience: {
-    question: () => 'Quantos **anos de experiência** você tem?',
-    type: 'quick_reply',
-    quickReplies: ['Menos de 1 ano', '1 a 3 anos', '3 a 5 anos', 'Mais de 5 anos'],
-    field: 'painter_experience',
-    next: 'painter_done',
-  },
+function matchesQuickReply(step: FlowStep, text: string): boolean {
+  if (!step.quick_replies || !text.trim()) return true
+  const normalized = text.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim()
+  return step.quick_replies.some(qr =>
+    normalized.includes(qr.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim().slice(0, 8))
+  )
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useChat() {
+  const { user: authUser } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(false)
-  const [currentState, setCurrentState] = useState<ChatState>('init')
+  const [currentState, setCurrentState] = useState<string>('init')
   const [collectedData, setCollectedData] = useState<CollectedData>({})
   const sessionId = useRef(getOrCreateSessionId())
   const dataRef = useRef<CollectedData>({})
   const metadataRef = useRef(getBrowserMetadata())
+  const prefilledFieldsRef = useRef<Set<string>>(new Set())
+  const stepsPromiseRef = useRef<Promise<FlowStep[]> | null>(null)
+  const loadedStepsRef = useRef<FlowStep[]>([])
 
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg])
@@ -359,17 +96,51 @@ export function useChat() {
     return msg
   }
 
-  // Call edge function for AI responses
-  async function callEdgeFunction(message: string, history: { role: string; content: string }[]) {
-    const { data } = await supabase.functions.invoke('agent-chat', {
+  // Carrega e cacheia os passos da jornada (agent_flow_steps) — uma única vez por sessão
+  function getSteps(): Promise<FlowStep[]> {
+    if (!stepsPromiseRef.current) {
+      stepsPromiseRef.current = (async () => {
+        const { data, error } = await supabase
+          .from('agent_flow_steps')
+          .select('*')
+          .eq('active', true)
+          .order('order_index')
+        if (error) {
+          console.error('Erro ao carregar agent_flow_steps:', error)
+          return []
+        }
+        const steps = (data || []) as FlowStep[]
+        loadedStepsRef.current = steps
+        return steps
+      })()
+    }
+    return stepsPromiseRef.current
+  }
+
+  useEffect(() => {
+    getSteps().catch(console.error)
+  }, [])
+
+  // Gera mensagem de transição via IA: reage à resposta/valor anterior e emenda a próxima pergunta
+  async function callTransition(params: {
+    previous_field: string | null
+    previous_value: string | null
+    next_question: string
+    collected_data: CollectedData
+    user_name?: string
+  }): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('agent-chat', {
       body: {
         session_id: sessionId.current,
-        message,
-        history,
+        message: '',
+        history: [],
         metadata: metadataRef.current,
+        action: 'generate_transition',
+        ...params,
       },
     })
-    return data as { message: string; quickReplies?: string[] }
+    if (error || !data?.message) throw new Error('transition unavailable')
+    return data.message as string
   }
 
   // Extrair dados de linguagem natural via LLM (gpt-4o-mini, barato)
@@ -396,15 +167,14 @@ export function useChat() {
   async function savePartialLead(data: CollectedData, currentStep: string) {
     if (!data.email && !data.whatsapp) return
     try {
-      const refData = dataRef.current as CollectedData & { _partialProtocol?: string }
       const { data: result, error } = await supabase.functions.invoke('save-lead', {
-        body: { protocol: refData._partialProtocol, partial: true, role: 'client', data, step: currentStep },
+        body: { protocol: dataRef.current._partialProtocol, partial: true, role: 'client', data, step: currentStep, custom_fields: data.custom_fields },
       })
       if (error) {
         console.warn('Partial lead save error:', JSON.stringify(error))
         return
       }
-      if (result?.protocol) refData._partialProtocol = result.protocol
+      if (result?.protocol) dataRef.current._partialProtocol = result.protocol
     } catch (err) {
       console.warn('Partial lead save error:', err)
     }
@@ -426,36 +196,208 @@ export function useChat() {
     }
   }
 
-  // Advance to next state and ask next question
-  function advanceToState(nextState: ChatState, data: CollectedData) {
-    const step = FLOW[nextState]
-
-    // Save session progress
-    saveSessionState(nextState, data).catch(console.error)
-
-    if (!step) {
-      // Terminal states
-      if (nextState === 'generating_briefing') {
-        setCurrentState('generating_briefing')
-        generateBriefing(data)
-      } else if (nextState === 'painter_done') {
-        setCurrentState('painter_done')
-        saveToDatabase(data, 'painter').then(({ protocol }) => {
-          agentMessage(
-            `Ótimo, **${data.name}**! Cadastro recebido.\n\nProtocolo: **${protocol}**\n\nNossa equipe vai analisar e te contatar pelo WhatsApp **${data.whatsapp}** em breve. Você receberá pedidos alinhados com seus bairros e especialidades.`,
-          )
-        })
-      }
+  // ── Avança para o próximo step (aplica auto-skip e transição via IA) ────────
+  async function advanceToState(nextKey: string, data: CollectedData, opts?: { fromStep?: FlowStep; fromValue?: string }) {
+    if (nextKey === 'generating_briefing') {
+      setCurrentState('generating_briefing')
+      saveSessionState(nextKey, data).catch(console.error)
+      await generateBriefing(data)
+      return
+    }
+    if (nextKey === 'painter_done') {
+      setCurrentState('painter_done')
+      saveSessionState(nextKey, data).catch(console.error)
+      const { protocol } = await saveToDatabase(data, 'painter')
+      agentMessage(
+        `Ótimo, **${data.name}**! Cadastro recebido.\n\nProtocolo: **${protocol}**\n\nNossa equipe vai analisar e te contatar pelo WhatsApp **${data.whatsapp}** em breve. Você receberá pedidos alinhados com seus bairros e especialidades.`,
+      )
       return
     }
 
-    setCurrentState(nextState)
+    const steps = await getSteps()
+    const resolvedStep = autoAdvance(steps, nextKey, data, prefilledFieldsRef.current)
+    if (!resolvedStep) {
+      const branch = getStep(steps, nextKey)?.branch
+      await advanceToState(branch === 'painter' ? 'painter_done' : 'generating_briefing', data)
+      return
+    }
+
+    setCurrentState(resolvedStep.step_key)
+    saveSessionState(resolvedStep.step_key, data).catch(console.error)
+
+    let message = renderTemplate(resolvedStep, steps, data, authUser?.name)
+
+    if (opts?.fromStep?.use_ai_transition) {
+      setLoading(true)
+      try {
+        message = await callTransition({
+          previous_field: opts.fromStep.field_key,
+          previous_value: opts.fromValue ?? null,
+          next_question: message,
+          collected_data: data,
+          user_name: authUser?.name,
+        })
+      } catch {
+        // fallback: mantém a pergunta padrão (já em `message`)
+      } finally {
+        setLoading(false)
+      }
+    }
+
     agentMessage(
-      step.question(data),
-      step.type === 'quick_reply' || step.type === 'media' ? step.quickReplies : undefined,
+      message,
+      resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media' ? resolvedStep.quick_replies ?? undefined : undefined,
     )
   }
 
+  // ── Inicialização da conversa ───────────────────────────────────────────────
+  async function handleInit(text: string) {
+    const steps = await getSteps()
+    const data: CollectedData = { ...dataRef.current }
+    const prefilled = new Set<string>()
+
+    if (authUser) {
+      if (authUser.name) { data.name = authUser.name; prefilled.add('name') }
+      if (authUser.email) { data.email = authUser.email; prefilled.add('email') }
+      if (authUser.phone) { data.whatsapp = authUser.phone; prefilled.add('whatsapp') }
+      data.role = authUser.activeRole === 'painter' ? 'painter' : 'client'
+      prefilled.add('role')
+    }
+
+    let transitionField: string | null = null
+    let transitionValue: string | null = null
+
+    if (text !== '__init__') {
+      const lower = text.toLowerCase()
+      const matchedChip = Object.entries(CHIP_TO_SERVICE).find(([k]) => lower.includes(k))
+      if (matchedChip) {
+        data.service_type = matchedChip[1]
+        prefilled.add('service_type')
+        transitionField = 'service_type'
+        transitionValue = matchedChip[1]
+      } else {
+        transitionValue = text
+      }
+      if (!authUser) { data.role = 'client'; prefilled.add('role') }
+    }
+
+    dataRef.current = data
+    setCollectedData(data)
+    prefilledFieldsRef.current = prefilled
+
+    const firstKey = branchSteps(steps, 'client')[0]?.step_key ?? 'role_select'
+    const resolvedStep = autoAdvance(steps, firstKey, data, prefilled)
+    if (!resolvedStep) {
+      await advanceToState(data.role === 'painter' ? 'painter_done' : 'generating_briefing', data)
+      return
+    }
+
+    setCurrentState(resolvedStep.step_key)
+    saveSessionState(resolvedStep.step_key, data).catch(console.error)
+
+    let message = renderTemplate(resolvedStep, steps, data, authUser?.name)
+
+    if (transitionValue !== null) {
+      setLoading(true)
+      try {
+        message = await callTransition({
+          previous_field: transitionField,
+          previous_value: transitionValue,
+          next_question: message,
+          collected_data: data,
+          user_name: authUser?.name,
+        })
+      } catch {
+        if (!transitionField) message = `Entendido! ${message}`
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      const firstName = authUser?.name?.split(' ')[0]
+      if (firstName && prefilled.has('role') && !resolvedStep.question_template.includes('{{name}}')) {
+        message = `Oi ${firstName}! 👋 ${message}`
+      }
+    }
+
+    agentMessage(
+      message,
+      resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media' ? resolvedStep.quick_replies ?? undefined : undefined,
+    )
+  }
+
+  // ── Steps de mídia (media_upload, final_notes, custom) ──────────────────────
+  async function handleMediaStep(steps: FlowStep[], step: FlowStep, text: string, mediaUrls: string[]) {
+    let newData: CollectedData = { ...dataRef.current }
+
+    if (mediaUrls.length > 0) {
+      if (step.field_key === 'media_urls') {
+        newData = setFieldValue(newData, step, [...(newData.media_urls || []), ...mediaUrls])
+      } else {
+        newData = { ...newData, notes_media_urls: [...(newData.notes_media_urls || []), ...mediaUrls] }
+      }
+    }
+
+    const normalized = text.trim().toLowerCase()
+    const isSkip = !text.trim() || SKIP_VALUES.has(normalized)
+    if (!isSkip && step.field_key !== 'media_urls') {
+      newData = setFieldValue(newData, step, text.trim())
+    }
+
+    dataRef.current = newData
+    setCollectedData(newData)
+
+    if (mediaUrls.length > 0 && !isSkip) {
+      agentMessage(`Recebido! 📸 ${mediaUrls.length} ${mediaUrls.length === 1 ? 'arquivo recebido' : 'arquivos recebidos'}. Anotado também! ✍️`)
+    } else if (mediaUrls.length > 0) {
+      agentMessage(`Recebido! 📸 ${mediaUrls.length} ${mediaUrls.length === 1 ? 'imagem recebida' : 'imagens recebidas'}.`)
+    } else if (!isSkip) {
+      agentMessage('Anotado! ✍️')
+    } else {
+      agentMessage('Ok, vou prosseguir.')
+    }
+
+    const nextKey = resolveNext(steps, step, text, newData)
+    await delay(600)
+    await advanceToState(nextKey, newData, { fromStep: step, fromValue: text })
+  }
+
+  // ── Valida texto livre; em campos críticos, tenta extrair via LLM antes de rejeitar ──
+  async function validateStep(step: FlowStep, text: string): Promise<{ ok: boolean; value?: string; hint?: string }> {
+    const validator = VALIDATORS[step.validation_type]
+    const result = validator(text)
+    if (result.ok) return { ok: true, value: text }
+
+    if (EXTRACTABLE_VALIDATIONS.has(step.validation_type)) {
+      setLoading(true)
+      const extracted = await extractFieldWithLLM(step.field_key, text)
+      setLoading(false)
+      if (extracted) {
+        const revalidation = validator(extracted)
+        if (revalidation.ok) return { ok: true, value: extracted }
+      }
+    }
+
+    return { ok: false, hint: result.hint || 'Não entendi, pode tentar de novo? 😊' }
+  }
+
+  // ── Salva o campo respondido e avança para o próximo step ───────────────────
+  async function commitFieldAndAdvance(steps: FlowStep[], step: FlowStep, rawText: string) {
+    const fieldValue = computeFieldValue(step, rawText)
+    const newData = setFieldValue(dataRef.current, step, fieldValue)
+    dataRef.current = newData
+    setCollectedData(newData)
+
+    const nextKey = resolveNext(steps, step, rawText, newData)
+
+    if (step.branch === 'client' && step.field_key === 'whatsapp') {
+      savePartialLead(newData, nextKey).catch(console.warn)
+    }
+
+    setLoading(true)
+    await delay(400)
+    setLoading(false)
+    await advanceToState(nextKey, newData, { fromStep: step, fromValue: rawText })
+  }
 
   async function generateBriefing(data: CollectedData) {
     agentMessage('Processando seu pedido...', undefined)
@@ -523,15 +465,14 @@ export function useChat() {
   }
 
   async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<{ protocol: string; calc: BudgetCalc | null }> {
-    const refData = dataRef.current as CollectedData & { _partialProtocol?: string }
-    let protocol = refData._partialProtocol || generateLocalProtocol()
+    let protocol = dataRef.current._partialProtocol || generateLocalProtocol()
     let calc: BudgetCalc | null = null
 
     try {
       if (role === 'client') {
         const trackingData = await captureTracking()
         const { data: result, error } = await supabase.functions.invoke('save-lead', {
-          body: { protocol: refData._partialProtocol, partial: false, role: 'client', data: { ...data, tracking_data: trackingData } },
+          body: { protocol: dataRef.current._partialProtocol, partial: false, role: 'client', data: { ...data, tracking_data: trackingData }, custom_fields: data.custom_fields },
         })
         if (error) {
           console.error('save-lead error:', JSON.stringify(error))
@@ -596,13 +537,7 @@ export function useChat() {
     return { protocol, calc }
   }
 
-  function validateInput(state: ChatState, value: string): { ok: boolean; hint?: string } {
-    const step = FLOW[state]
-    if (!step?.validate) return { ok: true }
-    return step.validate(value)
-  }
-
-  // Main send function
+  // ── Função principal: processa a resposta do usuário ────────────────────────
   const sendMessage = useCallback(async (text: string, files?: File[]) => {
     let mediaUrls: string[] = []
     if (files && files.length > 0) {
@@ -616,217 +551,67 @@ export function useChat() {
       userMessage(text, mediaUrls.length > 0 ? mediaUrls : undefined)
     }
 
-    // ── INIT ─────────────────────────────────────────────────────────────────
     if (text === '__init__' || currentState === 'init') {
-      let prefilled: Partial<CollectedData> = {}
-      let greetingSent = false
-
-      if (text !== '__init__') {
-        const lower = text.toLowerCase()
-
-        // 1. Verificar se é um chip conhecido da home (pré-preenche service_type)
-        const matchedChip = Object.entries(CHIP_TO_SERVICE).find(([k]) => lower.includes(k))
-
-        if (matchedChip) {
-          // Chip conhecido — saudação + primeira pergunta em UMA SÓ mensagem (sem double message)
-          prefilled = { service_type: matchedChip[1] }
-          agentMessage(
-            `Ótimo! Vou te ajudar com **${matchedChip[1]}** 🎨\n\nPara começar, qual é o seu **nome**? 😊`
-          )
-          greetingSent = true
-          await delay(400)
-        } else {
-          // Input desconhecido — chamar LLM e incluir pedido de nome na resposta
-          setLoading(true)
-          try {
-            const res = await callEdgeFunction(text, [])
-            // Combina resposta do LLM + pergunta de nome em UMA mensagem
-            const combined = res.message.endsWith('?') || res.message.endsWith('.')
-              ? `${res.message}\n\nPrimeiro, qual é o seu **nome**? 😊`
-              : `${res.message} Para começar, qual é o seu **nome**? 😊`
-            agentMessage(combined)
-            greetingSent = true
-            await delay(400)
-          } catch {
-            agentMessage('Para te ajudar com seu projeto de pintura, qual é o seu **nome**? 😊')
-            greetingSent = true
-            await delay(400)
-          } finally {
-            setLoading(false)
-          }
-        }
-      }
-
-      // Pré-preencher dados se chips foram reconhecidos
-      if (Object.keys(prefilled).length > 0) {
-        dataRef.current = { ...dataRef.current, ...prefilled }
-        setCollectedData(dataRef.current)
-      }
-
-      saveSessionState('lead_name', dataRef.current).catch(console.error)
-      setCurrentState('lead_name')
-
-      // Só envia a pergunta de nome se NÃO estava embutida na saudação
-      if (!greetingSent) {
-        agentMessage('Para continuarmos, me diz o seu **nome** por favor! 😊')
-      }
+      await handleInit(text)
       return
     }
 
-    const step = FLOW[currentState]
+    const steps = await getSteps()
+    const step = getStep(steps, currentState)
     if (!step) return
 
-    // ── MEDIA UPLOAD ─────────────────────────────────────────────────────────
-    if (currentState === 'media_upload') {
-      const newData = {
-        ...dataRef.current,
-        media_urls: [...(dataRef.current.media_urls || []), ...mediaUrls],
-      }
-      dataRef.current = newData
-      setCollectedData(newData)
-
-      const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
-      if (mediaUrls.length > 0) {
-        agentMessage(`Recebido! 📸 ${mediaUrls.length} ${mediaUrls.length === 1 ? 'imagem recebida' : 'imagens recebidas'}.`)
-      } else {
-        agentMessage('Ok, vou prosseguir sem fotos.')
-      }
-      setTimeout(() => advanceToState(nextState, newData), 600)
+    // ── STEPS DE MÍDIA ────────────────────────────────────────────────────────
+    if (step.step_type === 'media') {
+      await handleMediaStep(steps, step, text, mediaUrls)
       return
     }
 
-    // ── FINAL NOTES (texto livre + mídia opcional) ────────────────────────────
-    if (currentState === 'final_notes') {
-      const newData: CollectedData = {
-        ...dataRef.current,
-        final_notes: text.trim() || dataRef.current.final_notes,
-        notes_media_urls: [...(dataRef.current.notes_media_urls || []), ...mediaUrls],
-      }
-      dataRef.current = newData
-      setCollectedData(newData)
-
-      const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
-      if (mediaUrls.length > 0) {
-        agentMessage(`Anotado! 📝 ${mediaUrls.length > 0 ? `${mediaUrls.length} arquivo(s) recebido(s).` : ''}`)
-      } else if (text.trim()) {
-        agentMessage('Anotado! ✍️')
-      } else {
-        agentMessage('Tudo bem, sem observações extras.')
-      }
-      setTimeout(() => advanceToState(nextState, newData), 600)
-      return
-    }
-
-    // ── VALIDATION ────────────────────────────────────────────────────────────
-    if (step.type === 'text') {
-      const validation = validateInput(currentState, text)
+    // ── VALIDAÇÃO DE TEXTO LIVRE ─────────────────────────────────────────────
+    if (step.step_type === 'text' && step.validation_type !== 'none') {
+      const validation = await validateStep(step, text)
       if (!validation.ok) {
-        // Tentar extrair dado via LLM antes de rejeitar (para campos críticos)
-        const extractableFields = ['lead_name', 'lead_email', 'lead_whatsapp']
-        if (extractableFields.includes(currentState)) {
-          setLoading(true)
-          const extracted = await extractFieldWithLLM(step.field, text)
-          setLoading(false)
-          if (extracted) {
-            const revalidation = validateInput(currentState, extracted)
-            if (revalidation.ok) {
-              const newData = { ...dataRef.current, [step.field]: extracted }
-              dataRef.current = newData
-              setCollectedData(newData)
-              const nextState = typeof step.next === 'function' ? step.next(extracted, newData) : step.next
-              if (currentState === 'lead_whatsapp') savePartialLead(newData, nextState).catch(console.warn)
-              advanceToState(nextState, newData)
-              return
-            }
-          }
-        }
-        // Usar o hint da validação (já personalizado com o que foi digitado)
         agentMessage(validation.hint || 'Não entendi, pode tentar de novo? 😊')
         return
       }
+      text = validation.value ?? text
     }
 
-    // Para quick_reply: se o texto não bate com nenhuma opção, tentar entender contexto
-    if (step.type === 'quick_reply' && step.quickReplies && text.trim()) {
-      const normalized = text.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim()
-      const isValid = step.quickReplies.some(qr =>
-        normalized.includes(qr.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim().slice(0, 8))
-      )
-      if (!isValid) {
-        // Para neighborhood: aceitar texto livre que mencione um bairro conhecido
-        if (currentState === 'neighborhood') {
-          const match = KNOWN_NEIGHBORHOODS.find(b => normalized.includes(b.toLowerCase()))
-          if (match) {
-            const newData = { ...dataRef.current, neighborhood: match }
-            dataRef.current = newData
-            setCollectedData(newData)
-            advanceToState('property_type', newData)
-            return
-          }
-          // Texto livre genérico de bairro → aceitar como "Outro bairro"
-          if (normalized.length > 2 && !normalized.includes('?')) {
-            const newData = { ...dataRef.current, neighborhood: text.trim() }
-            dataRef.current = newData
-            setCollectedData(newData)
-            advanceToState('property_type', newData)
-            return
-          }
+    // ── VALIDAÇÃO DE QUICK REPLY ─────────────────────────────────────────────
+    if (step.step_type === 'quick_reply' && !matchesQuickReply(step, text)) {
+      if (step.field_key === 'neighborhood') {
+        const normalized = text.toLowerCase()
+        const match = KNOWN_NEIGHBORHOODS.find(b => normalized.includes(b.toLowerCase()))
+        const free = match || (text.trim().length > 2 && !text.includes('?') ? text.trim() : null)
+        if (free) {
+          await commitFieldAndAdvance(steps, step, free)
+          return
         }
-        setLoading(true)
-        setTimeout(() => {
-          agentMessage('Por favor, escolha uma das opções acima. 👆', step.quickReplies)
-          setLoading(false)
-        }, 300)
-        return
       }
+      setLoading(true)
+      setTimeout(() => {
+        agentMessage('Por favor, escolha uma das opções acima. 👆', step.quick_replies ?? undefined)
+        setLoading(false)
+      }, 300)
+      return
     }
 
-    // ── SAVE FIELD ────────────────────────────────────────────────────────────
-    let fieldValue: unknown = text
-    if (step.field === 'role') {
-      fieldValue = text === 'Sou pintor' ? 'painter' : 'client'
-    } else if (step.field === 'area_m2') {
-      const t = text.trim().toLowerCase()
-      if (t.includes('não sei') || t.includes('nao sei') || t === 'pular') {
-        fieldValue = undefined
-      } else {
-        const n = Number(t.replace(',', '.').replace(/[^\d.]/g, ''))
-        fieldValue = n > 0 ? n : undefined
-      }
-    }
-    const newData: CollectedData = {
-      ...dataRef.current,
-      [step.field]: fieldValue,
-    }
-    dataRef.current = newData
-    setCollectedData(newData)
-
-    const nextState = typeof step.next === 'function' ? step.next(text, newData) : step.next
-
-    // Salvar lead parcial quando WhatsApp é coletado pelo fluxo normal
-    if (currentState === 'lead_whatsapp') {
-      savePartialLead(newData, nextState).catch(console.warn)
-    }
-
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      advanceToState(nextState, newData)
-    }, 400)
-  }, [currentState, addMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+    // ── SALVAR CAMPO E AVANÇAR ───────────────────────────────────────────────
+    await commitFieldAndAdvance(steps, step, text)
+  }, [currentState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = useCallback(() => {
     sessionId.current = generateSessionId()
     localStorage.setItem(SESSION_KEY, sessionId.current)
     metadataRef.current = getBrowserMetadata()
     dataRef.current = {}
+    prefilledFieldsRef.current = new Set()
     setCollectedData({})
     setMessages([])
     setCurrentState('init')
   }, [])
 
   const currentInputType = currentState !== 'init'
-    ? (FLOW[currentState]?.type || 'text')
+    ? (getStep(loadedStepsRef.current, currentState)?.step_type || 'text')
     : 'text'
 
   return {

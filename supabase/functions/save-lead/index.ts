@@ -34,6 +34,7 @@ interface RequestBody {
   role: 'client' | 'painter'
   data: CollectedData
   step?: string
+  custom_fields?: Record<string, string>
 }
 
 function generateProtocol(): string {
@@ -52,7 +53,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = (await req.json()) as RequestBody
-    const { partial, role, data, step } = body
+    const { partial, role, data, step, custom_fields } = body
     const protocol = body.protocol || generateProtocol()
 
     if (role === 'painter') {
@@ -75,6 +76,9 @@ Deno.serve(async (req: Request) => {
         neighborhood: data.neighborhood,
         tags: ['web_chat', 'partial'],
         notes: JSON.stringify({ partial: true, step: step || null }),
+        is_partial: true,
+        abandoned_step: step || null,
+        custom_fields: custom_fields || {},
         stage_updated_at: new Date().toISOString(),
       }, { onConflict: 'protocol' })
 
@@ -124,6 +128,9 @@ Deno.serve(async (req: Request) => {
       notes_media_urls: data.notes_media_urls || [],
       tags: ['web_chat', data.service_type, data.neighborhood].filter(Boolean) as string[],
       tracking_data: data.tracking_data || {},
+      is_partial: false,
+      abandoned_step: null,
+      custom_fields: custom_fields || {},
       notes: JSON.stringify({
         property_type: data.property_type,
         wall_condition: data.wall_condition,

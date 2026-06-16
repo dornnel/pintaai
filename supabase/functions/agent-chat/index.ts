@@ -66,6 +66,11 @@ interface RequestBody {
   metadata?: Record<string, unknown>
   action?: string
   collected?: Record<string, unknown>
+  previous_field?: string | null
+  previous_value?: string | null
+  next_question?: string
+  collected_data?: Record<string, unknown>
+  user_name?: string
 }
 
 Deno.serve(async (req: Request) => {
@@ -78,7 +83,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = (await req.json()) as RequestBody
-    const { session_id, message, history, media_urls, metadata, action, collected } = body
+    const { session_id, message, history, media_urls, metadata, action, collected, previous_field, previous_value, next_question, collected_data, user_name } = body
 
     // Persist conversation session (async, fire-and-forget)
     supabase.from('conversation_sessions').upsert({
@@ -124,6 +129,42 @@ Retorne APENAS o texto da pergunta, sem JSON, sem aspas extras.`
       const question = resp.choices[0].message.content?.trim() || ''
       return new Response(
         JSON.stringify({ message: question }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    // Gera mensagem de transição: reage à resposta/texto anterior e emenda a próxima pergunta
+    if (action === 'generate_transition' && next_question) {
+      const contextLine = user_name ? `Nome do usuário: ${user_name}\n` : ''
+
+      const transitionPrompt = previous_field
+        ? `${SYSTEM_PROMPT}
+
+O usuário respondeu ao campo "${previous_field}" com: "${previous_value}"
+${contextLine}Dados já coletados: ${JSON.stringify(collected_data || {})}
+
+Gere UMA mensagem curta (1-2 frases) que primeiro reaja brevemente e de forma natural a essa resposta, e depois emende a pergunta abaixo, preservando o sentido original dela:
+"${next_question}"
+
+Mantenha as formatações **negrito**, quebras de linha e emojis já presentes na pergunta. Retorne APENAS o texto final, sem JSON, sem aspas extras.`
+        : `${SYSTEM_PROMPT}
+
+O usuário disse, em texto livre, ao iniciar a conversa: "${previous_value}"
+${contextLine}
+Gere UMA mensagem curta (1-2 frases) que primeiro reaja de forma natural e acolhedora a essa mensagem (interpretando que é um cliente buscando um serviço de pintura), e depois emende a pergunta abaixo, preservando o sentido original dela:
+"${next_question}"
+
+Mantenha as formatações **negrito**, quebras de linha e emojis já presentes na pergunta. Retorne APENAS o texto final, sem JSON, sem aspas extras.`
+
+      const resp = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 200,
+        temperature: 0.6,
+        messages: [{ role: 'user', content: transitionPrompt }],
+      })
+      const transitionMessage = resp.choices[0].message.content?.trim() || next_question
+      return new Response(
+        JSON.stringify({ message: transitionMessage }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }

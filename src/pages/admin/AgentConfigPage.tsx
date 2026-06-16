@@ -3,9 +3,10 @@ import { motion } from 'motion/react'
 import {
   Save, Bot, Zap, FileText, TestTube, Loader2, CheckCircle,
   Plus, Trash2, Upload, MessageSquare, Copy, Check, HelpCircle,
-  Calculator, RefreshCw, AlertTriangle,
+  Calculator, RefreshCw, AlertTriangle, Route,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { JourneyBuilderTab } from './JourneyBuilderTab'
 import type { ConversationSession, BudgetPricingRule, BudgetComplexityRule } from '../../lib/types'
 
 const RECOMMENDED_PROMPT = `Você é o Koke, assistente da Pintai Floripa no chat web e WhatsApp.
@@ -89,7 +90,7 @@ export function AgentConfigPage() {
   const [testOutput, setTestOutput] = useState('')
   const [testing, setTesting] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'budget' | 'faq' | 'conversations' | 'test'>('prompt')
+  const [activeTab, setActiveTab] = useState<'prompt' | 'tools' | 'rag' | 'budget' | 'faq' | 'conversations' | 'jornada' | 'test'>('prompt')
   const [faqItems, setFaqItems] = useState<{ question: string; answer: string }[]>([])
   const [conversations, setConversations] = useState<ConversationSession[]>([])
   const [convLoading, setConvLoading] = useState(false)
@@ -270,6 +271,7 @@ export function AgentConfigPage() {
     { id: 'budget', icon: Calculator, label: 'Orçamento IA' },
     { id: 'faq', icon: HelpCircle, label: 'FAQ' },
     { id: 'conversations', icon: MessageSquare, label: 'Conversas' },
+    { id: 'jornada', icon: Route, label: 'Jornada' },
     { id: 'test', icon: TestTube, label: 'Testar' },
   ] as const
 
@@ -710,6 +712,9 @@ export function AgentConfigPage() {
           </div>
         </div>
       )}
+
+      {/* Jornada tab */}
+      {activeTab === 'jornada' && <JourneyBuilderTab />}
 
       {/* Test tab */}
       {activeTab === 'test' && (
