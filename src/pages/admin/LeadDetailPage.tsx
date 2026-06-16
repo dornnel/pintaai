@@ -219,6 +219,18 @@ export function LeadDetailPage() {
   useEffect(() => { loadAll() }, [loadAll])
   useEffect(() => { aiBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [aiMessages])
 
+  // Real-time: reload interactions when any painter responds
+  useEffect(() => {
+    if (!id) return
+    const channel = supabase.channel(`lead-interactions-${id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'pintae', table: 'lead_painter_interactions',
+        filter: `lead_id=eq.${id}`,
+      }, () => { loadAll() })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [id, loadAll])
+
   async function changeStage(stage: string) {
     if (!lead) return
     setSavingStage(true)
@@ -595,17 +607,51 @@ export function LeadDetailPage() {
             </div>
           )}
 
-          {/* Pintores rastreados */}
+          {/* Pintores — painel em tempo real */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-brand" /> Pintores ({interactions.length})
+                <Activity className="w-3.5 h-3.5 text-brand" /> Pintores em Tempo Real
               </h3>
               <button onClick={() => setShowSendModal(true)}
                 className="text-xs text-brand font-semibold flex items-center gap-1 cursor-pointer hover:text-brand-dark">
                 <Plus className="w-3 h-3" /> Enviar
               </button>
             </div>
+
+            {/* Live counter */}
+            {interactions.length > 0 && (() => {
+              const evaluating = interactions.filter(i => i.status === 'notified').length
+              const interested = interactions.filter(i => i.status === 'interested').length
+              const withProposal = interactions.filter(i => i.status === 'proposal_sent').length
+              const declined = interactions.filter(i => i.status === 'declined').length
+              return (
+                <div className="flex gap-2 flex-wrap mb-3 pb-3 border-b border-gray-50">
+                  {evaluating > 0 && (
+                    <span className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-2.5 py-1.5 rounded-lg font-medium">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      {evaluating} avaliando
+                    </span>
+                  )}
+                  {interested > 0 && (
+                    <span className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg font-medium">
+                      {interested} interessado{interested !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {withProposal > 0 && (
+                    <span className="flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-2.5 py-1.5 rounded-lg font-medium">
+                      {withProposal} proposta{withProposal !== 1 ? 's' : ''} enviada{withProposal !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {declined > 0 && (
+                    <span className="flex items-center gap-1.5 text-xs bg-gray-100 text-gray-500 px-2.5 py-1.5 rounded-lg font-medium">
+                      {declined} recusou
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+
             {interactions.length === 0 ? (
               <div className="text-center py-4">
                 <p className="text-xs text-gray-400">Nenhum pintor notificado ainda.</p>
@@ -613,32 +659,56 @@ export function LeadDetailPage() {
                   className="text-xs text-brand mt-2 cursor-pointer hover:underline">Enviar para pintores →</button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {interactions.map(inter => (
-                  <div key={inter.id} className="border border-gray-100 rounded-xl p-3">
-                    <p className="text-sm font-semibold text-gray-800 mb-2">{inter.painter?.user?.name}</p>
-                    <div className="space-y-1">
-                      {INTERACTION_STEPS.map(step => {
-                        const ts = inter[step.key as keyof PainterInteraction] as string | undefined
-                        const isDone = !!ts
-                        return (
-                          <div key={step.key} className="flex items-center justify-between">
-                            <span className={`text-[11px] flex items-center gap-1.5 ${isDone ? 'text-green-700' : 'text-gray-400'}`}>
-                              {isDone ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-gray-300" />}
-                              {step.icon} {step.label}
-                            </span>
-                            {isDone
-                              ? <span className="text-[10px] text-gray-400">{formatRelativeTime(ts)}</span>
-                              : (step.key === 'email_opened_at' || step.key === 'proposal_viewed_at') && (
-                                <button onClick={() => markInteraction(inter.id, step.key)}
-                                  className="text-[10px] text-blue-600 cursor-pointer hover:underline">Marcar</button>
-                              )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                {interactions.map(inter => {
+                  const isEvaluating = inter.status === 'notified'
+                  const statusColors: Record<string, string> = {
+                    notified: 'bg-amber-100 text-amber-700',
+                    interested: 'bg-blue-100 text-blue-700',
+                    proposal_sent: 'bg-green-100 text-green-700',
+                    declined: 'bg-gray-100 text-gray-500',
+                    accepted: 'bg-emerald-100 text-emerald-700',
+                  }
+                  const statusLabels: Record<string, string> = {
+                    notified: 'Avaliando...', interested: 'Interessado', proposal_sent: 'Proposta enviada',
+                    declined: 'Recusou', accepted: 'Aceitou',
+                  }
+                  return (
+                    <motion.div key={inter.id} layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                      className={`border rounded-xl p-3 transition-colors ${isEvaluating ? 'border-amber-100 bg-amber-50/30' : 'border-gray-100'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {isEvaluating && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />}
+                          <p className="text-sm font-semibold text-gray-800">{inter.painter?.user?.name}</p>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${statusColors[inter.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {statusLabels[inter.status] || inter.status}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        {INTERACTION_STEPS.map(step => {
+                          const ts = inter[step.key as keyof PainterInteraction] as string | undefined
+                          const isDone = !!ts
+                          if (!isDone && step.key !== 'email_opened_at' && step.key !== 'proposal_viewed_at') return null
+                          return (
+                            <div key={step.key} className="flex items-center justify-between">
+                              <span className={`text-[10px] flex items-center gap-1 ${isDone ? 'text-green-600' : 'text-gray-300'}`}>
+                                {isDone ? <Check className="w-2.5 h-2.5" /> : <div className="w-2.5 h-2.5 rounded-full border border-gray-200" />}
+                                {step.icon} {step.label}
+                              </span>
+                              {isDone
+                                ? <span className="text-[10px] text-gray-400">{formatRelativeTime(ts)}</span>
+                                : (
+                                  <button onClick={() => markInteraction(inter.id, step.key)}
+                                    className="text-[10px] text-blue-600 cursor-pointer hover:underline">Marcar</button>
+                                )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </motion.div>
+                  )
+                })}
               </div>
             )}
           </div>

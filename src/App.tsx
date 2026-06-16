@@ -13,6 +13,7 @@ import { DashboardPage } from './pages/admin/DashboardPage'
 import { RequestsPage } from './pages/admin/RequestsPage'
 import { RequestDetailPage } from './pages/admin/RequestDetailPage'
 import { PaintersPage } from './pages/admin/PaintersPage'
+import { PainterDetailPage } from './pages/admin/PainterDetailPage'
 import { ModerationPage } from './pages/admin/ModerationPage'
 import { PaymentsPage } from './pages/admin/PaymentsPage'
 import { AgentConfigPage } from './pages/admin/AgentConfigPage'
@@ -139,6 +140,7 @@ function AppRoutes() {
         <Route path="requests" element={<RequestsPage />} />
         <Route path="requests/:id" element={<RequestDetailPage />} />
         <Route path="painters" element={<PaintersPage />} />
+        <Route path="painters/:id" element={<PainterDetailPage />} />
         <Route path="moderation" element={<ModerationPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="users" element={<UsersPage />} />

@@ -17,7 +17,8 @@ interface Review {
   ai_summary?: string
   created_at: string
   provider_id: string
-  customer_id: string
+  customer_id?: string
+  painter?: { user?: { name?: string } }
 }
 
 const SENTIMENT_COLORS: Record<string, string> = {
@@ -53,8 +54,10 @@ export function ReviewsPage() {
   useEffect(() => { loadReviews() }, [])
 
   async function loadReviews() {
-    const { data } = await supabase.from('reviews').select('*').order('created_at', { ascending: false })
-    setReviews((data as Review[]) || [])
+    const { data } = await supabase.from('reviews')
+      .select('*, painter:painters!reviews_provider_id_fkey(user:users!painters_user_id_fkey(name))')
+      .order('created_at', { ascending: false })
+    setReviews((data as unknown as Review[]) || [])
     setLoading(false)
   }
 
@@ -134,6 +137,9 @@ export function ReviewsPage() {
               className={cn('bg-white rounded-2xl border p-5', review.rating_overall < 3 && 'border-l-4 border-l-red-400 border-t-gray-100 border-r-gray-100 border-b-gray-100')}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
+                  {review.painter?.user?.name && (
+                    <p className="text-xs font-semibold text-brand mb-1.5">{review.painter.user.name}</p>
+                  )}
                   <div className="flex items-center gap-3 flex-wrap mb-2">
                     <div className="flex gap-0.5">
                       {[1,2,3,4,5].map(i => (

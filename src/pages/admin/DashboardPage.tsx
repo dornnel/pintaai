@@ -101,7 +101,7 @@ export function DashboardPage() {
     { icon: CheckCircle,  label: 'Pedidos confirmados',  value: wonLeads.length,   trend: undefined,                    color: 'text-green-600',   bg: 'bg-green-50' },
     { icon: Clock,        label: 'Em andamento',         value: leads.filter(l => ['qualified','proposal_sent'].includes(l.stage)).length, trend: undefined, color: 'text-yellow-600', bg: 'bg-yellow-50' },
     { icon: DollarSign,   label: 'Receita estimada',     value: formatCurrency(totalRevenue), trend: undefined,         color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { icon: Users,        label: 'Pintores ativos',      value: activePainters,    trend: undefined,                    color: 'text-purple-600',  bg: 'bg-purple-50' },
+    { icon: Users,        label: 'Pintores ativos',      value: activePainters,    trend: undefined,                    color: 'text-purple-600',  bg: 'bg-purple-50', href: '/admin/painters' },
     { icon: AlertTriangle,label: 'Flags pendentes',      value: pendingFlags,      trend: undefined,                    color: 'text-red-600',     bg: 'bg-red-50', href: '/admin/moderation' },
   ]
 
@@ -283,7 +283,7 @@ export function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-50">
             {leads.slice(0, 8).map(lead => (
-              <div key={lead.id} className="px-4 sm:px-5 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+              <Link key={lead.id} to={`/admin/leads/${lead.id}`} className="px-4 sm:px-5 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium text-gray-900 truncate">{lead.name}</p>
@@ -309,7 +309,7 @@ export function DashboardPage() {
                   </span>
                   <span className="text-[10px] text-gray-400 hidden sm:block">{formatRelativeTime(lead.created_at)}</span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

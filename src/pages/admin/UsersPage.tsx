@@ -540,6 +540,16 @@ export function UsersPage() {
                       onChange={async e => {
                         const role = e.target.value
                         await supabase.from('users').update({ role }).eq('id', user.id)
+                        if (role === 'painter') {
+                          const { data: existing } = await supabase.from('painters').select('id').eq('user_id', user.id).maybeSingle()
+                          if (!existing) {
+                            await supabase.from('painters').insert({
+                              user_id: user.id, bio: '', years_experience: 0, specialties: [],
+                              availability_status: 'available', verification_status: 'unverified',
+                              kyc_status: 'not_started', service_radius_km: 10,
+                            })
+                          }
+                        }
                         updateLocal({ ...user, role })
                       }}
                       className={cn('text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer', ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-600')}>

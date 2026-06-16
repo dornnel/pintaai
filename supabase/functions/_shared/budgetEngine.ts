@@ -24,6 +24,7 @@ export interface BudgetComplexityRule {
 export interface BudgetInput {
   service_type: string          // 'residential_simple' | 'residential_massa' | etc.
   area_m2: number               // Área estimada em m²
+  num_rooms?: number            // Número de cômodos (alternativa/complemento à metragem)
   conditions: string[]          // Ex: ['mold_moisture', 'cracks', 'furnished']
   includes_material: boolean    // Material incluso no serviço
   minimum_job_price?: number    // Preço mínimo configurável (padrão: 350)
@@ -80,8 +81,12 @@ export function calculatePaintingBudget(
     }
   }
 
-  // Calcular preços
-  const area = Math.max(0, input.area_m2)
+  // Área: usar metragem direta; se ausente, estimar por cômodos (13 m² de parede/cômodo em média)
+  const AREA_PER_ROOM = 13
+  const areaFromRooms = (input.num_rooms ?? 0) > 0 ? input.num_rooms! * AREA_PER_ROOM : 0
+  const area = input.area_m2 > 0 ? input.area_m2 : areaFromRooms
+  const usedRoomEstimate = input.area_m2 <= 0 && areaFromRooms > 0
+
   const rawMin = area * priceRule.min_price_m2 * combinedMultiplier
   const rawMax = area * priceRule.max_price_m2 * combinedMultiplier
 
@@ -97,7 +102,9 @@ export function calculatePaintingBudget(
 
   // Confiança baseada nos dados disponíveis
   let rawConfidence = 0.3
-  if (area > 0) rawConfidence += 0.25
+  if (input.area_m2 > 0) rawConfidence += 0.30
+  else if (areaFromRooms > 0) rawConfidence += 0.18
+  if (input.num_rooms && input.num_rooms > 0 && input.area_m2 > 0) rawConfidence += 0.08
   if (input.conditions.length > 0) rawConfidence += 0.15
   if (input.conditions.length >= 3) rawConfidence += 0.1
   rawConfidence = Math.min(0.85, rawConfidence)
@@ -108,8 +115,13 @@ export function calculatePaintingBudget(
 
   // Explicação técnica interna
   const factorsList = applied.map(m => `${m.label} (×${m.value.toFixed(2)})`).join(', ')
+  const areaDesc = usedRoomEstimate
+    ? `${input.num_rooms} cômodos → ~${area}m² estimado`
+    : input.num_rooms && input.num_rooms > 0
+      ? `${area}m² (${input.num_rooms} cômodos)`
+      : `${area}m²`
   const explanation =
-    `Área: ${area}m² × faixa base R$${priceRule.min_price_m2}–${priceRule.max_price_m2}/m² ` +
+    `Área: ${areaDesc} × faixa base R$${priceRule.min_price_m2}–${priceRule.max_price_m2}/m² ` +
     `(${priceRule.label}). ` +
     `Multiplicador combinado: ×${combinedMultiplier.toFixed(2)}. ` +
     (factorsList ? `Fatores: ${factorsList}. ` : '') +
@@ -155,6 +167,7 @@ interface ChatCollectedData {
   service_type?: string
   wall_condition?: string
   area_m2?: number
+  num_rooms?: number
   material?: string
   deadline?: string
   current_color?: string
@@ -170,6 +183,7 @@ export function buildBudgetInput(data: ChatCollectedData): BudgetInput {
   return {
     service_type: SERVICE_TYPE_MAP[data.service_type || ''] || 'residential_simple',
     area_m2: data.area_m2 || 0,
+    num_rooms: data.num_rooms,
     conditions,
     includes_material: data.material === 'Incluso no serviço',
   }

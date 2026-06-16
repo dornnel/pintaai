@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { Link } from 'react-router-dom'
 import { Star, Plus, CheckCircle, XCircle, Loader2, Edit3, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
@@ -254,52 +255,52 @@ export function PaintersPage() {
           {painters.map(p => (
             <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded border border-gray-100 p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded bg-orange-100 flex items-center justify-center text-brand font-bold text-sm shrink-0">
-                {p.user?.name?.[0]?.toUpperCase() || 'P'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{p.user?.name}</p>
-                  <span className={cn('text-xs px-2 py-0.5 rounded font-medium', KYC_COLORS[p.kyc_status] || 'bg-gray-100 text-gray-500')}>
-                    KYC: {p.kyc_status === 'approved' ? 'Aprovado' : p.kyc_status === 'rejected' ? 'Rejeitado' : p.kyc_status === 'submitted' ? 'Pendente' : 'N/A'}
-                  </span>
-                  {p.pro_plan_status === 'active' && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-medium">PRO</span>}
+              <Link to={`/admin/painters/${p.id}`} className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer">
+                <div className="w-10 h-10 rounded bg-orange-100 flex items-center justify-center text-brand font-bold text-sm shrink-0">
+                  {p.user?.name?.[0]?.toUpperCase() || 'P'}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
-                  <span>{p.user?.phone}</span>
-                  {p.specialties?.slice(0,2).map(s => <span key={s} className="bg-gray-50 px-1.5 py-0.5 rounded">{s}</span>)}
-                  <span className={p.availability_status === 'available' ? 'text-green-600 font-medium' : 'text-gray-400'}>
-                    {p.availability_status === 'available' ? '● Disponível' : p.availability_status === 'busy' ? '● Ocupado' : '● Pausado'}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{p.user?.name}</p>
+                    <span className={cn('text-xs px-2 py-0.5 rounded font-medium', KYC_COLORS[p.kyc_status] || 'bg-gray-100 text-gray-500')}>
+                      KYC: {p.kyc_status === 'approved' ? 'Aprovado' : p.kyc_status === 'rejected' ? 'Rejeitado' : p.kyc_status === 'submitted' ? 'Pendente' : 'N/A'}
+                    </span>
+                    {p.pro_plan_status === 'active' && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-medium">PRO</span>}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+                    <span>{p.user?.phone}</span>
+                    {p.specialties?.slice(0,2).map(s => <span key={s} className="bg-gray-50 px-1.5 py-0.5 rounded">{s}</span>)}
+                    <span className={p.availability_status === 'available' ? 'text-green-600 font-medium' : 'text-gray-400'}>
+                      {p.availability_status === 'available' ? '● Disponível' : p.availability_status === 'busy' ? '● Ocupado' : '● Pausado'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="text-right shrink-0 mr-2">
-                {p.score ? (
-                  <>
-                    <div className="flex items-center gap-1 justify-end">
-                      <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                      <span className="text-sm font-bold text-gray-900">{(p.score as unknown as { overall_score: number }).overall_score?.toFixed(1)}</span>
-                    </div>
-                    <p className="text-xs text-gray-400">{(p.score as unknown as { completed_jobs_count: number }).completed_jobs_count} jobs</p>
-                  </>
-                ) : <p className="text-xs text-gray-400">Sem score</p>}
-              </div>
-
+                <div className="text-right shrink-0 mr-2">
+                  {p.score ? (
+                    <>
+                      <div className="flex items-center gap-1 justify-end">
+                        <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
+                        <span className="text-sm font-bold text-gray-900">{(p.score as unknown as { overall_score: number }).overall_score?.toFixed(1)}</span>
+                      </div>
+                      <p className="text-xs text-gray-400">{(p.score as unknown as { completed_jobs_count: number }).completed_jobs_count} jobs</p>
+                    </>
+                  ) : <p className="text-xs text-gray-400">Sem score</p>}
+                </div>
+              </Link>
               <div className="flex gap-1 shrink-0">
                 {p.kyc_status === 'submitted' && (
                   <>
-                    <button onClick={() => setKycAction({ id: p.id, action: 'approve' })}
+                    <button onClick={e => { e.preventDefault(); setKycAction({ id: p.id, action: 'approve' }) }}
                       className="w-7 h-7 flex items-center justify-center rounded bg-green-50 text-green-500 hover:bg-green-100 cursor-pointer transition-colors" title="Aprovar KYC">
                       <CheckCircle className="w-4 h-4" />
                     </button>
-                    <button onClick={() => setKycAction({ id: p.id, action: 'reject' })}
+                    <button onClick={e => { e.preventDefault(); setKycAction({ id: p.id, action: 'reject' }) }}
                       className="w-7 h-7 flex items-center justify-center rounded bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer transition-colors" title="Rejeitar KYC">
                       <XCircle className="w-4 h-4" />
                     </button>
                   </>
                 )}
-                <button onClick={() => setModal({ open: true, painter: p })}
+                <button onClick={e => { e.preventDefault(); setModal({ open: true, painter: p }) }}
                   className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer transition-colors">
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>

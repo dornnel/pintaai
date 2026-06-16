@@ -16,6 +16,7 @@ interface CollectedData {
   property_type?: string
   service_type?: string
   area_m2?: number
+  num_rooms?: number
   wall_condition?: string
   deadline?: string
   material?: string
@@ -89,9 +90,9 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Final save — calcula estimativa real (se area_m2 informado)
+    // Final save — calcula estimativa real (se area_m2 ou num_rooms informado)
     let calc = null
-    if (data.area_m2 && data.area_m2 > 0) {
+    if ((data.area_m2 && data.area_m2 > 0) || (data.num_rooms && data.num_rooms > 0)) {
       const [{ data: pricing }, { data: complexity }] = await Promise.all([
         supabase.from('budget_pricing_rules').select('*').eq('active', true),
         supabase.from('budget_complexity_rules').select('*').eq('active', true),
@@ -116,6 +117,7 @@ Deno.serve(async (req: Request) => {
       deadline: data.deadline,
       material: data.material,
       area_m2: data.area_m2 ?? null,
+      num_rooms: data.num_rooms ?? null,
       preferred_professional: data.preferred_professional && data.preferred_professional !== 'Pular' ? data.preferred_professional : null,
       estimated_budget: data.estimated_budget || null,
       current_color: data.current_color && data.current_color !== 'Pular' ? data.current_color : null,
