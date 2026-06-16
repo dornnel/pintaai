@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage'
 import { MarketplacePage } from './pages/MarketplacePage'
 import { CustomerArea } from './pages/customer/CustomerArea'
 import { PainterPortal } from './pages/painter/PainterPortal'
+import { LeadView } from './pages/painter/LeadView'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { DashboardPage } from './pages/admin/DashboardPage'
 import { RequestsPage } from './pages/admin/RequestsPage'
@@ -127,6 +128,11 @@ function AppRoutes() {
       <Route path="/portal/pintor" element={
         <RequireAuth roles={['painter']}>
           <PainterPortal />
+        </RequireAuth>
+      } />
+      <Route path="/portal/pintor/solicitacao/:interactionId" element={
+        <RequireAuth roles={['painter']}>
+          <LeadView />
         </RequireAuth>
       } />
 

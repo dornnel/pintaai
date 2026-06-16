@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { RotateCcw, Send, Paperclip, X, Video, AlertCircle } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn } from 'lucide-react'
+import { useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
 import { TypingIndicator } from './TypingIndicator'
 import { useChat } from '../../hooks/useChat'
+import { useAuth } from '../../lib/auth'
 
 // File size limits
 const FILE_LIMITS = {
@@ -21,7 +22,8 @@ const SUGGESTIONS = [
 ]
 
 export function ChatInterface() {
-  const { messages, loading, sendMessage, reset, currentInputType } = useChat()
+  const { messages, loading, sendMessage, reset, currentInputType, currentState } = useChat()
+  const { user } = useAuth()
   const bottomRef = useRef<HTMLDivElement>(null)
   const initFired = useRef(false)
   const [searchParams] = useSearchParams()
@@ -193,6 +195,50 @@ export function ChatInterface() {
           ))}
 
           {loading && <TypingIndicator />}
+
+          {/* Post-briefing login CTA */}
+          <AnimatePresence>
+            {currentState === 'briefing_ready' && (
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ delay: 0.5, type: 'spring', damping: 24, stiffness: 260 }}
+                className="rounded-2xl overflow-hidden shadow-lg"
+                style={{
+                  background: 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(227,90,26,0.18)',
+                }}
+              >
+                <div className="px-4 py-3.5">
+                  <p className="font-semibold text-gray-900 text-sm mb-0.5">Acompanhe as propostas dos pintores</p>
+                  <p className="text-xs text-gray-500 leading-snug">
+                    Crie sua conta grátis para ver quem respondeu, comparar orçamentos e escolher o melhor pintor.
+                  </p>
+                </div>
+                {user?.role === 'customer' ? (
+                  <Link to="/minha-area"
+                    className="flex items-center justify-between px-4 py-3 bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors">
+                    Ver minha área <ArrowRight className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <div className="grid grid-cols-2 border-t border-orange-100">
+                    <Link to="/login?mode=register&redirect=/minha-area"
+                      className="flex items-center justify-center gap-1.5 py-3 bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors">
+                      <LogIn className="w-3.5 h-3.5" /> Criar conta grátis
+                    </Link>
+                    <Link to="/login?redirect=/minha-area"
+                      className="flex items-center justify-center gap-1.5 py-3 text-brand text-xs font-semibold hover:bg-orange-50 transition-colors border-l border-orange-100">
+                      Já tenho conta <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div ref={bottomRef} />
         </div>
       </div>

@@ -9,8 +9,27 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { RoleSwitcher } from '../../components/RoleSwitcher'
-import type { ServiceRequest, Quote, Review, PainterScore, Painter } from '../../lib/types'
-import { REQUEST_STATUSES } from '../../lib/constants'
+import type { Quote, Review, PainterScore, Painter } from '../../lib/types'
+
+interface LeadInteraction {
+  id: string
+  lead_id: string
+  status: string
+  notified_at: string | null
+  proposal_sent_at: string | null
+  metadata: Record<string, unknown>
+  lead: {
+    id: string
+    protocol: string
+    service_interest: string | null
+    neighborhood: string | null
+    area_m2: number | null
+    num_rooms: number | null
+    calc_price_min: number | null
+    calc_price_max: number | null
+    created_at: string
+  }
+}
 import { cn, formatCurrency } from '../../lib/utils'
 
 // ─── Star display ─────────────────────────────────────────────────────────────
@@ -367,12 +386,12 @@ export function PainterPortal() {
   const { user, signOut } = useAuth()
   const [painter, setPainter] = useState<Painter | null>(null)
   const [score, setScore] = useState<PainterScore | null>(null)
-  const [availableJobs, setAvailableJobs] = useState<ServiceRequest[]>([])
+  const [leadInteractions, setLeadInteractions] = useState<LeadInteraction[]>([])
   const [myQuotes, setMyQuotes] = useState<Quote[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [proposalTarget, setProposalTarget] = useState<string | null>(null)
-  const [tab, setTab] = useState<'jobs' | 'proposals' | 'reviews' | 'profile'>('jobs')
+  const [tab, setTab] = useState<'solicitations' | 'proposals' | 'reviews' | 'profile'>('solicitations')
 
   async function load() {
     if (!user) return
@@ -384,11 +403,14 @@ export function PainterPortal() {
 
     const painterId = painterData?.id
 
-    const [jobsRes, quotesRes, scoreRes, reviewsRes] = await Promise.all([
-      supabase.from('service_requests')
-        .select('*, neighborhood:neighborhoods(name)')
-        .in('status', ['briefing_ready', 'sent_to_pros', 'quoting'])
-        .order('created_at', { ascending: false }),
+    const [interactionsRes, quotesRes, scoreRes, reviewsRes] = await Promise.all([
+      painterId
+        ? supabase.from('lead_painter_interactions')
+            .select('*, lead:leads(id,protocol,service_interest,neighborhood,area_m2,num_rooms,calc_price_min,calc_price_max,created_at)')
+            .eq('painter_id', painterId)
+            .neq('status', 'declined')
+            .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
       supabase.from('quotes')
         .select('*, service_request:service_requests(request_type, neighborhood:neighborhoods(name))')
         .order('created_at', { ascending: false }),
@@ -405,7 +427,7 @@ export function PainterPortal() {
     ])
 
     setPainter(painterData)
-    setAvailableJobs((jobsRes.data as ServiceRequest[]) || [])
+    setLeadInteractions((interactionsRes.data as LeadInteraction[]) || [])
     setMyQuotes((quotesRes.data as Quote[]) || [])
     setScore(scoreRes.data as PainterScore | null)
     setReviews((reviewsRes.data as Review[]) || [])
@@ -414,8 +436,18 @@ export function PainterPortal() {
 
   useEffect(() => { load() }, [user])
 
+  const notifiedCount = leadInteractions.filter(i => i.status === 'notified').length
+
+  async function declineInteraction(id: string) {
+    await supabase.from('lead_painter_interactions').update({
+      status: 'declined',
+      metadata: { declined_at: new Date().toISOString() },
+    }).eq('id', id)
+    setLeadInteractions(prev => prev.filter(i => i.id !== id))
+  }
+
   const TABS = [
-    { id: 'jobs', label: 'Oportunidades', count: availableJobs.length, icon: Briefcase },
+    { id: 'solicitations', label: 'Solicitações', count: notifiedCount || leadInteractions.length, icon: Briefcase },
     { id: 'proposals', label: 'Propostas', count: myQuotes.length, icon: Send },
     { id: 'reviews', label: 'Avaliações', count: reviews.length, icon: Star },
     { id: 'profile', label: 'Perfil', count: 0, icon: User },
@@ -458,7 +490,7 @@ export function PainterPortal() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="grid grid-cols-4 gap-3 mb-5">
           {[
-            { icon: Briefcase, label: 'Disponíveis', value: availableJobs.length, color: 'text-blue-500' },
+            { icon: Briefcase, label: 'Solicitações', value: leadInteractions.length, color: 'text-blue-500' },
             { icon: Send, label: 'Propostas', value: myQuotes.length, color: 'text-brand' },
             { icon: CheckCircle, label: 'Selecionadas', value: selectedCount, color: 'text-green-500' },
             {
@@ -496,41 +528,66 @@ export function PainterPortal() {
         {/* Tab content */}
         {loading ? (
           <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-32 bg-white rounded-2xl animate-pulse border border-gray-100" />)}</div>
-        ) : tab === 'jobs' ? (
-          availableJobs.length === 0 ? (
+        ) : tab === 'solicitations' ? (
+          leadInteractions.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
               <Briefcase className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Nenhuma oportunidade no momento.</p>
+              <p className="text-gray-400 text-sm">Nenhuma solicitação recebida ainda.</p>
+              <p className="text-gray-300 text-xs mt-1">O admin enviará pedidos para você conforme disponibilidade.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {availableJobs.map((job, i) => (
-                <motion.div key={job.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                  className="bg-white rounded-2xl border border-gray-100 p-5">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div>
-                      <p className="font-semibold text-gray-900 capitalize">{job.request_type?.replace('_',' ')} · {job.property_type}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-xs text-gray-500">{(job.neighborhood as unknown as {name:string})?.name}</span>
+              {leadInteractions.map((interaction, i) => {
+                const lead = interaction.lead
+                const isNew = interaction.status === 'notified'
+                const isSent = interaction.status === 'proposal_sent'
+                return (
+                  <motion.div key={interaction.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
+                    className="bg-white rounded-2xl border border-gray-100 p-5">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <p className="font-semibold text-gray-900">{lead.service_interest ?? 'Pintura'}</p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                          <span className="text-xs text-gray-500">{lead.neighborhood}</span>
+                          {(lead.area_m2 || lead.num_rooms) && (
+                            <span className="text-xs text-gray-400">
+                              · {lead.area_m2 ? `${lead.area_m2}m²` : `${lead.num_rooms} cômodos`}
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium shrink-0',
+                        isSent ? 'bg-green-100 text-green-700' :
+                        isNew ? 'bg-amber-100 text-amber-700 animate-pulse' :
+                        'bg-blue-100 text-blue-700'
+                      )}>
+                        {isSent ? 'Proposta enviada' : isNew ? 'Novo' : 'Em avaliação'}
+                      </span>
                     </div>
-                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', REQUEST_STATUSES[job.status]?.color)}>
-                      {REQUEST_STATUSES[job.status]?.label}
-                    </span>
-                  </div>
-                  {job.ai_briefing && (
-                    <p className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3 mb-3 line-clamp-2">{job.ai_briefing}</p>
-                  )}
-                  {job.ai_price_min && job.ai_price_max && (
-                    <p className="text-xs text-gray-400 mb-3">Estimativa: {formatCurrency(job.ai_price_min)} – {formatCurrency(job.ai_price_max)}</p>
-                  )}
-                  <motion.button onClick={() => setProposalTarget(job.id)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    className="w-full py-2.5 bg-brand text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer">
-                    <Send className="w-3.5 h-3.5" /> Enviar proposta
-                  </motion.button>
-                </motion.div>
-              ))}
+
+                    {lead.calc_price_min && lead.calc_price_max && (
+                      <p className="text-xs text-gray-400 mb-3">
+                        Estimativa plataforma: <span className="font-semibold text-gray-700">{formatCurrency(lead.calc_price_min)} – {formatCurrency(lead.calc_price_max)}</span>
+                      </p>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Link to={`/portal/pintor/solicitacao/${interaction.id}`}
+                        className="flex-1 py-2.5 bg-brand text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 hover:bg-brand-dark transition-colors">
+                        <Send className="w-3.5 h-3.5" />
+                        {isSent ? 'Ver proposta' : 'Ver solicitação'}
+                      </Link>
+                      {!isSent && (
+                        <motion.button onClick={() => declineInteraction(interaction.id)} whileTap={{ scale: 0.96 }}
+                          className="px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl cursor-pointer hover:border-red-200 hover:text-red-500 transition-colors">
+                          Recusar
+                        </motion.button>
+                      )}
+                    </div>
+                  </motion.div>
+                )
+              })}
             </div>
           )
         ) : tab === 'proposals' ? (

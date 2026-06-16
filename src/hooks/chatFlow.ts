@@ -28,6 +28,7 @@ export interface CollectedData {
   property_type?: string
   service_type?: string
   area_m2?: number
+  num_rooms?: number
   final_notes?: string
   notes_media_urls?: string[]
   wall_condition?: string

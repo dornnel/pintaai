@@ -511,6 +511,10 @@ export function useChat() {
               neighborhood: data.neighborhood,
               service_type: data.service_type,
               summary: summaryText,
+              calc_price_min: calc?.estimated_min,
+              calc_price_max: calc?.estimated_max,
+              area_m2: data.area_m2,
+              num_rooms: data.num_rooms,
             },
           }).then(() => {
             // Marcar email como enviado
