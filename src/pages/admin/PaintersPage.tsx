@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Link } from 'react-router-dom'
-import { Star, Plus, CheckCircle, XCircle, Loader2, Edit3, X } from 'lucide-react'
+import { Star, Plus, CheckCircle, XCircle, Loader2, Edit3, X, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
 
 interface Painter {
   id: string
+  user_id: string
   bio: string
   years_experience: number
   specialties: string[]
@@ -16,7 +17,7 @@ interface Painter {
   pro_plan_status: string
   registration_source?: string
   service_radius_km?: number
-  user: { name: string; phone: string; email: string; status: string }
+  user: { id: string; name: string; phone: string; email: string; status: string; auth_user_id?: string | null }
   score?: { overall_score: number; completed_jobs_count: number }
 }
 
@@ -238,15 +239,31 @@ export function PaintersPage() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<{ open: boolean; painter?: Partial<Painter> }>({ open: false })
   const [kycAction, setKycAction] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Painter | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     const { data } = await supabase.from('painters')
-      .select('*, user:users!painters_user_id_fkey(name,phone,email,status), score:painter_scores(*)')
+      .select('*, user:users!painters_user_id_fkey(id,name,phone,email,status,auth_user_id), score:painter_scores(*)')
       .order('created_at', { ascending: false })
     setPainters((data as unknown as Painter[]) || [])
     setLoading(false)
+  }
+
+  async function deletePainter() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    // Always delete the painter record
+    await supabase.from('painters').delete().eq('id', deleteTarget.id)
+    // If admin-created (no Supabase auth account), also delete the users record
+    if (!deleteTarget.user?.auth_user_id) {
+      await supabase.from('users').delete().eq('id', deleteTarget.user_id)
+    }
+    setDeleteTarget(null)
+    setDeleting(false)
+    setPainters(prev => prev.filter(p => p.id !== deleteTarget.id))
   }
 
   async function updateKYC(painterId: string, action: 'approve' | 'reject') {
@@ -333,6 +350,10 @@ export function PaintersPage() {
                   className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 text-gray-500 hover:bg-gray-200 cursor-pointer transition-colors">
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
+                <button onClick={e => { e.preventDefault(); setDeleteTarget(p) }}
+                  className="w-7 h-7 flex items-center justify-center rounded bg-red-50 text-red-400 hover:bg-red-100 cursor-pointer transition-colors" title="Excluir pintor">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </motion.div>
           ))}
@@ -367,6 +388,40 @@ export function PaintersPage() {
                   className={cn('flex-1 py-2 text-white rounded text-sm font-semibold cursor-pointer',
                     kycAction.action === 'approve' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600')}>
                   {kycAction.action === 'approve' ? 'Aprovar' : 'Rejeitar'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {deleteTarget && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => !deleting && setDeleteTarget(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </div>
+                <h3 className="font-bold text-gray-900">Excluir pintor?</h3>
+              </div>
+              <p className="text-sm text-gray-500 mb-1">
+                Tem certeza que deseja excluir <strong className="text-gray-800">{deleteTarget.user?.name}</strong>?
+              </p>
+              <p className="text-xs text-gray-400 mb-5">
+                {deleteTarget.user?.auth_user_id
+                  ? 'O registro de pintor será removido. A conta de usuário será mantida.'
+                  : 'O pintor e seu usuário serão removidos permanentemente. Essa ação não pode ser desfeita.'}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setDeleteTarget(null)} disabled={deleting}
+                  className="flex-1 py-2 border border-gray-200 rounded text-sm cursor-pointer disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button onClick={deletePainter} disabled={deleting}
+                  className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-semibold cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2 transition-colors">
+                  {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Excluir
                 </button>
               </div>
             </motion.div>
