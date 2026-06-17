@@ -49,6 +49,7 @@ export interface Painter {
   availability_status: AvailabilityStatus
   verification_status: VerificationStatus
   pro_plan_status: ProPlanStatus
+  pro_granted_by_admin: boolean
   portfolio_url?: string
   created_at: string
   updated_at: string

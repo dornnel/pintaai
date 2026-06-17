@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import {
   CheckCircle, Zap, Shield,
-  Gift, Clock, ChevronRight,
+  Gift, Clock, ChevronRight, Crown,
 } from 'lucide-react'
 import { usePainterContext } from './PainterLayout'
 import { cn } from '../../lib/utils'
@@ -32,6 +32,7 @@ export function PainterSubscriptionPage() {
   const { painter } = usePainterContext()
   const isPro = painter?.pro_plan_status === 'active'
   const isTrial = painter?.pro_plan_status === 'trial'
+  const isAdminGranted = painter?.pro_granted_by_admin === true
 
   const whatsappUrl = `https://wa.me/5548999999999?text=Quero%20assinar%20o%20Plano%20Pro%20Pintai!%20Meu%20email%20de%20cadastro%20%C3%A9%3A%20`
 
@@ -43,8 +44,20 @@ export function PainterSubscriptionPage() {
         <p className="text-gray-500 text-sm mt-0.5">Escolha o plano ideal para seu negócio.</p>
       </div>
 
-      {/* Current plan badge */}
-      {(isPro || isTrial) && (
+      {/* Admin-granted Pro badge */}
+      {isPro && isAdminGranted && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex items-center gap-3">
+          <Crown className="w-5 h-5 text-purple-600 shrink-0" />
+          <div>
+            <p className="font-semibold text-purple-900 text-sm">Plano Pro — Cortesia Pintai</p>
+            <p className="text-xs text-purple-700">Ativado pelo time Pintai. Nenhum pagamento necessário.</p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Current plan badge (paid/trial) */}
+      {(isPro || isTrial) && !isAdminGranted && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
           <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
@@ -59,7 +72,7 @@ export function PainterSubscriptionPage() {
         </motion.div>
       )}
 
-      {/* Promo banner — trial offer */}
+      {/* Promo banner — trial offer (only for free users) */}
       {!isPro && !isTrial && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-r from-brand to-orange-400 rounded-2xl p-5 text-white">
@@ -102,64 +115,85 @@ export function PainterSubscriptionPage() {
             ))}
           </ul>
 
-          <div className="text-xs text-center text-gray-400 py-2">Plano atual</div>
+          <div className="text-xs text-center text-gray-400 py-2">
+            {!isPro && !isTrial ? 'Plano atual' : 'Plano gratuito'}
+          </div>
         </motion.div>
 
         {/* Pro plan */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="rounded-2xl border-2 border-brand bg-white p-5 relative overflow-hidden">
-          <div className="absolute top-3 right-3 bg-brand text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-            RECOMENDADO
+          className={cn('rounded-2xl border-2 bg-white p-5 relative overflow-hidden',
+            isPro ? 'border-purple-300' : 'border-brand')}>
+          <div className={cn('absolute top-3 right-3 text-white text-[10px] font-bold px-2 py-0.5 rounded-full',
+            isAdminGranted ? 'bg-purple-500' : 'bg-brand')}>
+            {isAdminGranted ? 'CORTESIA' : 'RECOMENDADO'}
           </div>
 
           <div className="mb-4">
             <div className="flex items-center gap-1.5 mb-1">
-              <Shield className="w-4 h-4 text-brand" />
-              <p className="text-xs font-bold text-brand uppercase tracking-wide">Pro</p>
+              {isAdminGranted ? <Crown className="w-4 h-4 text-purple-500" /> : <Shield className="w-4 h-4 text-brand" />}
+              <p className={cn('text-xs font-bold uppercase tracking-wide', isAdminGranted ? 'text-purple-600' : 'text-brand')}>Pro</p>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-gray-900">R$97</span>
-              <span className="text-gray-400 text-sm">/mês</span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">ou R$77/mês no plano anual (R$924/ano)</p>
+            {isAdminGranted ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-gray-900">R$0</span>
+                <span className="text-xs text-purple-600 font-medium bg-purple-50 px-2 py-0.5 rounded-full">cortesia</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-gray-900">R$97</span>
+                  <span className="text-gray-400 text-sm">/mês</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">ou R$77/mês no plano anual (R$924/ano)</p>
+              </>
+            )}
           </div>
 
           <ul className="space-y-2 mb-5">
             {PRO_FEATURES.map(f => (
               <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
-                <CheckCircle className="w-3.5 h-3.5 text-brand shrink-0" />
+                <CheckCircle className={cn('w-3.5 h-3.5 shrink-0', isAdminGranted ? 'text-purple-500' : 'text-brand')} />
                 {f}
               </li>
             ))}
           </ul>
 
-          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-2 py-3 bg-brand text-white font-semibold rounded-xl text-sm hover:bg-orange-600 transition-colors">
-            {isPro || isTrial ? (
-              <><CheckCircle className="w-4 h-4" /> Plano ativo</>
-            ) : (
-              <><Zap className="w-4 h-4" /> Assinar Pro</>
-            )}
-          </a>
+          {isAdminGranted ? (
+            <div className="w-full flex items-center justify-center gap-2 py-3 bg-purple-100 text-purple-700 font-semibold rounded-xl text-sm">
+              <Crown className="w-4 h-4" /> Ativo — sem cobrança
+            </div>
+          ) : (
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-brand text-white font-semibold rounded-xl text-sm hover:bg-orange-600 transition-colors">
+              {isPro || isTrial ? (
+                <><CheckCircle className="w-4 h-4" /> Plano ativo</>
+              ) : (
+                <><Zap className="w-4 h-4" /> Assinar Pro</>
+              )}
+            </a>
+          )}
         </motion.div>
       </div>
 
-      {/* Early adopter promo */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-        className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
-        <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-amber-900 text-sm">Preço especial Early Adopter</p>
-          <p className="text-amber-800 text-xs mt-1 leading-relaxed">
-            Pintores que assinarem <strong>{EARLY_ADOPTER_DEADLINE}</strong> travam o preço em{' '}
-            <strong>R$67/mês para sempre</strong> — mesmo quando o preço padrão subir.
-          </p>
-          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900">
-            Quero esse preço <ChevronRight className="w-3.5 h-3.5" />
-          </a>
-        </div>
-      </motion.div>
+      {/* Early adopter promo — hidden for admin-granted */}
+      {!isAdminGranted && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+          <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-amber-900 text-sm">Preço especial Early Adopter</p>
+            <p className="text-amber-800 text-xs mt-1 leading-relaxed">
+              Pintores que assinarem <strong>{EARLY_ADOPTER_DEADLINE}</strong> travam o preço em{' '}
+              <strong>R$67/mês para sempre</strong> — mesmo quando o preço padrão subir.
+            </p>
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900">
+              Quero esse preço <ChevronRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </motion.div>
+      )}
 
       {/* Feature comparison */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}

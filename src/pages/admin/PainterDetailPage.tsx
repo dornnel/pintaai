@@ -4,9 +4,10 @@ import { motion } from 'motion/react'
 import {
   ArrowLeft, Star, Mail, MapPin, Briefcase, CheckCircle,
   Clock, MessageCircle, Edit3,
-  Users, Loader2, AlertCircle, Package, ThumbsUp, ThumbsDown,
+  Users, Loader2, AlertCircle, Package, ThumbsUp, ThumbsDown, Crown,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../lib/auth'
 import { cn, formatRelativeTime, formatDate } from '../../lib/utils'
 
 interface PainterDetail {
@@ -19,6 +20,7 @@ interface PainterDetail {
   verification_status: string
   kyc_status: string
   pro_plan_status: string
+  pro_granted_by_admin: boolean
   service_radius_km: number
   base_price_m2?: number
   has_transport: boolean
@@ -104,6 +106,8 @@ function StarDisplay({ value, size = 'sm' }: { value?: number; size?: 'sm' | 'lg
 export function PainterDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
+  const isSuperAdmin = currentUser?.isSuperAdmin === true
   const [painter, setPainter] = useState<PainterDetail | null>(null)
   const [interactions, setInteractions] = useState<Interaction[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
@@ -112,6 +116,7 @@ export function PainterDetailPage() {
   const [editingBio, setEditingBio] = useState(false)
   const [bioValue, setBioValue] = useState('')
   const [savingBio, setSavingBio] = useState(false)
+  const [togglingPro, setTogglingPro] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -152,6 +157,20 @@ export function PainterDetailPage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [id, load])
+
+  async function togglePro() {
+    if (!painter || !isSuperAdmin) return
+    setTogglingPro(true)
+    const isCurrentlyAdminPro = painter.pro_plan_status === 'active' && painter.pro_granted_by_admin
+    const newStatus = isCurrentlyAdminPro ? 'none' : 'active'
+    const granted = !isCurrentlyAdminPro
+    await supabase.from('painters').update({
+      pro_plan_status: newStatus,
+      pro_granted_by_admin: granted,
+    }).eq('id', painter.id)
+    setPainter({ ...painter, pro_plan_status: newStatus, pro_granted_by_admin: granted })
+    setTogglingPro(false)
+  }
 
   async function saveBio() {
     if (!painter) return
@@ -317,6 +336,41 @@ export function PainterDetailPage() {
       {/* Tab: Profile */}
       {tab === 'profile' && (
         <div className="space-y-4">
+
+          {/* Superadmin: Pro plan management */}
+          {isSuperAdmin && (
+            <div className={cn('rounded-2xl border p-4 flex items-center justify-between gap-4',
+              painter.pro_plan_status === 'active' && painter.pro_granted_by_admin
+                ? 'bg-purple-50 border-purple-200'
+                : 'bg-white border-gray-100')}>
+              <div className="flex items-center gap-3">
+                <Crown className={cn('w-5 h-5 shrink-0',
+                  painter.pro_plan_status === 'active' && painter.pro_granted_by_admin
+                    ? 'text-purple-600' : 'text-gray-300')} />
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Plano Pro — Cortesia Admin</p>
+                  <p className="text-xs text-gray-500">
+                    {painter.pro_plan_status === 'active' && painter.pro_granted_by_admin
+                      ? 'Ativo — sem pagamento (cortesia Pintai)'
+                      : painter.pro_plan_status === 'active'
+                      ? 'Ativo via pagamento — não gerenciado aqui'
+                      : 'Pintor no plano gratuito'}
+                  </p>
+                </div>
+              </div>
+              {painter.pro_plan_status !== 'active' || painter.pro_granted_by_admin ? (
+                <button onClick={togglePro} disabled={togglingPro}
+                  className={cn('shrink-0 text-xs font-semibold px-4 py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-60',
+                    painter.pro_plan_status === 'active' && painter.pro_granted_by_admin
+                      ? 'bg-white border border-purple-300 text-purple-700 hover:bg-purple-100'
+                      : 'bg-purple-600 text-white hover:bg-purple-700')}>
+                  {togglingPro ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : null}
+                  {painter.pro_plan_status === 'active' && painter.pro_granted_by_admin ? ' Revogar Pro' : ' Ativar Pro grátis'}
+                </button>
+              ) : null}
+            </div>
+          )}
+
           {/* Bio */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-3">
