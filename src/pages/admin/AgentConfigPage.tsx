@@ -102,6 +102,7 @@ export function AgentConfigPage() {
   const [budgetMode, setBudgetMode] = useState('internal_only')
   const [budgetWarning, setBudgetWarning] = useState('')
   const [savingBudget, setSavingBudget] = useState(false)
+  const [showModeMenu, setShowModeMenu] = useState(false)
 
   useEffect(() => { loadConfig() }, [])
   useEffect(() => {
@@ -278,7 +279,6 @@ export function AgentConfigPage() {
   if (loading) return <div className="p-6 text-sm text-gray-400">Carregando...</div>
   if (!config) return <div className="p-6 text-sm text-gray-500">Nenhuma configuração encontrada.</div>
 
-  const [showModeMenu, setShowModeMenu] = useState(false)
   const conversationMode = (config as AgentConfig & { conversation_mode?: string }).conversation_mode || 'journey'
 
   const MODE_CFG = {
