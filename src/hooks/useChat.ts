@@ -488,7 +488,7 @@ export function useChat() {
 
     setCurrentState('briefing_ready')
     agentMessage(
-      `✅ **Pedido enviado com sucesso!**\n\nProtocolo: **${protocol}**\n\nSeu pedido foi encaminhado para pintores próximos ao ${data.neighborhood}. Eles têm até 4 horas para enviar propostas. Vamos te notificar pelo WhatsApp **${data.whatsapp}** assim que chegar.`,
+      `✅ **Pedido enviado com sucesso!**\n\nProtocolo: **${protocol}**\n\nSeu pedido foi encaminhado para pintores próximos ao ${data.neighborhood}. Quando um pintor enviar uma proposta, você será notificado pelo e-mail **${data.email}**.`,
       undefined,
       { briefing: briefingData },
     )
@@ -600,7 +600,7 @@ export function useChat() {
         `Seu pedido já foi registrado com sucesso! 🎉\n\n` +
         `Para acompanhar as propostas dos pintores, crie sua conta grátis ou faça login — ` +
         `as propostas ficam disponíveis na sua área do cliente.\n\n` +
-        `Você também receberá notificações pelo email e WhatsApp que cadastrou. ` +
+        `Você receberá um e-mail quando um pintor enviar uma proposta para você avaliar. ` +
         `Para iniciar um novo pedido, clique em "Nova solicitação" abaixo. 👇`
       )
       return
