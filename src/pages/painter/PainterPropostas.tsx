@@ -1,11 +1,16 @@
+import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { Send } from 'lucide-react'
+import { Send, MapPin, ChevronRight } from 'lucide-react'
 import { usePainterContext } from './PainterLayout'
-import { formatCurrency } from '../../lib/utils'
+import { formatCurrency, formatDate } from '../../lib/utils'
 import { cn } from '../../lib/utils'
 
 export function PainterPropostas() {
-  const { myQuotes, loading } = usePainterContext()
+  const { leadInteractions, loading } = usePainterContext()
+
+  const sentInteractions = leadInteractions.filter(i =>
+    i.status === 'proposal_sent' || i.status === 'accepted' || i.status === 'interested'
+  )
 
   if (loading) {
     return (
@@ -21,10 +26,10 @@ export function PainterPropostas() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="mb-5">
         <h1 className="text-xl font-bold text-gray-900">Propostas</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Orçamentos que você enviou para clientes.</p>
+        <p className="text-gray-500 text-sm mt-0.5">Orçamentos que você enviou ou está preparando.</p>
       </div>
 
-      {myQuotes.length === 0 ? (
+      {sentInteractions.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <Send className="w-10 h-10 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Nenhuma proposta enviada ainda.</p>
@@ -32,32 +37,53 @@ export function PainterPropostas() {
         </div>
       ) : (
         <div className="space-y-3">
-          {myQuotes.map((q, i) => {
-            const sr = (q as unknown as { service_request: { request_type: string; neighborhood: { name: string } } }).service_request
+          {sentInteractions.map((interaction, i) => {
+            const lead = interaction.lead
+            const quote = (interaction.metadata as { quote?: { total_price: number; includes_material: boolean; duration_days: number; notes?: string } })?.quote
+            const isSent = interaction.status === 'proposal_sent'
+            const isAccepted = interaction.status === 'accepted'
+
             return (
-              <motion.div key={q.id}
-                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                className="bg-white rounded-2xl border border-gray-100 p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-semibold text-gray-900 capitalize">
-                    {sr?.request_type?.replace('_', ' ')} · {sr?.neighborhood?.name}
-                  </p>
-                  <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium',
-                    q.status === 'selected' ? 'bg-green-100 text-green-700' :
-                    q.status === 'rejected' ? 'bg-red-100 text-red-600' :
-                    'bg-yellow-100 text-yellow-700'
-                  )}>
-                    {q.status === 'selected' ? 'Selecionada' : q.status === 'rejected' ? 'Recusada' : 'Aguardando'}
-                  </span>
-                </div>
-                <div className="flex gap-4 text-sm text-gray-600">
-                  <span className="font-semibold text-gray-900">{formatCurrency(q.total_price)}</span>
-                  <span className="text-gray-400">{q.estimated_duration_days} dias</span>
-                  <span className="text-gray-400">{q.material_included ? 'c/ material' : 's/ material'}</span>
-                </div>
-                {q.payment_terms && (
-                  <p className="text-xs text-gray-400 mt-1.5">{q.payment_terms}</p>
-                )}
+              <motion.div key={interaction.id}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                <Link to={`/portal/pintor/solicitacao/${interaction.id}`}
+                  className="block bg-white rounded-2xl border border-gray-100 p-5 hover:border-brand/20 transition-colors">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">
+                        {lead.service_interest ?? 'Pintura'}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-400 truncate">{lead.neighborhood}</span>
+                        {lead.created_at && (
+                          <span className="text-xs text-gray-300">· {formatDate(lead.created_at)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className={cn('text-xs px-2.5 py-1 rounded-full font-medium shrink-0',
+                      isAccepted ? 'bg-green-100 text-green-700' :
+                      isSent ? 'bg-blue-100 text-blue-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    )}>
+                      {isAccepted ? 'Aceita' : isSent ? 'Enviada' : 'Em preparo'}
+                    </span>
+                  </div>
+
+                  {quote ? (
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="font-bold text-gray-900">{formatCurrency(quote.total_price)}</span>
+                      <span className="text-gray-400">{quote.duration_days} dias</span>
+                      <span className="text-gray-400">{quote.includes_material ? 'c/ material' : 's/ material'}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400">Sem proposta enviada ainda</p>
+                  )}
+
+                  <div className="flex items-center justify-end mt-2 text-xs text-brand">
+                    Ver detalhes <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+                  </div>
+                </Link>
               </motion.div>
             )
           })}

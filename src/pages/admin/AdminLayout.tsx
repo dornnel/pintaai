@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
   Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox,
-  Paintbrush, BrainCircuit, Menu, X, Home, LogOut, Package, Tag,
+  Paintbrush, Menu, X, Home, LogOut, Package, Tag,
   CreditCard, Megaphone, ClipboardList, Lock,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -27,8 +27,7 @@ const NAV_ADMIN = [
 ]
 
 const NAV_SUPERADMIN = [
-  { to: '/admin/agent', icon: Bot, label: 'Agente IA' },
-  { to: '/admin/ai', icon: BrainCircuit, label: 'IA Ops' },
+  { to: '/admin/ia', icon: Bot, label: 'Central de IA' },
   { to: '/admin/permissions', icon: Shield, label: 'Permissões' },
   { to: '/admin/cms', icon: Layout, label: 'Conteúdo' },
   { to: '/admin/audit', icon: ClipboardList, label: 'Auditoria' },

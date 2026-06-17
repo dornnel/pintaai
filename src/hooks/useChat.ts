@@ -560,6 +560,21 @@ export function useChat() {
       return
     }
 
+    // Terminal state: briefing was already sent — guide to account and don't stall
+    if (currentState === 'briefing_ready') {
+      setLoading(true)
+      await delay(600)
+      setLoading(false)
+      agentMessage(
+        `Seu pedido já foi registrado com sucesso! 🎉\n\n` +
+        `Para acompanhar as propostas dos pintores, crie sua conta grátis ou faça login — ` +
+        `as propostas ficam disponíveis na sua área do cliente.\n\n` +
+        `Você também receberá notificações pelo email e WhatsApp que cadastrou. ` +
+        `Para iniciar um novo pedido, clique em "Nova solicitação" abaixo. 👇`
+      )
+      return
+    }
+
     const steps = await getSteps()
     const step = getStep(steps, currentState)
     if (!step) return

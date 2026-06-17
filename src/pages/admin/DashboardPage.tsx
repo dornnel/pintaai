@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   FileText, Users, Clock, TrendingUp, AlertTriangle, DollarSign,
   CheckCircle, AlertCircle, ChevronRight, ArrowRight,
+  ThumbsUp, ThumbsDown, Minus, MapPin, BarChart3, UserCheck,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -30,6 +31,19 @@ interface Activity {
   lead_id?: string
 }
 
+interface SentimentCount {
+  sentiment_label: string
+  count: number
+}
+
+interface PainterStat {
+  id: string
+  name: string
+  score: number | null
+  leads_received: number
+  proposals_sent: number
+}
+
 const STAGE_ORDER = ['new', 'contacted', 'qualified', 'proposal_sent', 'won']
 const STAGE_LABELS: Record<string, string> = {
   new: 'Novos', contacted: 'Contatado', qualified: 'Qualificado',
@@ -45,23 +59,45 @@ export function DashboardPage() {
   const [activePainters, setActivePainters] = useState(0)
   const [pendingFlags, setPendingFlags] = useState(0)
   const [activities, setActivities] = useState<Activity[]>([])
+  const [sentiments, setSentiments] = useState<SentimentCount[]>([])
+  const [painterStats, setPainterStats] = useState<PainterStat[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [leadsRes, paintersRes, flagsRes, activitiesRes] = await Promise.all([
+    const [leadsRes, paintersRes, flagsRes, activitiesRes, reviewsRes, interactionsRes] = await Promise.all([
       supabase.from('leads')
-        .select('id,name,email,phone,protocol,stage,service_interest,neighborhood,created_at,estimated_value')
+        .select('id,name,email,phone,protocol,stage,service_interest,neighborhood,created_at,estimated_value,ai_price_min:calc_price_min,ai_price_max:calc_price_max')
         .order('created_at', { ascending: false }),
-      supabase.from('painters').select('id').eq('availability_status', 'available'),
+      supabase.from('painters').select('id,name,score').eq('availability_status', 'available').order('score', { ascending: false }).limit(5),
       supabase.from('moderation_flags').select('id').eq('status', 'pending'),
       supabase.from('crm_activities').select('id,type,title,created_at,lead_id').order('created_at', { ascending: false }).limit(10),
+      supabase.from('reviews').select('sentiment_label'),
+      supabase.from('lead_painter_interactions').select('painter_id,status'),
     ])
     setLeads((leadsRes.data || []) as Lead[])
-    setActivePainters(paintersRes.data?.length || 0)
+    setActivePainters((paintersRes.data || []).length || 0)
     setPendingFlags(flagsRes.data?.length || 0)
     setActivities((activitiesRes.data || []) as Activity[])
+
+    // Sentiment counts from reviews
+    const sMap: Record<string, number> = {}
+    ;(reviewsRes.data || []).forEach((r: { sentiment_label?: string }) => {
+      const key = r.sentiment_label || 'neutro'
+      sMap[key] = (sMap[key] || 0) + 1
+    })
+    setSentiments(Object.entries(sMap).map(([sentiment_label, count]) => ({ sentiment_label, count })))
+
+    // Painter stats
+    const interactions = interactionsRes.data || []
+    const pStats: PainterStat[] = (paintersRes.data || []).map((p: { id: string; name: string; score?: number | null }) => {
+      const received = interactions.filter((i: { painter_id: string }) => i.painter_id === p.id).length
+      const sent = interactions.filter((i: { painter_id: string; status: string }) => i.painter_id === p.id && i.status === 'proposal_sent').length
+      return { id: p.id, name: p.name, score: p.score ?? null, leads_received: received, proposals_sent: sent }
+    })
+    setPainterStats(pStats)
+
     setLoading(false)
   }
 
@@ -76,6 +112,26 @@ export function DashboardPage() {
     color: STAGE_COLORS[stage],
   })), [leads])
   const maxFunnel = Math.max(...funnel.map(f => f.count), 1)
+
+  const neighborhoodMap = useMemo(() => {
+    const map: Record<string, { leads: number; won: number; total_value: number }> = {}
+    leads.forEach(l => {
+      if (!l.neighborhood) return
+      const n = l.neighborhood
+      if (!map[n]) map[n] = { leads: 0, won: 0, total_value: 0 }
+      map[n].leads++
+      if (l.stage === 'won') {
+        map[n].won++
+        map[n].total_value += l.estimated_value || 0
+      }
+    })
+    return Object.entries(map)
+      .map(([name, d]) => ({ name, ...d, conv_rate: d.leads > 0 ? Math.round((d.won / d.leads) * 100) : 0 }))
+      .sort((a, b) => b.leads - a.leads)
+      .slice(0, 8)
+  }, [leads])
+
+  const sentimentTotal = sentiments.reduce((s, r) => s + r.count, 0)
 
   const inconsistencies = useMemo(() => {
     const result: { key: string; type: 'phone' | 'email'; value: string; leads: Lead[] }[] = []
@@ -266,6 +322,137 @@ export function DashboardPage() {
           </div>
         )
       })()}
+
+      {/* ── Inteligência de Dados ── */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-brand" /> Inteligência de Dados
+        </h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Sentimento */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Análise de Sentimento</h3>
+            {sentimentTotal === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">Sem avaliações ainda.</p>
+            ) : (
+              <div className="space-y-3">
+                {[
+                  { key: 'positivo', label: 'Positivo', icon: ThumbsUp, color: 'text-green-600 bg-green-50', bar: 'bg-green-500' },
+                  { key: 'neutro', label: 'Neutro', icon: Minus, color: 'text-gray-500 bg-gray-100', bar: 'bg-gray-400' },
+                  { key: 'negativo', label: 'Negativo', icon: ThumbsDown, color: 'text-red-500 bg-red-50', bar: 'bg-red-500' },
+                ].map(({ key, label, icon: Icon, color, bar }) => {
+                  const s = sentiments.find(s => s.sentiment_label === key)
+                  const pct = s ? Math.round((s.count / sentimentTotal) * 100) : 0
+                  return (
+                    <div key={key} className="flex items-center gap-2.5">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-600">{label}</span>
+                          <span className="font-semibold text-gray-800">{pct}%</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Mapa por bairro */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 lg:col-span-2">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-brand" /> Mapa de Calor por Bairro
+            </h3>
+            {neighborhoodMap.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">Nenhum lead com bairro cadastrado.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left text-gray-400 font-medium pb-2">Bairro</th>
+                      <th className="text-right text-gray-400 font-medium pb-2">Leads</th>
+                      <th className="text-right text-gray-400 font-medium pb-2">Confirmados</th>
+                      <th className="text-right text-gray-400 font-medium pb-2">Conv.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {neighborhoodMap.map(n => (
+                      <tr key={n.name} className="hover:bg-gray-50">
+                        <td className="py-2 font-medium text-gray-800">{n.name}</td>
+                        <td className="py-2 text-right text-gray-600">{n.leads}</td>
+                        <td className="py-2 text-right text-gray-600">{n.won}</td>
+                        <td className="py-2 text-right">
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${
+                            n.conv_rate >= 30 ? 'bg-green-100 text-green-700' :
+                            n.conv_rate > 0 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>{n.conv_rate}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top pintores */}
+        {painterStats.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-brand" /> Desempenho dos Pintores
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-gray-400 font-medium pb-2">Pintor</th>
+                    <th className="text-right text-gray-400 font-medium pb-2">Score</th>
+                    <th className="text-right text-gray-400 font-medium pb-2">Recebidos</th>
+                    <th className="text-right text-gray-400 font-medium pb-2">Enviados</th>
+                    <th className="text-right text-gray-400 font-medium pb-2">Taxa</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {painterStats.map(p => {
+                    const rate = p.leads_received > 0 ? Math.round((p.proposals_sent / p.leads_received) * 100) : 0
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="py-2">
+                          <Link to={`/admin/painters/${p.id}`} className="font-medium text-gray-800 hover:text-brand">
+                            {p.name}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right">
+                          <span className="font-semibold text-brand">{p.score ?? '—'}</span>
+                        </td>
+                        <td className="py-2 text-right text-gray-600">{p.leads_received}</td>
+                        <td className="py-2 text-right text-gray-600">{p.proposals_sent}</td>
+                        <td className="py-2 text-right">
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${
+                            rate >= 50 ? 'bg-green-100 text-green-700' :
+                            rate > 0 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-500'
+                          }`}>{rate}%</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Leads recentes */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

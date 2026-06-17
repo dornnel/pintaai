@@ -76,11 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const email = authUser.email || ''
 
     // Fallback: check by email for pending invites (admin pre-created profiles)
-    const { data: byEmail } = await supabase
+    // Use limit(1) + order to handle duplicate emails gracefully (most recent active wins)
+    const { data: byEmailRows } = await supabase
       .from('users')
       .select('id, role, roles, name, phone, status, email')
       .eq('email', email)
-      .maybeSingle()
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const byEmail = byEmailRows?.[0] ?? null
 
     if (byEmail) {
       await supabase.from('users').update({ auth_user_id: authUser.id, status: 'active' }).eq('id', byEmail.id)
@@ -140,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    localStorage.removeItem(ACTIVE_ROLE_KEY)
     await supabase.auth.signOut()
     setUser(null)
     setNeedsOnboarding(false)

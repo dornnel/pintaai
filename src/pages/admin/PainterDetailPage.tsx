@@ -435,10 +435,16 @@ export function PainterDetailPage() {
                       )}
                     </div>
                     {inter.lead?.id && (
-                      <Link to={`/admin/leads/${inter.lead.id}`}
-                        className="text-xs text-brand hover:text-brand-dark cursor-pointer transition-colors shrink-0 flex items-center gap-1">
-                        Ver lead →
-                      </Link>
+                      <div className="flex flex-col gap-1 items-end shrink-0">
+                        <Link to={`/portal/pintor/solicitacao/${inter.id}`}
+                          className="text-xs text-brand hover:text-brand-dark cursor-pointer transition-colors flex items-center gap-1">
+                          Ver como pintor →
+                        </Link>
+                        <Link to={`/admin/leads/${inter.lead.id}`}
+                          className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer transition-colors">
+                          Ver detalhes admin
+                        </Link>
+                      </div>
                     )}
                   </div>
                 </motion.div>

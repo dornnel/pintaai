@@ -2,13 +2,13 @@ import { useState, useEffect, createContext, useContext } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Inbox, Send, Star, Wrench, CreditCard, User,
-  Menu, X, Home, LogOut, ChevronRight,
+  Menu, X, Home, LogOut, ChevronRight, Loader2, UserCircle,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
 import { RoleSwitcher } from '../../components/RoleSwitcher'
-import type { Painter, PainterScore, Quote, Review } from '../../lib/types'
+import type { Painter, PainterScore, Review } from '../../lib/types'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -38,7 +38,6 @@ interface PainterContextType {
   painter: Painter | null
   score: PainterScore | null
   leadInteractions: LeadInteraction[]
-  myQuotes: Quote[]
   reviews: Review[]
   loading: boolean
   reload: () => void
@@ -46,7 +45,7 @@ interface PainterContextType {
 }
 
 const PainterContext = createContext<PainterContextType>({
-  painter: null, score: null, leadInteractions: [], myQuotes: [], reviews: [],
+  painter: null, score: null, leadInteractions: [], reviews: [],
   loading: true, reload: () => {}, declineInteraction: async () => {},
 })
 
@@ -69,7 +68,7 @@ const NAV_ITEMS = [
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export function PainterLayout() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, switchRole } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
 
@@ -77,41 +76,52 @@ export function PainterLayout() {
   const [painter, setPainter] = useState<Painter | null>(null)
   const [score, setScore] = useState<PainterScore | null>(null)
   const [leadInteractions, setLeadInteractions] = useState<LeadInteraction[]>([])
-  const [myQuotes, setMyQuotes] = useState<Quote[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [noPainterRecord, setNoPainterRecord] = useState(false)
 
   async function load() {
     if (!user) return
-    const { data: painterData } = await supabase
-      .from('painters').select('*').eq('user_id', user.id).single()
+    try {
+      const { data: painterData } = await supabase
+        .from('painters').select('*').eq('user_id', user.id).maybeSingle()
 
-    const painterId = painterData?.id
+      if (!painterData) {
+        // User has painter role but no painter record — redirect to complete setup
+        setNoPainterRecord(true)
+        setLoading(false)
+        return
+      }
 
-    const [intRes, qRes, scoreRes, revRes] = await Promise.all([
-      painterId
-        ? supabase.from('lead_painter_interactions')
-            .select('*, lead:leads(id,protocol,service_interest,neighborhood,area_m2,num_rooms,calc_price_min,calc_price_max,created_at)')
-            .eq('painter_id', painterId).neq('status', 'declined').order('created_at', { ascending: false })
-        : Promise.resolve({ data: [] }),
-      supabase.from('quotes').select('*, service_request:service_requests(request_type, neighborhood:neighborhoods(name))').order('created_at', { ascending: false }),
-      painterId
-        ? supabase.from('painter_scores').select('*').eq('painter_id', painterId).single()
-        : Promise.resolve({ data: null }),
-      painterId
-        ? supabase.from('reviews').select('*').eq('provider_id', painterId).eq('provider_type', 'painter').order('created_at', { ascending: false })
-        : Promise.resolve({ data: [] }),
-    ])
+      const painterId = painterData.id
 
-    setPainter(painterData)
-    setLeadInteractions((intRes.data as LeadInteraction[]) || [])
-    setMyQuotes((qRes.data as Quote[]) || [])
-    setScore(scoreRes.data as PainterScore | null)
-    setReviews((revRes.data as Review[]) || [])
-    setLoading(false)
+      const [intRes, scoreRes, revRes] = await Promise.all([
+        supabase.from('lead_painter_interactions')
+          .select('*, lead:leads(id,protocol,service_interest,neighborhood,area_m2,num_rooms,calc_price_min,calc_price_max,created_at)')
+          .eq('painter_id', painterId).neq('status', 'declined').order('created_at', { ascending: false }),
+        supabase.from('painter_scores').select('*').eq('painter_id', painterId).maybeSingle(),
+        supabase.from('reviews').select('*').eq('provider_id', painterId).eq('provider_type', 'painter').order('created_at', { ascending: false }),
+      ])
+
+      setPainter(painterData)
+      setLeadInteractions((intRes.data as LeadInteraction[]) || [])
+      setScore(scoreRes.data as PainterScore | null)
+      setReviews((revRes.data as Review[]) || [])
+    } catch (err) {
+      console.error('PainterLayout load error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [user])
+
+  // Redirect to painter registration if no painter record exists
+  useEffect(() => {
+    if (!loading && noPainterRecord) {
+      navigate('/seja-pintor', { replace: true })
+    }
+  }, [loading, noPainterRecord, navigate])
 
   async function declineInteraction(id: string) {
     await supabase.from('lead_painter_interactions').update({
@@ -129,6 +139,15 @@ export function PainterLayout() {
     navigate('/', { replace: true })
   }
 
+  // Show loading spinner while redirecting to /seja-pintor
+  if (loading || noPainterRecord) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-6 h-6 text-brand animate-spin" />
+      </div>
+    )
+  }
+
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
@@ -140,7 +159,7 @@ export function PainterLayout() {
   const newCount = leadInteractions.filter(i => i.status === 'notified').length
 
   return (
-    <PainterContext.Provider value={{ painter, score, leadInteractions, myQuotes, reviews, loading, reload: load, declineInteraction }}>
+    <PainterContext.Provider value={{ painter, score, leadInteractions, reviews, loading, reload: load, declineInteraction }}>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
 
         {/* Mobile backdrop */}
@@ -168,25 +187,25 @@ export function PainterLayout() {
             </button>
           </div>
 
-          {/* Score + name */}
-          {painter && (
-            <div className="px-4 py-3 border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
-                  <User className="w-4 h-4 text-brand" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                  {score && score.overall_score > 0 && (
-                    <p className="text-xs text-amber-500 font-medium">★ {score.overall_score.toFixed(1)}</p>
-                  )}
-                </div>
+          {/* User info + role switcher */}
+          <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                <User className="w-4 h-4 text-brand" />
               </div>
-              <div className="mt-2">
-                <RoleSwitcher />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
+                {score && score.overall_score > 0 ? (
+                  <p className="text-xs text-amber-500 font-medium">★ {score.overall_score.toFixed(1)}</p>
+                ) : (
+                  <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+                )}
               </div>
             </div>
-          )}
+            <div className="mt-2">
+              <RoleSwitcher />
+            </div>
+          </div>
 
           {/* Navigation */}
           <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto scrollbar-hide">
@@ -205,6 +224,12 @@ export function PainterLayout() {
 
           {/* Footer */}
           <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
+            {user?.roles?.includes('customer') && (
+              <button onClick={() => { close(); switchRole('customer'); navigate('/minha-area') }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand hover:bg-orange-50 cursor-pointer transition-colors">
+                <UserCircle className="w-4 h-4 shrink-0" /> Minha Área
+              </button>
+            )}
             <button onClick={() => { close(); navigate('/') }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors">
               <Home className="w-4 h-4 shrink-0" /> Voltar ao site
@@ -218,22 +243,22 @@ export function PainterLayout() {
 
         {/* Main area */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          {/* Mobile top bar */}
-          <div className="lg:hidden h-14 bg-white border-b border-gray-100 flex items-center gap-3 px-4 shrink-0 z-10">
+          {/* Top bar — mobile hamburger / desktop title */}
+          <div className="h-14 bg-white border-b border-gray-100 flex items-center gap-3 px-4 shrink-0 z-10">
             <button onClick={() => setOpen(true)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer transition-colors">
+              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer transition-colors">
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-brand">Pintai</span>
               <span className="text-xs bg-gradient-to-r from-[#FF7A30] to-brand text-white px-2 py-0.5 rounded font-medium">
-                Pintor
+                Portal do Pintor
               </span>
             </div>
             {newCount > 0 && (
               <span className="ml-auto flex items-center gap-1.5 text-xs text-brand font-medium">
                 <ChevronRight className="w-3.5 h-3.5" />
-                {newCount} novo{newCount > 1 ? 's' : ''}
+                {newCount} nova{newCount > 1 ? 's' : ''} solicitação{newCount > 1 ? 'ões' : ''}
               </span>
             )}
           </div>

@@ -530,10 +530,32 @@ export function PainterPortal() {
           <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-32 bg-white rounded-2xl animate-pulse border border-gray-100" />)}</div>
         ) : tab === 'solicitations' ? (
           leadInteractions.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-              <Briefcase className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Nenhuma solicitação recebida ainda.</p>
-              <p className="text-gray-300 text-xs mt-1">O admin enviará pedidos para você conforme disponibilidade.</p>
+            <div className="space-y-4">
+              {/* Welcome / how-it-works banner — shown when no solicitations yet */}
+              <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border border-orange-100 p-5">
+                <p className="font-bold text-gray-900 mb-4 text-base">Como funciona</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { n: 1, icon: Zap, label: 'Receba pedidos', desc: 'Você será notificado quando houver um cliente perto de você' },
+                    { n: 2, icon: Briefcase, label: 'Veja os detalhes', desc: 'Confira o projeto, fotos e estimativa de preço da plataforma' },
+                    { n: 3, icon: Send, label: 'Envie proposta', desc: 'Monte seu orçamento e envie diretamente ao cliente' },
+                  ].map(({ n, icon: Icon, label, desc }) => (
+                    <div key={n} className="flex flex-col items-center text-center gap-2">
+                      <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm">
+                        {n}
+                      </div>
+                      <Icon className="w-5 h-5 text-brand" />
+                      <p className="text-xs font-semibold text-gray-800">{label}</p>
+                      <p className="text-[10px] text-gray-500 leading-snug">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                <Briefcase className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm font-medium">Nenhuma solicitação recebida ainda</p>
+                <p className="text-gray-300 text-xs mt-1">Pedidos de clientes da sua região aparecerão aqui automaticamente.</p>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

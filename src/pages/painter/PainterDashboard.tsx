@@ -9,9 +9,10 @@ import { formatCurrency } from '../../lib/utils'
 import { cn } from '../../lib/utils'
 
 export function PainterDashboard() {
-  const { painter, score, leadInteractions, myQuotes, loading } = usePainterContext()
+  const { painter, score, leadInteractions, loading } = usePainterContext()
 
-  const selectedCount = myQuotes.filter(q => q.status === 'selected').length
+  const sentCount = leadInteractions.filter(i => i.status === 'proposal_sent').length
+  const selectedCount = leadInteractions.filter(i => i.status === 'accepted').length
   const newCount = leadInteractions.filter(i => i.status === 'notified').length
   const recentInteractions = leadInteractions.slice(0, 3)
   const isPro = painter?.pro_plan_status === 'active' || painter?.pro_plan_status === 'trial'
@@ -64,8 +65,8 @@ export function PainterDashboard() {
         className="grid grid-cols-4 gap-3">
         {[
           { icon: Briefcase, label: 'Solicitações', value: leadInteractions.length, color: 'text-blue-500', to: '/portal/pintor/solicitacoes' },
-          { icon: Send, label: 'Propostas', value: myQuotes.length, color: 'text-brand', to: '/portal/pintor/propostas' },
-          { icon: CheckCircle, label: 'Selecionadas', value: selectedCount, color: 'text-green-500', to: '/portal/pintor/propostas' },
+          { icon: Send, label: 'Propostas', value: sentCount, color: 'text-brand', to: '/portal/pintor/propostas' },
+          { icon: CheckCircle, label: 'Aceitas', value: selectedCount, color: 'text-green-500', to: '/portal/pintor/propostas' },
           { icon: Star, label: 'Score', value: score && score.overall_score > 0 ? score.overall_score.toFixed(1) : '—', color: 'text-amber-400', to: '/portal/pintor/avaliacoes' },
         ].map(({ icon: Icon, label, value, color, to }) => (
           <Link key={label} to={to} className="bg-white rounded-2xl border border-gray-100 p-3 text-center hover:border-brand/20 transition-colors">

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   Search, Plus, UserX, UserCheck, Loader2, X, Mail,
   Phone, User, Shield, CheckCircle, Clock, AlertCircle,
-  Edit2, Eye, Send,
+  Edit2, Eye, Send, Trash2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../lib/auth'
 import { cn, formatDate, formatRelativeTime } from '../../lib/utils'
 import { Link } from 'react-router-dom'
 
@@ -263,11 +264,29 @@ function EditUserModal({ user, onClose, onSaved }: {
 
 // ─── User Detail Drawer ───────────────────────────────────────────────────────
 
-function UserDetailDrawer({ user, onClose, onUpdated }: {
+function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin }: {
   user: UserRecord; onClose: () => void; onUpdated: (u: UserRecord) => void
+  onDeleted: (id: string) => void; isSuperAdmin: boolean
 }) {
   const [showEdit, setShowEdit] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  async function handleDelete() {
+    setDeleting(true); setDeleteError('')
+    const { error } = await supabase.functions.invoke('admin-delete-user', {
+      body: { authUserId: user.auth_user_id, appUserId: user.id },
+    })
+    if (error) {
+      setDeleteError('Erro ao excluir. Tente novamente.')
+      setDeleting(false)
+      return
+    }
+    onDeleted(user.id)
+    onClose()
+  }
 
   async function setStatus(status: string) {
     setSavingStatus(true)
@@ -416,6 +435,36 @@ function UserDetailDrawer({ user, onClose, onUpdated }: {
                   <Edit2 className="w-3.5 h-3.5" /> Editar dados
                 </button>
               </div>
+
+              {isSuperAdmin && (
+                <div className="mt-4 pt-4 border-t border-red-100">
+                  {!confirmDelete ? (
+                    <button onClick={() => setConfirmDelete(true)}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-semibold cursor-pointer hover:bg-red-100 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir usuário permanentemente
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-red-700 font-semibold">
+                        Excluir <span className="font-mono">{user.email}</span>?
+                      </p>
+                      <p className="text-xs text-gray-500">Esta ação remove o usuário do banco de dados e do Supabase Auth. Irreversível.</p>
+                      {deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
+                      <div className="flex gap-2">
+                        <button onClick={() => setConfirmDelete(false)}
+                          className="flex-1 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 cursor-pointer hover:bg-gray-50">
+                          Cancelar
+                        </button>
+                        <button onClick={handleDelete} disabled={deleting}
+                          className="flex-1 py-1.5 bg-red-600 text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1">
+                          {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                          {deleting ? 'Excluindo...' : 'Confirmar exclusão'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Links rápidos */}
@@ -437,6 +486,7 @@ function UserDetailDrawer({ user, onClose, onUpdated }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function UsersPage() {
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -466,6 +516,11 @@ export function UsersPage() {
   function updateLocal(updated: UserRecord) {
     setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))
     if (detailUser?.id === updated.id) setDetailUser(updated)
+  }
+
+  function removeLocal(id: string) {
+    setUsers(prev => prev.filter(u => u.id !== id))
+    if (detailUser?.id === id) setDetailUser(null)
   }
 
   return (
@@ -644,6 +699,8 @@ export function UsersPage() {
             user={detailUser}
             onClose={() => setDetailUser(null)}
             onUpdated={updateLocal}
+            onDeleted={removeLocal}
+            isSuperAdmin={!!currentUser?.isSuperAdmin}
           />
         )}
       </AnimatePresence>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn } from 'lucide-react'
+import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, MicOff, Plus } from 'lucide-react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
@@ -21,6 +21,23 @@ const SUGGESTIONS = [
   'Como funciona o serviço?',
 ]
 
+// Declaração de tipo para Web Speech API
+type SpeechRecognitionInstance = EventTarget & {
+  lang: string
+  interimResults: boolean
+  continuous: boolean
+  start(): void
+  stop(): void
+  onresult: ((e: { results: { transcript: string }[][] }) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+}
+
+const SpeechRecognitionAPI =
+  (typeof window !== 'undefined' &&
+    ((window as unknown as Record<string, unknown>).SpeechRecognition ||
+     (window as unknown as Record<string, unknown>).webkitSpeechRecognition)) as (new () => SpeechRecognitionInstance) | undefined
+
 export function ChatInterface() {
   const { messages, loading, sendMessage, reset, currentInputType, currentState } = useChat()
   const { user } = useAuth()
@@ -32,6 +49,9 @@ export function ChatInterface() {
   const [dragging, setDragging] = useState(false)
   const [sizeError, setSizeError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const hasSpeechAPI = Boolean(SpeechRecognitionAPI)
 
   useEffect(() => {
     if (initFired.current) return
@@ -100,6 +120,28 @@ export function ChatInterface() {
     setDragging(false)
     const dropped = Array.from(e.dataTransfer.files)
     setFiles((prev) => [...prev, ...dropped].slice(0, 5))
+  }
+
+  function toggleVoice() {
+    if (!SpeechRecognitionAPI) return
+    if (isRecording) {
+      recognitionRef.current?.stop()
+      setIsRecording(false)
+      return
+    }
+    const sr = new SpeechRecognitionAPI()
+    sr.lang = 'pt-BR'
+    sr.interimResults = true
+    sr.continuous = false
+    sr.onresult = (e) => {
+      const transcript = e.results[e.results.length - 1][0].transcript
+      setText(transcript)
+    }
+    sr.onend = () => setIsRecording(false)
+    sr.onerror = () => setIsRecording(false)
+    recognitionRef.current = sr
+    sr.start()
+    setIsRecording(true)
   }
 
   const isMediaStep = currentInputType === 'media'
@@ -219,20 +261,30 @@ export function ChatInterface() {
                   </p>
                 </div>
                 {user?.role === 'customer' ? (
-                  <Link to="/minha-area"
-                    className="flex items-center justify-between px-4 py-3 bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors">
-                    Ver minha área <ArrowRight className="w-4 h-4" />
-                  </Link>
-                ) : (
                   <div className="grid grid-cols-2 border-t border-orange-100">
-                    <Link to="/login?mode=register&redirect=/minha-area"
+                    <Link to="/minha-area"
                       className="flex items-center justify-center gap-1.5 py-3 bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors">
-                      <LogIn className="w-3.5 h-3.5" /> Criar conta grátis
+                      Ver minha área <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                    <button onClick={reset}
+                      className="flex items-center justify-center gap-1.5 py-3 text-brand text-xs font-semibold hover:bg-orange-50 transition-colors border-l border-orange-100 cursor-pointer">
+                      <Plus className="w-3.5 h-3.5" /> Nova solicitação
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 border-t border-orange-100">
+                    <Link to="/login?mode=register&redirect=/minha-area"
+                      className="flex items-center justify-center gap-1 py-3 bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors">
+                      <LogIn className="w-3 h-3" /> Criar conta
                     </Link>
                     <Link to="/login?redirect=/minha-area"
-                      className="flex items-center justify-center gap-1.5 py-3 text-brand text-xs font-semibold hover:bg-orange-50 transition-colors border-l border-orange-100">
-                      Já tenho conta <ArrowRight className="w-3.5 h-3.5" />
+                      className="flex items-center justify-center gap-1 py-3 text-brand text-xs font-semibold hover:bg-orange-50 transition-colors border-l border-orange-100">
+                      Já tenho conta
                     </Link>
+                    <button onClick={reset}
+                      className="flex items-center justify-center gap-1 py-3 text-gray-500 text-xs font-medium hover:bg-gray-50 transition-colors border-l border-orange-100 cursor-pointer">
+                      <Plus className="w-3 h-3" /> Novo pedido
+                    </button>
                   </div>
                 )}
               </motion.div>
@@ -349,6 +401,20 @@ export function ChatInterface() {
             className="hidden"
             onChange={handleFiles}
           />
+
+          {hasSpeechAPI && (
+            <button
+              onClick={toggleVoice}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors shrink-0 cursor-pointer ${
+                isRecording
+                  ? 'text-red-500 bg-red-50 animate-pulse'
+                  : 'text-gray-400 hover:text-brand hover:bg-orange-50'
+              }`}
+              title={isRecording ? 'Parar gravação' : 'Enviar mensagem por voz'}
+            >
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          )}
 
           <textarea
             value={text}

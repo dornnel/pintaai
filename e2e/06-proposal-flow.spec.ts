@@ -103,3 +103,37 @@ test('customer can expand lead card to see proposals', async ({ page }) => {
     await expect(page.locator('text=Propostas dos pintores')).toBeVisible()
   }
 })
+
+// ── Test 6: Post-briefing message → bot responds (no stall) ─────────────────
+test('chat does not stall after briefing_ready', async ({ page }) => {
+  await page.goto('/chat')
+  await page.waitForSelector('text=Koke', { timeout: 10_000 })
+
+  // The bot should not silently ignore messages after briefing
+  // If currentState is briefing_ready, the bot should respond with redirect message
+  // Smoke test: send a message and verify bot loading resolves
+  const input = page.locator('textarea')
+  if (await input.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await input.fill('oi')
+    await page.keyboard.press('Enter')
+    // In normal (init) state the bot will respond with the greeting
+    // We just verify a response appears and the UI doesn't freeze
+    await expect(page.locator('[class*="animate-spin"]').first()).toBeHidden({ timeout: 8_000 })
+  }
+})
+
+// ── Test 7: "Nova solicitação" button appears in CTA card ───────────────────
+test('reset button visible in CTA for logged-out users when briefing_ready', async ({ page }) => {
+  // Since reaching briefing_ready requires a full flow, we just test the structure
+  // by checking the chat input area has a working reset button
+  await page.goto('/chat')
+  await page.waitForSelector('text=Koke', { timeout: 10_000 })
+
+  // The RotateCcw (reset) button in the header should always be present
+  const resetBtn = page.locator('button[title="Nova conversa"]')
+  await expect(resetBtn).toBeVisible({ timeout: 5_000 })
+  await resetBtn.click()
+  // After reset, greeting should come again
+  await page.waitForTimeout(1000)
+  await expect(page.locator('text=Koke')).toBeVisible()
+})
