@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { motion } from 'motion/react'
 import { Pencil, CheckCircle, Loader2, MapPin, FileText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { usePainterContext } from './PainterLayout'
 import { useAuth } from '../../lib/auth'
 import { cn } from '../../lib/utils'
-import { PainterAreaMap } from '../../components/PainterAreaMap'
 import type { Neighborhood } from '../../lib/types'
+
+const PainterAreaMap = lazy(() =>
+  import('../../components/PainterAreaMap').then(m => ({ default: m.PainterAreaMap }))
+)
 
 const SPECIALTY_OPTIONS = [
   'Residencial', 'Comercial', 'Fachada', 'Pós-obra', 'Artístico',
@@ -78,7 +81,7 @@ export function PainterPerfil() {
     return (
       <div className="p-6 space-y-4">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse" />
+          <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />
         ))}
       </div>
     )
@@ -173,11 +176,13 @@ export function PainterPerfil() {
               />
             </div>
             {painter?.neighborhoods_ids?.length > 0 ? (
-              <PainterAreaMap
-                neighborhoods={neighborhoods}
-                painterNeighborhoodIds={painter.neighborhoods_ids}
-                radiusKm={parseFloat(radiusKm) || 10}
-              />
+              <Suspense fallback={<div className="h-[280px] bg-gray-100 rounded-xl animate-pulse" />}>
+                <PainterAreaMap
+                  neighborhoods={neighborhoods}
+                  painterNeighborhoodIds={painter.neighborhoods_ids}
+                  radiusKm={parseFloat(radiusKm) || 10}
+                />
+              </Suspense>
             ) : (
               <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-4 text-center">
                 Nenhum bairro selecionado ainda. O mapa aparecerá aqui após você definir sua área no cadastro.
