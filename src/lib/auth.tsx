@@ -24,11 +24,12 @@ interface AuthContextType {
   signOut: () => Promise<void>
   completeOnboarding: (role: DBUser['role']) => Promise<void>
   switchRole: (role: DBUser['role']) => void
+  updateProfile: (updates: { name?: string; phone?: string }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null, loading: true, needsOnboarding: false,
-  signOut: async () => {}, completeOnboarding: async () => {}, switchRole: () => {},
+  signOut: async () => {}, completeOnboarding: async () => {}, switchRole: () => {}, updateProfile: async () => {},
 })
 
 const ADMIN_EMAILS = [SUPERADMIN_EMAIL, 'admin@pintae.com.br', 'admin@pintai.com.br']
@@ -143,6 +144,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? { ...prev, activeRole: role } : null)
   }
 
+  async function updateProfile(updates: { name?: string; phone?: string }) {
+    if (!user) return
+    await supabase.from('users').update(updates).eq('id', user.id)
+    setUser(prev => prev ? { ...prev, ...updates } : null)
+  }
+
   async function signOut() {
     localStorage.removeItem(ACTIVE_ROLE_KEY)
     await supabase.auth.signOut()
@@ -151,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, signOut, completeOnboarding, switchRole }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, signOut, completeOnboarding, switchRole, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

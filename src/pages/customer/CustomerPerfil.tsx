@@ -1,24 +1,71 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'motion/react'
-import { User, Mail, Phone, Save, CheckCircle } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
+import { User, Mail, Phone, Save, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
-import { supabase } from '../../lib/supabase'
+import { logAudit } from '../../lib/audit'
+
+function isAutoPhone(phone: string | undefined) {
+  return !phone || phone.startsWith('auto_') || phone.trim() === ''
+}
 
 export function CustomerPerfil() {
-  const { user } = useAuth()
+  const { user, updateProfile } = useAuth()
+
+  const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    if (user?.phone) setPhone(user.phone)
+    if (user) {
+      setName(user.name ?? '')
+      // Clear auto-generated placeholder so the field looks empty
+      setPhone(isAutoPhone(user.phone) ? '' : (user.phone ?? ''))
+    }
   }, [user])
+
+  const phoneMissing = isAutoPhone(user?.phone)
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     if (!user?.id) return
+    if (!name.trim() || name.trim().length < 2) {
+      setError('Nome precisa ter pelo menos 2 caracteres.')
+      return
+    }
+    setError('')
     setSaving(true)
-    await supabase.from('users').update({ phone }).eq('id', user.id)
+
+    const oldValues: Record<string, string> = {}
+    const newValues: Record<string, string> = {}
+
+    if (name.trim() !== user.name) {
+      oldValues.name = user.name
+      newValues.name = name.trim()
+    }
+    const cleanPhone = phone.replace(/\D/g, '')
+    if (cleanPhone !== (user.phone ?? '').replace(/\D/g, '') && !isAutoPhone(user.phone) || (isAutoPhone(user.phone) && cleanPhone)) {
+      oldValues.phone = user.phone ?? ''
+      newValues.phone = phone.trim()
+    }
+
+    const updates: { name?: string; phone?: string } = {}
+    if (newValues.name) updates.name = newValues.name
+    if (newValues.phone !== undefined) updates.phone = phone.trim() || null as unknown as string
+
+    if (Object.keys(updates).length > 0) {
+      await updateProfile(updates)
+      await logAudit({
+        actor_user_id: user.id,
+        entity_type: 'user',
+        entity_id: user.id,
+        action: 'profile_updated',
+        old_values: oldValues,
+        new_values: newValues,
+      })
+    }
+
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -30,6 +77,23 @@ export function CustomerPerfil() {
         <h1 className="text-2xl font-bold text-gray-900">Meu Perfil</h1>
         <p className="text-gray-500 text-sm mt-1">Informações da sua conta no Pintai.</p>
       </motion.div>
+
+      {/* WhatsApp alert */}
+      <AnimatePresence>
+        {phoneMissing && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Adicione seu WhatsApp</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Os pintores entram em contato via WhatsApp após receberem sua proposta.
+                Sem número cadastrado, você pode perder o contato.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="bg-white rounded-2xl border border-gray-100 p-6">
@@ -45,27 +109,41 @@ export function CustomerPerfil() {
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
+          {/* Name — editable */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1.5 block">Nome completo</label>
-            <div className="flex items-center gap-2.5 border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50">
+            <div className="flex items-center gap-2.5 border border-gray-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand bg-white transition-colors">
               <User className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-sm text-gray-500">{user?.name}</span>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Seu nome completo"
+                className="flex-1 text-sm bg-transparent focus:outline-none"
+                required minLength={2}
+              />
             </div>
-            <p className="text-xs text-gray-400 mt-1">O nome é definido no cadastro e não pode ser alterado.</p>
+            <p className="text-xs text-gray-400 mt-1">Alterações ficam registradas no histórico de auditoria.</p>
           </div>
 
+          {/* Email — read-only */}
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1.5 block">E-mail</label>
             <div className="flex items-center gap-2.5 border border-gray-200 rounded-xl px-3.5 py-2.5 bg-gray-50">
               <Mail className="w-4 h-4 text-gray-400 shrink-0" />
               <span className="text-sm text-gray-500">{user?.email}</span>
             </div>
+            <p className="text-xs text-gray-400 mt-1">O e-mail não pode ser alterado por aqui.</p>
           </div>
 
+          {/* WhatsApp — editable */}
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1.5 block">WhatsApp / Telefone</label>
-            <div className="flex items-center gap-2.5 border border-gray-200 rounded-xl px-3.5 py-2.5 focus-within:border-brand bg-white transition-colors">
-              <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+            <label className="text-xs font-medium text-gray-600 mb-1.5 block">
+              WhatsApp / Telefone
+              {phoneMissing && <span className="ml-1.5 text-amber-500 font-semibold">· Obrigatório</span>}
+            </label>
+            <div className={`flex items-center gap-2.5 border rounded-xl px-3.5 py-2.5 focus-within:border-brand bg-white transition-colors ${phoneMissing ? 'border-amber-300' : 'border-gray-200'}`}>
+              <Phone className={`w-4 h-4 shrink-0 ${phoneMissing ? 'text-amber-400' : 'text-gray-400'}`} />
               <input
                 type="tel"
                 value={phone}
@@ -74,8 +152,10 @@ export function CustomerPerfil() {
                 className="flex-1 text-sm bg-transparent focus:outline-none"
               />
             </div>
-            <p className="text-xs text-gray-400 mt-1">Usado para os pintores entrarem em contato.</p>
+            <p className="text-xs text-gray-400 mt-1">Usado para os pintores entrarem em contato via WhatsApp.</p>
           </div>
+
+          {error && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</p>}
 
           <motion.button
             type="submit"
@@ -86,7 +166,7 @@ export function CustomerPerfil() {
             {saved
               ? <><CheckCircle className="w-4 h-4" /> Salvo!</>
               : saving
-                ? 'Salvando...'
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
                 : <><Save className="w-4 h-4" /> Salvar alterações</>
             }
           </motion.button>

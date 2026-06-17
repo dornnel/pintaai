@@ -23,6 +23,11 @@ export interface CustomerLead {
   property_type: string | null
   deadline: string | null
   material: string | null
+  wall_condition: string | null
+  final_notes: string | null
+  preferred_professional: string | null
+  estimated_budget: string | null
+  current_color: string | null
   created_at: string
   is_partial: boolean
   lead_painter_interactions: Array<{
@@ -88,7 +93,9 @@ export function CustomerLayout() {
       .from('leads')
       .select(`
         id, protocol, service_interest, neighborhood, area_m2, num_rooms,
-        calc_price_min, calc_price_max, property_type, deadline, material, created_at, is_partial,
+        calc_price_min, calc_price_max, property_type, deadline, material,
+        wall_condition, final_notes, preferred_professional, estimated_budget, current_color,
+        created_at, is_partial,
         lead_painter_interactions(
           id, status, metadata,
           painter:painters(
