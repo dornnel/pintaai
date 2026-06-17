@@ -138,31 +138,35 @@ Retorne APENAS o texto da pergunta, sem JSON, sem aspas extras.`
       const contextLine = user_name ? `Nome do usuário: ${user_name}\n` : ''
 
       const transitionPrompt = previous_field
-        ? `${SYSTEM_PROMPT}
-
-O usuário respondeu ao campo "${previous_field}" com: "${previous_value}"
+        ? `O usuário respondeu ao campo "${previous_field}" com: "${previous_value}"
 ${contextLine}Dados já coletados: ${JSON.stringify(collected_data || {})}
 
 Gere UMA mensagem curta (1-2 frases) que primeiro reaja brevemente e de forma natural a essa resposta, e depois emende a pergunta abaixo, preservando o sentido original dela:
 "${next_question}"
 
-Mantenha as formatações **negrito**, quebras de linha e emojis já presentes na pergunta. Retorne APENAS o texto final, sem JSON, sem aspas extras.`
-        : `${SYSTEM_PROMPT}
-
-O usuário disse, em texto livre, ao iniciar a conversa: "${previous_value}"
+Mantenha as formatações **negrito**, quebras de linha e emojis já presentes na pergunta. Retorne APENAS o texto puro, sem JSON, sem aspas extras.`
+        : `O usuário disse, em texto livre, ao iniciar a conversa: "${previous_value}"
 ${contextLine}
 Gere UMA mensagem curta (1-2 frases) que primeiro reaja de forma natural e acolhedora a essa mensagem (interpretando que é um cliente buscando um serviço de pintura), e depois emende a pergunta abaixo, preservando o sentido original dela:
 "${next_question}"
 
-Mantenha as formatações **negrito**, quebras de linha e emojis já presentes na pergunta. Retorne APENAS o texto final, sem JSON, sem aspas extras.`
+Mantenha as formatações **negrito**, quebras de linha e emojis já presentes na pergunta. Retorne APENAS o texto puro, sem JSON, sem aspas extras.`
 
       const resp = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         max_tokens: 200,
         temperature: 0.6,
-        messages: [{ role: 'user', content: transitionPrompt }],
+        messages: [
+          { role: 'system', content: 'Você é o Koke, assistente da Pintai Floripa. Tom: natural, simpático, PT-BR. Responda em texto puro, sem JSON, sem markdown de bloco de código.' },
+          { role: 'user', content: transitionPrompt },
+        ],
       })
-      const transitionMessage = resp.choices[0].message.content?.trim() || next_question
+      let transitionMessage = resp.choices[0].message.content?.trim() || next_question
+      // Guard: se o modelo retornar JSON mesmo assim, extrai o campo message
+      try {
+        const parsed = JSON.parse(transitionMessage)
+        if (typeof parsed?.message === 'string') transitionMessage = parsed.message
+      } catch { /* texto puro, como esperado */ }
       return new Response(
         JSON.stringify({ message: transitionMessage }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
