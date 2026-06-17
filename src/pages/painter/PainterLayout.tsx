@@ -85,11 +85,18 @@ export function PainterLayout() {
   async function load() {
     if (!user) return
     try {
-      const { data: painterData } = await supabase
+      const { data: painterData, error: painterErr } = await supabase
         .from('painters').select('*, user:users(name,phone)').eq('user_id', user.id).maybeSingle()
 
+      if (painterErr) {
+        // Query error (network, RLS, etc.) — do NOT redirect, just log and stop
+        console.error('[PainterLayout] painter query error:', painterErr)
+        setLoading(false)
+        return
+      }
+
       if (!painterData) {
-        // User has painter role but no painter record — redirect to complete setup
+        // Confirmed: no painter record → redirect to complete setup
         setNoPainterRecord(true)
         setLoading(false)
         return

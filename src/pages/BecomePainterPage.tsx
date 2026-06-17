@@ -11,7 +11,7 @@ const SPECIALTIES_OPTIONS = ['Pintura interna', 'Fachada', 'Textura / massa corr
 interface NeighborhoodOption { id: string; name: string }
 
 export function BecomePainterPage() {
-  const { user, loading: authLoading, switchRole, updateProfile } = useAuth()
+  const { user, loading: authLoading, switchRole, addRole, updateProfile } = useAuth()
   const navigate = useNavigate()
 
   const [neighborhoods, setNeighborhoods] = useState<NeighborhoodOption[]>([])
@@ -85,14 +85,14 @@ export function BecomePainterPage() {
     })
 
     if (insertErr) {
+      console.error('[BecomePainter] insert error:', insertErr)
       setError('Não foi possível concluir o cadastro. Tente novamente.')
       setSaving(false)
       return
     }
 
-    const newRoles = Array.from(new Set([...(user.roles || []), 'painter']))
-    await supabase.from('users').update({ role: 'painter', roles: newRoles }).eq('id', user.id)
-
+    // addRole updates both DB and in-memory roles array, enabling switchRole below
+    await addRole('painter')
     switchRole('painter')
     navigate('/portal/pintor', { replace: true })
   }
