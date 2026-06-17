@@ -95,6 +95,23 @@ Deno.serve(async (req: Request) => {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'session_id' }).then(() => {}).catch(console.error)
 
+    // Verifica se o email já está cadastrado na plataforma
+    if (action === 'check_email') {
+      const emailAddr = (body as Record<string, string>).email
+      if (!emailAddr) {
+        return new Response(JSON.stringify({ exists: false }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id, name, auth_user_id')
+        .eq('email', emailAddr)
+        .maybeSingle()
+      return new Response(
+        JSON.stringify({ exists: !!existing, name: existing?.name ?? null, has_account: !!existing?.auth_user_id }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     // Generate a natural, conversational question or validation feedback
     if (action === 'generate_question' && collected) {
       const { field, context } = collected as { field: string; context: Record<string, unknown> }

@@ -427,6 +427,25 @@ export function useChat() {
     setLoading(true)
     await delay(400)
     setLoading(false)
+
+    // Verifica se o email já está cadastrado e informa o usuário
+    if (step.field_key === 'email' && fieldValue) {
+      try {
+        const { data: userCheck } = await supabase.functions.invoke('agent-chat', {
+          body: { session_id: sessionId.current, message: '', history: [], action: 'check_email', email: fieldValue },
+        })
+        if (userCheck?.exists) {
+          const firstName = ((userCheck.name as string) || newData.name || '').split(' ')[0]
+          agentMessage(
+            userCheck.has_account
+              ? `Reconheci seu e-mail${firstName ? `, ${firstName}` : ''}! 😊 Você já tem uma conta na Pintai — ao final, é só fazer login para acompanhar as propostas diretamente.`
+              : `Ótimo! Encontrei um cadastro com este e-mail. 😊`
+          )
+          await delay(500)
+        }
+      } catch { /* silencioso — fluxo continua normalmente */ }
+    }
+
     await advanceToState(nextKey, newData, { fromStep: step, fromValue: rawText })
   }
 

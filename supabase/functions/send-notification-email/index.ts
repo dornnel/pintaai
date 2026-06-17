@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
 
   <div style="padding:28px 32px">
     <h2 style="color:#111;font-size:18px;margin:0 0 8px">Solicitação recebida! ✅</h2>
-    <p style="color:#555;font-size:15px;margin:0 0 20px">Olá, <strong>${name}</strong>! Recebemos sua solicitação e em breve você receberá propostas de pintores qualificados próximos a ${neighborhood}.</p>
+    <p style="color:#555;font-size:15px;margin:0 0 20px">Olá, <strong>${name}</strong>! Recebemos sua solicitação. Quando um pintor enviar uma proposta para você, avisaremos <strong>neste e-mail</strong>.</p>
 
     <div style="background:#fff8f5;border:1px solid #fdd;border-radius:10px;padding:16px 20px;margin-bottom:20px">
       <p style="color:#E35A1A;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 8px">Protocolo</p>
@@ -128,12 +128,16 @@ Deno.serve(async (req: Request) => {
     ${priceHtml}
 
     <div style="margin:24px 0;padding:16px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0">
-      <p style="color:#166534;font-size:14px;margin:0">⏱ Em até <strong>4 horas</strong> você receberá propostas de pintores. Fique atento ao WhatsApp!</p>
+      <p style="color:#166534;font-size:14px;margin:0">📧 Você receberá um e-mail neste endereço assim que um pintor enviar uma proposta para você avaliar.</p>
     </div>
 
-    <a href="${APP_URL}/minha-area" style="display:block;text-align:center;margin:0 0 24px;padding:14px 20px;background:#E35A1A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px">
+    <a href="${APP_URL}/minha-area?protocolo=${protocol}" style="display:block;text-align:center;margin:0 0 12px;padding:14px 20px;background:#E35A1A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;font-size:15px">
       Acompanhar pedido →
     </a>
+
+    <p style="text-align:center;color:#888;font-size:13px;margin:0 0 24px">
+      Ainda não tem conta? <a href="${APP_URL}/cadastro" style="color:#E35A1A;font-weight:600;text-decoration:none">Cadastre-se grátis</a> para responder às propostas dos pintores.
+    </p>
 
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
 
