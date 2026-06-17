@@ -70,7 +70,7 @@ const NAV_ITEMS = [
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export function PainterLayout() {
-  const { user, signOut, switchRole } = useAuth()
+  const { user, signOut, switchRole, addRole } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
 
@@ -151,6 +151,15 @@ export function PainterLayout() {
   }
 
   const close = () => setOpen(false)
+
+  async function goToCustomerPortal() {
+    close()
+    if (!user?.roles.includes('customer')) {
+      await addRole('customer')
+    }
+    switchRole('customer')
+    navigate('/minha-area')
+  }
 
   async function handleSignOut() {
     close()
@@ -260,12 +269,12 @@ export function PainterLayout() {
 
           {/* Footer */}
           <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
-            {user?.roles?.includes('customer') && (
-              <button onClick={() => { close(); switchRole('customer'); navigate('/minha-area') }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand hover:bg-orange-50 cursor-pointer transition-colors">
-                <UserCircle className="w-4 h-4 shrink-0" /> Minha Área
-              </button>
-            )}
+            <button onClick={goToCustomerPortal}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand hover:bg-orange-50 cursor-pointer transition-colors">
+              <UserCircle className="w-4 h-4 shrink-0" />
+              <span className="flex-1 text-left">Minha Área</span>
+              <span className="text-[10px] text-gray-400">cliente</span>
+            </button>
             <button onClick={() => { close(); navigate('/') }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors">
               <Home className="w-4 h-4 shrink-0" /> Voltar ao site

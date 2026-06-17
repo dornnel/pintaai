@@ -40,6 +40,7 @@ function PainterModal({ painter, onClose, onSaved }: {
     name: painter?.user?.name || '',
     phone: painter?.user?.phone || '',
     email: painter?.user?.email || '',
+    cpf: '',
     bio: painter?.bio || '',
     years_experience: painter?.years_experience || 1,
     specialties: painter?.specialties || [] as string[],
@@ -50,6 +51,13 @@ function PainterModal({ painter, onClose, onSaved }: {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  function formatCpf(value: string) {
+    const d = value.replace(/\D/g, '').slice(0, 11)
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+      .replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+      .replace(/(\d{3})(\d{1,3})/, '$1.$2')
+  }
 
   function toggleSpecialty(s: string) {
     setForm(f => ({
@@ -63,26 +71,42 @@ function PainterModal({ painter, onClose, onSaved }: {
     setSaving(true); setError('')
     try {
       if (isEdit && painter?.id) {
-        // Update existing
-        const { data: user } = await supabase.from('users').update({ name: form.name, phone: form.phone, email: form.email }).eq('id', (painter as unknown as { user_id: string }).user_id || '').select('id').single()
-        if (user) {
-          await supabase.from('painters').update({
-            bio: form.bio, years_experience: form.years_experience, specialties: form.specialties,
-            availability_status: form.availability_status, verification_status: form.verification_status, kyc_status: form.kyc_status,
-            service_radius_km: form.service_radius_km,
-          }).eq('id', painter.id)
-        }
+        const userId = (painter as unknown as { user_id: string }).user_id
+        const cpfUpdate = form.cpf ? { cpf: form.cpf } : {}
+        await supabase.from('users').update({ name: form.name, phone: form.phone, email: form.email, ...cpfUpdate }).eq('id', userId)
+        await supabase.from('painters').update({
+          bio: form.bio, years_experience: form.years_experience, specialties: form.specialties,
+          availability_status: form.availability_status, verification_status: form.verification_status, kyc_status: form.kyc_status,
+          service_radius_km: form.service_radius_km,
+        }).eq('id', painter.id)
       } else {
-        // Create new user + painter
-        const { data: newUser, error: userErr } = await supabase.from('users').insert({
-          role: 'painter', name: form.name, phone: form.phone.replace(/\D/g, '') ? `+55${form.phone.replace(/\D/g, '')}` : form.phone,
-          email: form.email || null, status: 'active', registration_source: 'admin',
-        }).select('id').single()
-
-        if (userErr) { setError(userErr.message); setSaving(false); return }
-
+        // Check if a user with this email already exists (prevent duplicates)
+        let userId: string | null = null
+        if (form.email) {
+          const { data: existing } = await supabase.from('users').select('id, role, roles')
+            .eq('email', form.email).limit(1).maybeSingle()
+          if (existing) {
+            // Link to existing user — upgrade role to painter if needed
+            const newRoles = Array.from(new Set([...(existing.roles ?? [existing.role]), 'painter']))
+            const cpfUpdate = form.cpf ? { cpf: form.cpf } : {}
+            await supabase.from('users').update({ role: 'painter', roles: newRoles, name: form.name, phone: form.phone, ...cpfUpdate }).eq('id', existing.id)
+            userId = existing.id
+          }
+        }
+        if (!userId) {
+          const cpfInsert = form.cpf ? { cpf: form.cpf } : {}
+          const { data: newUser, error: userErr } = await supabase.from('users').insert({
+            role: 'painter', roles: ['painter'],
+            name: form.name,
+            phone: form.phone.replace(/\D/g, '') ? `+55${form.phone.replace(/\D/g, '')}` : form.phone,
+            email: form.email || null, status: 'active', registration_source: 'admin',
+            ...cpfInsert,
+          }).select('id').single()
+          if (userErr) { setError(userErr.message); setSaving(false); return }
+          userId = newUser!.id
+        }
         await supabase.from('painters').insert({
-          user_id: newUser!.id, bio: form.bio, years_experience: form.years_experience,
+          user_id: userId, bio: form.bio, years_experience: form.years_experience,
           specialties: form.specialties, availability_status: form.availability_status,
           verification_status: form.verification_status, kyc_status: form.kyc_status,
           service_radius_km: form.service_radius_km,
@@ -113,32 +137,37 @@ function PainterModal({ painter, onClose, onSaved }: {
             <div className="col-span-2">
               <label className="text-xs font-medium text-gray-600 mb-1 block">Nome completo *</label>
               <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Celular (com DDD) *</label>
               <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="(48) 9 9999-9999"
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">E-mail</label>
               <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">CPF</label>
+              <input type="text" value={form.cpf} onChange={e => setForm({...form, cpf: formatCpf(e.target.value)})} placeholder="000.000.000-00"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Anos de experiência</label>
               <input type="number" min={0} max={50} value={form.years_experience} onChange={e => setForm({...form, years_experience: Number(e.target.value)})}
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Raio de atendimento (km)</label>
               <input type="number" min={1} max={100} value={form.service_radius_km} onChange={e => setForm({...form, service_radius_km: Number(e.target.value)})}
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Disponibilidade</label>
               <select value={form.availability_status} onChange={e => setForm({...form, availability_status: e.target.value})}
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
                 <option value="available">Disponível</option>
                 <option value="busy">Ocupado</option>
                 <option value="paused">Pausado</option>
@@ -169,7 +198,7 @@ function PainterModal({ painter, onClose, onSaved }: {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Status de verificação</label>
               <select value={form.verification_status} onChange={e => setForm({...form, verification_status: e.target.value})}
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
                 <option value="unverified">Não verificado</option>
                 <option value="pending">Pendente</option>
                 <option value="verified">Verificado</option>
@@ -178,7 +207,7 @@ function PainterModal({ painter, onClose, onSaved }: {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Status KYC</label>
               <select value={form.kyc_status} onChange={e => setForm({...form, kyc_status: e.target.value})}
-                className="w-full border border-gray-200 rounded px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand bg-white">
                 <option value="not_started">Não iniciado</option>
                 <option value="submitted">Enviado</option>
                 <option value="under_review">Em análise</option>
@@ -188,12 +217,12 @@ function PainterModal({ painter, onClose, onSaved }: {
             </div>
           </div>
 
-          {error && <p className="text-xs text-red-500 bg-red-50 rounded p-2">{error}</p>}
+          {error && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</p>}
 
           <div className="flex gap-2 pt-2">
-            <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded text-sm text-gray-600 cursor-pointer">Cancelar</button>
+            <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 cursor-pointer hover:bg-gray-50 transition-colors">Cancelar</button>
             <button onClick={save} disabled={saving}
-              className="flex-1 py-2.5 bg-brand text-white rounded text-sm font-semibold cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2">
+              className="flex-1 py-2.5 bg-brand text-white rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-orange-700 transition-colors">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEdit ? 'Salvar alterações' : 'Cadastrar pintor'}
             </button>

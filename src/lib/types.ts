@@ -10,6 +10,7 @@ export interface User {
   name: string
   phone: string
   email?: string
+  cpf?: string
   auth_user_id?: string
   status: UserStatus
   created_at: string

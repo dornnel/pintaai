@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
-import { Pencil, CheckCircle, Loader2, MapPin } from 'lucide-react'
+import { Pencil, CheckCircle, Loader2, MapPin, FileText } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { usePainterContext } from './PainterLayout'
+import { useAuth } from '../../lib/auth'
 import { cn } from '../../lib/utils'
 import { PainterAreaMap } from '../../components/PainterAreaMap'
 import type { Neighborhood } from '../../lib/types'
@@ -12,8 +13,16 @@ const SPECIALTY_OPTIONS = [
   'Mural', 'Textura', 'Grafiato', 'Stencil', 'Epóxi',
 ]
 
+function formatCpf(value: string) {
+  const d = value.replace(/\D/g, '').slice(0, 11)
+  return d.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+    .replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+    .replace(/(\d{3})(\d{1,3})/, '$1.$2')
+}
+
 export function PainterPerfil() {
   const { painter, loading, reload, saveAvailability } = usePainterContext()
+  const { user, updateProfile } = useAuth()
 
   const [bio, setBio] = useState(painter?.bio || '')
   const [years, setYears] = useState(String(painter?.years_experience || 0))
@@ -21,6 +30,7 @@ export function PainterPerfil() {
   const [availability, setAvailability] = useState(painter?.availability_status || 'available')
   const [basePrice, setBasePrice] = useState(String(painter?.base_price_m2 || ''))
   const [radiusKm, setRadiusKm] = useState(String(painter?.service_radius_km ?? 10))
+  const [cpf, setCpf] = useState(user?.cpf || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([])
@@ -50,6 +60,11 @@ export function PainterPerfil() {
       base_price_m2: parseFloat(basePrice) || null,
       service_radius_km: parseFloat(radiusKm) || 10,
     }).eq('id', painter.id)
+    // Save CPF to user profile if provided
+    const cleanCpf = cpf.replace(/\D/g, '')
+    if (cleanCpf.length === 11 && cpf !== (user?.cpf || '')) {
+      await updateProfile({ cpf })
+    }
     // Sync availability through context (keeps sidebar toggle in sync)
     if (availability !== painter.availability_status) {
       await saveAvailability(availability as 'available' | 'busy' | 'paused')
@@ -115,6 +130,13 @@ export function PainterPerfil() {
                 <input type="number" value={basePrice} onChange={e => setBasePrice(e.target.value)} step="0.5"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" placeholder="25" />
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 flex items-center gap-1">
+                <FileText className="w-3 h-3" /> CPF <span className="text-gray-400 font-normal">(para emissão de nota e PIX)</span>
+              </label>
+              <input type="text" value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
             </div>
           </div>
 

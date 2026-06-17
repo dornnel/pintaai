@@ -13,6 +13,7 @@ interface AuthUser {
   activeRole: DBUser['role']
   name: string
   phone?: string
+  cpf?: string
   status: DBUser['status']
   isSuperAdmin: boolean
 }
@@ -24,12 +25,13 @@ interface AuthContextType {
   signOut: () => Promise<void>
   completeOnboarding: (role: DBUser['role']) => Promise<void>
   switchRole: (role: DBUser['role']) => void
-  updateProfile: (updates: { name?: string; phone?: string }) => Promise<void>
+  addRole: (role: DBUser['role']) => Promise<void>
+  updateProfile: (updates: { name?: string; phone?: string; cpf?: string }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null, loading: true, needsOnboarding: false,
-  signOut: async () => {}, completeOnboarding: async () => {}, switchRole: () => {}, updateProfile: async () => {},
+  signOut: async () => {}, completeOnboarding: async () => {}, switchRole: () => {}, addRole: async () => {}, updateProfile: async () => {},
 })
 
 const ADMIN_EMAILS = [SUPERADMIN_EMAIL, 'admin@pintae.com.br', 'admin@pintai.com.br']
@@ -62,13 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(authUser: { id: string; email?: string }) {
     const { data } = await supabase
       .from('users')
-      .select('id, role, roles, name, phone, status, email')
+      .select('id, role, roles, name, phone, cpf, status, email')
       .eq('auth_user_id', authUser.id)
       .single()
 
     if (data) {
       const roles = data.roles?.length ? data.roles : [data.role]
-      setUser({ id: data.id, role: data.role, roles, activeRole: resolveActiveRole(roles, data.role), name: data.name, phone: data.phone, status: data.status, email: data.email, isSuperAdmin: data.email === SUPERADMIN_EMAIL })
+      setUser({ id: data.id, role: data.role, roles, activeRole: resolveActiveRole(roles, data.role), name: data.name, phone: data.phone, cpf: data.cpf ?? undefined, status: data.status, email: data.email, isSuperAdmin: data.email === SUPERADMIN_EMAIL })
       setLoading(false)
       setNeedsOnboarding(false)
       return
@@ -80,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Use limit(1) + order to handle duplicate emails gracefully (most recent active wins)
     const { data: byEmailRows } = await supabase
       .from('users')
-      .select('id, role, roles, name, phone, status, email')
+      .select('id, role, roles, name, phone, cpf, status, email')
       .eq('email', email)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -90,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (byEmail) {
       await supabase.from('users').update({ auth_user_id: authUser.id, status: 'active' }).eq('id', byEmail.id)
       const roles = byEmail.roles?.length ? byEmail.roles : [byEmail.role]
-      setUser({ id: byEmail.id, role: byEmail.role, roles, activeRole: resolveActiveRole(roles, byEmail.role), name: byEmail.name, phone: byEmail.phone, status: 'active', email: byEmail.email, isSuperAdmin: byEmail.email === SUPERADMIN_EMAIL })
+      setUser({ id: byEmail.id, role: byEmail.role, roles, activeRole: resolveActiveRole(roles, byEmail.role), name: byEmail.name, phone: byEmail.phone, cpf: byEmail.cpf ?? undefined, status: 'active', email: byEmail.email, isSuperAdmin: byEmail.email === SUPERADMIN_EMAIL })
       setLoading(false)
       setNeedsOnboarding(false)
       return
@@ -144,7 +146,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => prev ? { ...prev, activeRole: role } : null)
   }
 
-  async function updateProfile(updates: { name?: string; phone?: string }) {
+  async function addRole(role: DBUser['role']) {
+    if (!user || user.roles.includes(role)) return
+    const newRoles = [...user.roles, role]
+    await supabase.from('users').update({ roles: newRoles }).eq('id', user.id)
+    setUser(prev => prev ? { ...prev, roles: newRoles } : null)
+  }
+
+  async function updateProfile(updates: { name?: string; phone?: string; cpf?: string }) {
     if (!user) return
     await supabase.from('users').update(updates).eq('id', user.id)
     setUser(prev => prev ? { ...prev, ...updates } : null)
@@ -158,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, needsOnboarding, signOut, completeOnboarding, switchRole, updateProfile }}>
+    <AuthContext.Provider value={{ user, loading, needsOnboarding, signOut, completeOnboarding, switchRole, addRole, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )

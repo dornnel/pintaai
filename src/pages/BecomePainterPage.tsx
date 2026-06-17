@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { Paintbrush, Loader2, CheckCircle } from 'lucide-react'
+import { Paintbrush, Loader2, CheckCircle, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { cn } from '../lib/utils'
@@ -11,18 +11,20 @@ const SPECIALTIES_OPTIONS = ['Pintura interna', 'Fachada', 'Textura / massa corr
 interface NeighborhoodOption { id: string; name: string }
 
 export function BecomePainterPage() {
-  const { user, loading: authLoading, switchRole } = useAuth()
+  const { user, loading: authLoading, switchRole, updateProfile } = useAuth()
   const navigate = useNavigate()
 
   const [neighborhoods, setNeighborhoods] = useState<NeighborhoodOption[]>([])
   const [bio, setBio] = useState('')
+  const [cpf, setCpf] = useState('')
   const [yearsExperience, setYearsExperience] = useState(1)
   const [specialties, setSpecialties] = useState<string[]>([])
   const [neighborhoodIds, setNeighborhoodIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const isPainter = !!user?.roles?.includes('painter')
+  // Check for an actual painter RECORD (not just role) to avoid infinite redirect
+  const [hasPainterRecord, setHasPainterRecord] = useState<boolean | null>(null)
 
   useEffect(() => {
     supabase.from('neighborhoods').select('id, name').eq('active', true).order('name')
@@ -30,10 +32,16 @@ export function BecomePainterPage() {
   }, [])
 
   useEffect(() => {
-    if (!authLoading && user && isPainter) {
+    if (!user) return
+    supabase.from('painters').select('id').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setHasPainterRecord(!!data))
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!authLoading && user && hasPainterRecord === true) {
       navigate('/portal/pintor', { replace: true })
     }
-  }, [authLoading, user, isPainter, navigate])
+  }, [authLoading, user, hasPainterRecord, navigate])
 
   function toggleSpecialty(s: string) {
     setSpecialties(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
@@ -41,6 +49,13 @@ export function BecomePainterPage() {
 
   function toggleNeighborhood(id: string) {
     setNeighborhoodIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function formatCpf(value: string) {
+    const digits = value.replace(/\D/g, '').slice(0, 11)
+    return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+      .replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+      .replace(/(\d{3})(\d{1,3})/, '$1.$2')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -52,6 +67,12 @@ export function BecomePainterPage() {
     }
     setSaving(true)
     setError('')
+
+    // Save CPF to user profile if provided
+    const cleanCpf = cpf.replace(/\D/g, '')
+    if (cleanCpf.length === 11) {
+      await updateProfile({ cpf: cpf.trim() })
+    }
 
     const { error: insertErr } = await supabase.from('painters').insert({
       user_id: user.id,
@@ -76,7 +97,7 @@ export function BecomePainterPage() {
     navigate('/portal/pintor', { replace: true })
   }
 
-  if (authLoading) {
+  if (authLoading || hasPainterRecord === null && !!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-6 h-6 text-brand animate-spin" />
@@ -84,13 +105,11 @@ export function BecomePainterPage() {
     )
   }
 
-  // Deslogado → tela de cadastro com perfil pintor pré-selecionado
   if (!user) {
     return <Navigate to="/login?role=painter&tab=register" replace />
   }
 
-  // Já é pintor → redireciona (efeito acima cuida disso, mas evita flash)
-  if (isPainter) return null
+  if (hasPainterRecord) return null
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16">
@@ -114,11 +133,22 @@ export function BecomePainterPage() {
                 className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50 resize-none" />
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1.5 block">Anos de experiência</label>
-              <input type="number" min={0} max={50} value={yearsExperience}
-                onChange={e => setYearsExperience(Number(e.target.value))}
-                className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Anos de experiência</label>
+                <input type="number" min={0} max={50} value={yearsExperience}
+                  onChange={e => setYearsExperience(Number(e.target.value))}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 flex items-center gap-1">
+                  <FileText className="w-3 h-3" /> CPF <span className="text-gray-400">(opcional)</span>
+                </label>
+                <input type="text" value={cpf}
+                  onChange={e => setCpf(formatCpf(e.target.value))}
+                  placeholder="000.000.000-00"
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50" />
+              </div>
             </div>
 
             <div>
@@ -150,7 +180,7 @@ export function BecomePainterPage() {
             {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
             <motion.button type="submit" disabled={saving} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="w-full py-3 bg-brand text-white font-semibold rounded-xl hover:bg-brand-dark transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+              className="w-full py-3 bg-brand text-white font-semibold rounded-xl hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
               Concluir cadastro de pintor
             </motion.button>
