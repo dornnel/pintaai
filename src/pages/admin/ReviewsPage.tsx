@@ -18,6 +18,8 @@ interface Review {
   created_at: string
   provider_id: string
   customer_id?: string
+  direction?: string
+  reviewer_id?: string
   painter?: { user?: { name?: string } }
 }
 
@@ -48,16 +50,26 @@ function StarRow({ value, label }: { value?: number; label: string }) {
 
 export function ReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([])
+  const [painterReviews, setPainterReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'low' | 'negative'>('all')
+  const [tab, setTab] = useState<'customer_to_painter' | 'painter_to_customer'>('customer_to_painter')
 
   useEffect(() => { loadReviews() }, [])
 
   async function loadReviews() {
-    const { data } = await supabase.from('reviews')
-      .select('*, painter:painters!reviews_provider_id_fkey(user:users!painters_user_id_fkey(name))')
-      .order('created_at', { ascending: false })
-    setReviews((data as unknown as Review[]) || [])
+    const [resAll, resPainter] = await Promise.all([
+      supabase.from('reviews')
+        .select('*, painter:painters!reviews_provider_id_fkey(user:users!painters_user_id_fkey(name))')
+        .or('direction.is.null,direction.eq.customer_to_painter')
+        .order('created_at', { ascending: false }),
+      supabase.from('reviews')
+        .select('*')
+        .eq('direction', 'painter_to_customer')
+        .order('created_at', { ascending: false }),
+    ])
+    setReviews((resAll.data as unknown as Review[]) || [])
+    setPainterReviews((resPainter.data as unknown as Review[]) || [])
     setLoading(false)
   }
 
@@ -71,8 +83,9 @@ export function ReviewsPage() {
     setReviews(prev => prev.filter(r => r.id !== id))
   }
 
-  const avgRating = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating_overall, 0) / reviews.length : 0
-  const filtered = reviews.filter(r => {
+  const activeReviews = tab === 'customer_to_painter' ? reviews : painterReviews
+  const avgRating = activeReviews.length > 0 ? activeReviews.reduce((s, r) => s + r.rating_overall, 0) / activeReviews.length : 0
+  const filtered = activeReviews.filter(r => {
     if (filter === 'low') return r.rating_overall < 3
     if (filter === 'negative') return r.sentiment_label === 'negative'
     return true
@@ -80,15 +93,30 @@ export function ReviewsPage() {
 
   // Rating distribution
   const dist = [5,4,3,2,1].map(n => ({
-    n, count: reviews.filter(r => r.rating_overall === n).length,
-    pct: reviews.length > 0 ? (reviews.filter(r => r.rating_overall === n).length / reviews.length) * 100 : 0
+    n, count: activeReviews.filter(r => r.rating_overall === n).length,
+    pct: activeReviews.length > 0 ? (activeReviews.filter(r => r.rating_overall === n).length / activeReviews.length) * 100 : 0
   }))
 
   return (
     <div className="p-6">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">Avaliações</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{reviews.length} avaliações · Média: {avgRating.toFixed(1)} ★</p>
+        <p className="text-sm text-gray-500 mt-0.5">{activeReviews.length} avaliações · Média: {avgRating.toFixed(1)} ★</p>
+      </div>
+
+      {/* Direction tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-5 w-fit">
+        {([
+          { id: 'customer_to_painter', label: `Clientes → Pintores (${reviews.length})` },
+          { id: 'painter_to_customer', label: `Pintores → Clientes (${painterReviews.length})` },
+        ] as const).map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+              tab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Distribution + filters */}

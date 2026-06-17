@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Plus, ArrowRight, Paintbrush, ChevronDown, ChevronUp,
   MapPin, CheckCircle, Clock, MessageSquare, User, Phone,
+  Paintbrush2, FileText, Star,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
@@ -261,7 +262,8 @@ function LeadCard({ lead, onSelectProposal }: { lead: Lead; onSelectProposal: (l
 }
 
 export function CustomerArea() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, switchRole } = useAuth()
+  const navigate = useNavigate()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -321,9 +323,47 @@ export function CustomerArea() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+
+        {/* Painter banner — shown when user also has painter role */}
+        {user?.roles?.includes('painter') && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-brand to-orange-500 rounded-2xl p-4 flex items-center justify-between mb-6 gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <Paintbrush2 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-white text-sm">Você é pintor cadastrado</p>
+                <p className="text-white/75 text-xs">Acesse o portal completo do pintor</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { switchRole('painter'); navigate('/portal/pintor') }}
+              className="bg-white text-brand text-sm font-semibold px-4 py-2 rounded-xl shrink-0 hover:bg-orange-50 transition-colors cursor-pointer">
+              Ir para meu portal →
+            </button>
+          </motion.div>
+        )}
+
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Olá, {user?.name?.split(' ')[0]}!</h1>
           <p className="text-gray-500 text-sm mt-1">Acompanhe seus pedidos e as propostas dos pintores.</p>
+        </motion.div>
+
+        {/* Stats cards */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { icon: FileText, label: 'Pedidos', value: leads.length, color: 'text-blue-500' },
+            { icon: MessageSquare, label: 'Propostas', value: leads.reduce((acc, l) => acc + l.lead_painter_interactions.filter(i => i.status === 'proposal_sent' || i.status === 'accepted').length, 0), color: 'text-brand' },
+            { icon: Star, label: 'Contratados', value: leads.reduce((acc, l) => acc + l.lead_painter_interactions.filter(i => i.status === 'accepted').length, 0), color: 'text-green-500' },
+          ].map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
+              <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
+              <p className="text-xl font-bold text-gray-900">{loading ? '—' : value}</p>
+              <p className="text-xs text-gray-400 leading-tight">{label}</p>
+            </div>
+          ))}
         </motion.div>
 
         {/* New request CTA */}

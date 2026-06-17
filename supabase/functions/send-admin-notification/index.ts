@@ -7,8 +7,10 @@ const supabase = createClient(
   { db: { schema: 'pintae' } },
 )
 
+const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || ''
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const FROM_EMAIL = 'Pintai <noreply@pintai.com.br>'
+const FROM_NAME = 'Pintai Floripa'
+const FROM_EMAIL = 'noreply@agenscia.com'
 
 async function getAdminEmail(): Promise<string> {
   const { data } = await supabase
@@ -20,12 +22,31 @@ async function getAdminEmail(): Promise<string> {
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
-  if (!RESEND_API_KEY) { console.warn('RESEND_API_KEY not set'); return }
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-  })
+  if (BREVO_API_KEY) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: { name: FROM_NAME, email: FROM_EMAIL },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        }),
+      })
+      if (res.ok) return
+      console.error('Brevo error:', await res.text())
+    } catch (e) { console.error('Brevo failed:', e) }
+  }
+  if (RESEND_API_KEY) {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to, subject, html }),
+    })
+    return
+  }
+  console.warn('No email provider configured (set BREVO_API_KEY or RESEND_API_KEY)')
 }
 
 const EVENTS: Record<string, { subject: (d: Record<string, string>) => string; html: (d: Record<string, string>) => string }> = {

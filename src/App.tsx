@@ -6,8 +6,19 @@ import { LandingPage } from './pages/LandingPage'
 import { ChatPage } from './pages/ChatPage'
 import { LoginPage } from './pages/LoginPage'
 import { MarketplacePage } from './pages/MarketplacePage'
-import { CustomerArea } from './pages/customer/CustomerArea'
-import { PainterPortal } from './pages/painter/PainterPortal'
+import { CustomerLayout } from './pages/customer/CustomerLayout'
+import { CustomerDashboard } from './pages/customer/CustomerDashboard'
+import { CustomerPedidos } from './pages/customer/CustomerPedidos'
+import { CustomerAvaliacoes } from './pages/customer/CustomerAvaliacoes'
+import { CustomerPerfil } from './pages/customer/CustomerPerfil'
+import { PainterLayout } from './pages/painter/PainterLayout'
+import { PainterDashboard } from './pages/painter/PainterDashboard'
+import { PainterSolicitacoes } from './pages/painter/PainterSolicitacoes'
+import { PainterPropostas } from './pages/painter/PainterPropostas'
+import { PainterAvaliacoes } from './pages/painter/PainterAvaliacoes'
+import { PainterPerfil } from './pages/painter/PainterPerfil'
+import { PainterSubscriptionPage } from './pages/painter/PainterSubscriptionPage'
+import { PainterToolsPage } from './pages/painter/PainterToolsPage'
 import { LeadView } from './pages/painter/LeadView'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { DashboardPage } from './pages/admin/DashboardPage'
@@ -36,6 +47,7 @@ import { SubscriptionsPage } from './pages/admin/SubscriptionsPage'
 import { AdsPage } from './pages/admin/AdsPage'
 import { AuditLogPage } from './pages/admin/AuditLogPage'
 import { LeadDetailPage } from './pages/admin/LeadDetailPage'
+import { AICentralPage } from './pages/admin/AICentralPage'
 import { TermsPage } from './pages/TermsPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { PaintCalculatorPage } from './pages/PaintCalculatorPage'
@@ -117,24 +129,33 @@ function AppRoutes() {
       <Route path="/calculadora" element={<PaintCalculatorPage />} />
       <Route path="/pintores" element={<PaintersDirectoryPage />} />
 
-      {/* Customer */}
+      {/* Customer — nested under CustomerLayout sidebar */}
       <Route path="/minha-area" element={
-        <RequireAuth roles={['customer']}>
-          <CustomerArea />
+        <RequireAuth roles={['customer', 'admin']}>
+          <CustomerLayout />
         </RequireAuth>
-      } />
+      }>
+        <Route index element={<CustomerDashboard />} />
+        <Route path="pedidos" element={<CustomerPedidos />} />
+        <Route path="avaliacoes" element={<CustomerAvaliacoes />} />
+        <Route path="perfil" element={<CustomerPerfil />} />
+      </Route>
 
-      {/* Painter */}
+      {/* Painter — nested under PainterLayout sidebar */}
       <Route path="/portal/pintor" element={
-        <RequireAuth roles={['painter']}>
-          <PainterPortal />
+        <RequireAuth roles={['painter', 'admin']}>
+          <PainterLayout />
         </RequireAuth>
-      } />
-      <Route path="/portal/pintor/solicitacao/:interactionId" element={
-        <RequireAuth roles={['painter']}>
-          <LeadView />
-        </RequireAuth>
-      } />
+      }>
+        <Route index element={<PainterDashboard />} />
+        <Route path="solicitacoes" element={<PainterSolicitacoes />} />
+        <Route path="propostas" element={<PainterPropostas />} />
+        <Route path="avaliacoes" element={<PainterAvaliacoes />} />
+        <Route path="perfil" element={<PainterPerfil />} />
+        <Route path="ferramentas" element={<PainterToolsPage />} />
+        <Route path="assinatura" element={<PainterSubscriptionPage />} />
+        <Route path="solicitacao/:interactionId" element={<LeadView />} />
+      </Route>
 
       {/* Admin / Superadmin */}
       <Route path="/admin" element={
@@ -162,6 +183,7 @@ function AppRoutes() {
         <Route path="subscriptions" element={<SubscriptionsPage />} />
         <Route path="ads" element={<AdsPage />} />
         {/* Super Admin only routes */}
+        <Route path="ia" element={<RequireSuperAdmin><AICentralPage /></RequireSuperAdmin>} />
         <Route path="agent" element={<RequireSuperAdmin><AgentConfigPage /></RequireSuperAdmin>} />
         <Route path="ai" element={<RequireSuperAdmin><AdminAgentChat /></RequireSuperAdmin>} />
         <Route path="permissions" element={<RequireSuperAdmin><PermissionsPage /></RequireSuperAdmin>} />

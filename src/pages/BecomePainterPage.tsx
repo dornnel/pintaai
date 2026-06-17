@@ -70,7 +70,7 @@ export function BecomePainterPage() {
     }
 
     const newRoles = Array.from(new Set([...(user.roles || []), 'painter']))
-    await supabase.from('users').update({ roles: newRoles }).eq('id', user.id)
+    await supabase.from('users').update({ role: 'painter', roles: newRoles }).eq('id', user.id)
 
     switchRole('painter')
     navigate('/portal/pintor', { replace: true })

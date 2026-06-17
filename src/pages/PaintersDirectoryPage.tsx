@@ -146,7 +146,7 @@ export function PaintersDirectoryPage() {
         user:users!painters_user_id_fkey(name, email),
         score:painter_scores(overall_score, quality_score, punctuality_score, completed_jobs_count, reviews_count)
       `)
-      .eq('availability_status', 'available')
+      .neq('availability_status', 'paused')
       .order('created_at', { ascending: false })
 
     let results = (data || []) as unknown as PainterListing[]

@@ -539,7 +539,7 @@ export function UsersPage() {
                     <select value={user.role}
                       onChange={async e => {
                         const role = e.target.value
-                        await supabase.from('users').update({ role }).eq('id', user.id)
+                        await supabase.from('users').update({ role, roles: [role] }).eq('id', user.id)
                         if (role === 'painter') {
                           const { data: existing } = await supabase.from('painters').select('id').eq('user_id', user.id).maybeSingle()
                           if (!existing) {

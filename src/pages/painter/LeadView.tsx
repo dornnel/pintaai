@@ -1,13 +1,15 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   ArrowLeft, MapPin, Home, Calendar, Package2, Ruler,
   ChevronDown, ChevronUp, Send, CheckCircle, Loader2,
-  Pencil, Image as ImageIcon, Zap, Star,
+  Pencil, Image as ImageIcon, Zap, Star, FileDown, Eye, History, Info,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCurrency } from '../../lib/utils'
+import { useAuth } from '../../lib/auth'
+import { BudgetBreakdownModal } from '../../components/BudgetBreakdownModal'
 
 interface Lead {
   id: string
@@ -23,6 +25,7 @@ interface Lead {
   calc_price_min: number | null
   calc_price_max: number | null
   calc_confidence: string | null
+  calc_explanation: string | null
   media_urls: string[]
   final_notes: string | null
   ai_briefing: string | null
@@ -34,7 +37,7 @@ interface Interaction {
   lead_id: string
   painter_id: string
   status: string
-  metadata: { quote?: SavedQuote; painter_notes?: string }
+  metadata: InteractionMetadata
   notified_at: string | null
   proposal_sent_at: string | null
   lead: Lead
@@ -47,6 +50,14 @@ interface SavedQuote {
   validity_days: number
   payment_terms: string
   notes: string
+  submitted_at?: string
+  archived_at?: string
+}
+
+interface InteractionMetadata {
+  quote?: SavedQuote
+  painter_notes?: string
+  quote_history?: SavedQuote[]
 }
 
 interface ProposalForm {
@@ -67,11 +78,16 @@ const CONFIDENCE_CFG: Record<string, { color: string; text: string }> = {
 export function LeadView() {
   const { interactionId } = useParams<{ interactionId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.roles?.includes('admin') || user?.role === 'admin'
 
   const [interaction, setInteraction] = useState<Interaction | null>(null)
   const [loading, setLoading] = useState(true)
   const [briefingOpen, setBriefingOpen] = useState(false)
   const [mediaOpen, setMediaOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [showBudgetModal, setShowBudgetModal] = useState(false)
+  const [feedbackToast, setFeedbackToast] = useState<string | null>(null)
 
   const [painterNotes, setPainterNotes] = useState('')
   const [notesSaving, setNotesSaving] = useState(false)
@@ -146,7 +162,7 @@ export function LeadView() {
     e.preventDefault()
     if (!interactionId || !interaction) return
     setSubmitting(true)
-    const quote = {
+    const quote: SavedQuote = {
       total_price: parseFloat(form.total_price),
       includes_material: form.includes_material,
       duration_days: parseInt(form.duration_days),
@@ -155,11 +171,34 @@ export function LeadView() {
       notes: form.notes,
       submitted_at: new Date().toISOString(),
     }
+    const prevQuote = interaction.metadata?.quote
+    const prevHistory = interaction.metadata?.quote_history || []
+    const quote_history = prevQuote
+      ? [...prevHistory, { ...prevQuote, archived_at: new Date().toISOString() }]
+      : prevHistory
     await supabase.from('lead_painter_interactions').update({
       status: 'proposal_sent',
       proposal_sent_at: new Date().toISOString(),
-      metadata: { ...interaction.metadata, quote } as Record<string, unknown>,
+      metadata: { ...interaction.metadata, quote, quote_history } as Record<string, unknown>,
     }).eq('id', interactionId)
+
+    // Auto-record divergence vs AI estimate for learning
+    const l = interaction.lead
+    if (l.calc_price_min != null && l.calc_price_max != null) {
+      const aiMid = (l.calc_price_min + l.calc_price_max) / 2
+      const diff = Math.round(((quote.total_price - aiMid) / aiMid) * 100)
+      await supabase.from('budget_ai_adjustments').insert({
+        lead_id: l.id,
+        field_adjusted: 'price',
+        ai_value: `R$${l.calc_price_min}–${l.calc_price_max}`,
+        painter_value: `R$${quote.total_price}`,
+        difference_percent: diff,
+        created_by: 'painter',
+      })
+      setFeedbackToast(`Proposta salva! A IA estimou ${formatCurrency(aiMid)}, você cotou ${formatCurrency(quote.total_price)}.`)
+      setTimeout(() => setFeedbackToast(null), 6000)
+    }
+
     setSubmitting(false)
     setEditing(false)
     await load()
@@ -186,26 +225,73 @@ export function LeadView() {
   const isSubmitted = interaction.status === 'proposal_sent' && !editing
   const confidenceCfg = CONFIDENCE_CFG[lead.calc_confidence || ''] ?? CONFIDENCE_CFG.baixa
   const savedQuote = interaction.metadata?.quote
+  const quoteHistory = interaction.metadata?.quote_history || []
+
+  function handlePrint() {
+    window.print()
+  }
+
+  const progressStep = isSubmitted ? 3 : (painterNotes.trim() ? 2 : 1)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
+    <div className="min-h-screen bg-gray-50 print:bg-white">
+      {/* Admin readonly banner */}
+      {isAdmin && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center gap-2 print:hidden">
+          <Eye className="w-4 h-4 text-amber-600 shrink-0" />
+          <p className="text-sm text-amber-800 font-medium">
+            Visualizando como o pintor vê esta solicitação — modo somente leitura
+          </p>
+        </div>
+      )}
+
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-30 print:static print:border-0">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => navigate('/portal/pintor')}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 cursor-pointer shrink-0">
+          <button onClick={() => navigate(isAdmin ? `/admin/painters/${interaction.painter_id}` : '/portal/pintor')}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 cursor-pointer shrink-0 print:hidden">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 text-sm truncate">{lead.service_interest ?? 'Solicitação'}</p>
             <p className="text-xs text-gray-400 font-mono">{lead.protocol}</p>
           </div>
+          <button onClick={handlePrint}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 cursor-pointer shrink-0 print:hidden"
+            title="Exportar PDF">
+            <FileDown className="w-4 h-4" />
+          </button>
           {isSubmitted && (
-            <span className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-medium shrink-0">
+            <span className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-medium shrink-0 print:hidden">
               Proposta enviada
             </span>
           )}
         </div>
       </header>
+
+      {/* Progress bar — only for painters */}
+      {!isAdmin && (
+        <div className="bg-white border-b border-gray-100 px-4 py-3 print:hidden">
+          <div className="max-w-2xl mx-auto flex items-center gap-2">
+            {[
+              { n: 1, label: 'Ver detalhes' },
+              { n: 2, label: 'Observações' },
+              { n: 3, label: 'Enviar proposta' },
+            ].map(({ n, label }, i) => (
+              <div key={n} className="flex items-center gap-2 flex-1">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  progressStep >= n ? 'bg-brand text-white' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {progressStep > n ? '✓' : n}
+                </div>
+                <span className={`text-xs font-medium ${progressStep >= n ? 'text-brand' : 'text-gray-400'}`}>
+                  {label}
+                </span>
+                {i < 2 && <div className={`flex-1 h-px ${progressStep > n ? 'bg-brand' : 'bg-gray-200'}`} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
@@ -273,18 +359,25 @@ export function LeadView() {
           )}
 
           {lead.calc_price_min && lead.calc_price_max && (
-            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-400 mb-0.5">Estimativa da plataforma</p>
-                <p className="text-lg font-bold text-brand">
-                  {formatCurrency(lead.calc_price_min)} – {formatCurrency(lead.calc_price_max)}
-                </p>
-              </div>
-              {lead.calc_confidence && (
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${confidenceCfg.color}`}>
-                  {confidenceCfg.text}
-                </span>
-              )}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => setShowBudgetModal(true)}
+                className="w-full flex items-center justify-between group cursor-pointer hover:bg-gray-50 -mx-1 px-1 py-1 rounded-xl transition-colors">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5 text-left">Estimativa da plataforma</p>
+                  <p className="text-lg font-bold text-brand text-left">
+                    {formatCurrency(lead.calc_price_min)} – {formatCurrency(lead.calc_price_max)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-brand font-medium">
+                  {lead.calc_confidence && (
+                    <span className={`px-2.5 py-1 rounded-full ${confidenceCfg.color}`}>
+                      {confidenceCfg.text}
+                    </span>
+                  )}
+                  <Info className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                </div>
+              </button>
             </div>
           )}
         </motion.div>
@@ -349,19 +442,28 @@ export function LeadView() {
           </div>
           <textarea
             value={painterNotes}
-            onChange={e => handleNotesChange(e.target.value)}
+            onChange={e => !isAdmin && handleNotesChange(e.target.value)}
+            readOnly={isAdmin}
             rows={3}
-            placeholder="Adicione observações sobre o projeto: materiais necessários, pontos de atenção, dificuldades de acesso..."
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-brand resize-none placeholder:text-gray-400"
+            placeholder={isAdmin ? 'Nenhuma observação adicionada.' : 'Adicione observações sobre o projeto: materiais necessários, pontos de atenção, dificuldades de acesso...'}
+            className={`w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-800 focus:outline-none resize-none placeholder:text-gray-400 ${isAdmin ? 'bg-gray-50 cursor-default' : 'focus:border-brand'}`}
           />
         </motion.div>
 
         {/* Proposal */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
           className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h3 className="font-semibold text-gray-900 text-sm mb-4">
-            {isSubmitted ? 'Sua Proposta Enviada' : 'Enviar Proposta'}
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 text-sm">
+              {isSubmitted ? 'Proposta Enviada' : 'Enviar Proposta'}
+            </h3>
+          </div>
+
+          {!isAdmin && !isSubmitted && (
+            <div className="mb-4 px-3 py-2.5 bg-orange-50 border border-orange-100 rounded-xl text-xs text-orange-800">
+              💡 Dica: coloque um preço justo. O cliente verá seu perfil e avaliações ao lado desta proposta.
+            </div>
+          )}
 
           {isSubmitted && savedQuote ? (
             <div className="space-y-3">
@@ -384,10 +486,17 @@ export function LeadView() {
                   </div>
                 )}
               </div>
-              <motion.button onClick={startEditing} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                className="w-full py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:border-gray-300 transition-colors">
-                <Pencil className="w-3.5 h-3.5" /> Editar proposta
-              </motion.button>
+              {!isAdmin && (
+                <motion.button onClick={startEditing} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  className="w-full py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:border-gray-300 transition-colors">
+                  <Pencil className="w-3.5 h-3.5" /> Editar proposta
+                </motion.button>
+              )}
+            </div>
+          ) : isAdmin ? (
+            <div className="py-8 text-center text-sm text-gray-400">
+              <Eye className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              O pintor ainda não enviou uma proposta.
             </div>
           ) : (
             <form onSubmit={submitProposal} className="space-y-4">
@@ -456,18 +565,80 @@ export function LeadView() {
           )}
         </motion.div>
 
+        {/* Version history */}
+        {quoteHistory.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}
+            className="bg-white rounded-2xl border border-gray-100 overflow-hidden print:hidden">
+            <button onClick={() => setHistoryOpen(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-gray-400" />
+                <span className="font-medium text-gray-900 text-sm">Histórico de versões ({quoteHistory.length})</span>
+              </div>
+              {historyOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+            {historyOpen && (
+              <div className="px-5 pb-4 space-y-3">
+                {quoteHistory.map((q, i) => (
+                  <div key={i} className="text-sm border border-gray-100 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-gray-500">v{i + 1}</span>
+                      {q.archived_at && (
+                        <span className="text-xs text-gray-400">
+                          {new Date(q.archived_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Valor</span>
+                      <span className="font-semibold text-gray-700">{formatCurrency(q.total_price)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Prazo</span>
+                      <span className="text-gray-600">{q.duration_days} dias</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Profile reminder */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          className="bg-gray-50 rounded-2xl border border-gray-100 p-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
-            <Star className="w-4 h-4 text-brand" />
-          </div>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            Seu perfil completo — especialidades, score e avaliações — será exibido ao cliente junto com esta proposta.
-          </p>
-        </motion.div>
+        {!isAdmin && (
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="bg-gray-50 rounded-2xl border border-gray-100 p-4 flex items-center gap-3 print:hidden">
+            <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+              <Star className="w-4 h-4 text-brand" />
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Seu perfil completo — especialidades, score e avaliações — será exibido ao cliente junto com esta proposta.
+            </p>
+          </motion.div>
+        )}
 
       </div>
+
+      {/* Budget breakdown modal */}
+      <AnimatePresence>
+        {showBudgetModal && (
+          <BudgetBreakdownModal lead={lead} onClose={() => setShowBudgetModal(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Feedback toast */}
+      <AnimatePresence>
+        {feedbackToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white text-xs px-4 py-3 rounded-2xl shadow-xl max-w-sm text-center print:hidden">
+            {feedbackToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   )
 }

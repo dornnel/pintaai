@@ -1,6 +1,9 @@
+// Supports both Brevo (preferred) and Resend as fallback
+const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || ''
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
 const ADMIN_EMAIL = 'andre@agenscia.com'
-const FROM_EMAIL = 'Pintai <noreply@pintai.com.br>'
+const FROM_NAME = 'Pintai Floripa'
+const FROM_EMAIL = 'noreply@agenscia.com'
 const APP_URL = 'https://pintai.agenscia.com'
 
 interface EmailPayload {
@@ -20,30 +23,52 @@ function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 }
 
-async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  if (!RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY not set — email skipped')
-    return false
+async function sendEmail(to: string, toName: string, subject: string, html: string): Promise<boolean> {
+  // Try Brevo first
+  if (BREVO_API_KEY) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': BREVO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: FROM_NAME, email: FROM_EMAIL },
+          to: [{ email: to, name: toName }],
+          subject,
+          htmlContent: html,
+        }),
+      })
+      if (res.ok) return true
+      const err = await res.text()
+      console.error('Brevo error:', err)
+    } catch (err) {
+      console.error('Brevo send failed:', err)
+    }
   }
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ from: FROM_EMAIL, to, subject, html }),
-    })
-    if (!res.ok) {
+
+  // Fallback to Resend
+  if (RESEND_API_KEY) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ from: `${FROM_NAME} <${FROM_EMAIL}>`, to, subject, html }),
+      })
+      if (res.ok) return true
       const err = await res.text()
       console.error('Resend error:', err)
-      return false
+    } catch (err) {
+      console.error('Resend send failed:', err)
     }
-    return true
-  } catch (err) {
-    console.error('Email send failed:', err)
-    return false
   }
+
+  console.warn('No email provider configured (BREVO_API_KEY or RESEND_API_KEY required)')
+  return false
 }
 
 Deno.serve(async (req: Request) => {
@@ -64,7 +89,6 @@ Deno.serve(async (req: Request) => {
       .map(line => `<tr><td style="padding:4px 0;color:#555;font-size:14px">${line}</td></tr>`)
       .join('')
 
-    // Price estimate block
     const priceHtml = (calc_price_min && calc_price_max) ? `
     <div style="margin:20px 0;background:#fff8f5;border:1px solid #fdd;border-radius:10px;padding:16px 20px">
       <p style="color:#E35A1A;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 6px">
@@ -116,8 +140,7 @@ Deno.serve(async (req: Request) => {
     <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px">
       <p style="color:#92400e;font-size:13px;margin:0;font-weight:600">🔒 Aviso de segurança</p>
       <p style="color:#78350f;font-size:13px;margin:6px 0 0">
-        Se <strong>não foi você</strong> quem fez este pedido, ignore este e-mail. Nenhum pagamento foi cobrado e nenhuma ação é necessária.
-        <br><a href="${APP_URL}/cancelar?protocol=${protocol}" style="color:#E35A1A;font-weight:600">Clique aqui para cancelar esta solicitação.</a>
+        Se <strong>não foi você</strong> quem fez este pedido, ignore este e-mail. Nenhum pagamento foi cobrado.
       </p>
     </div>
   </div>
@@ -155,11 +178,9 @@ Deno.serve(async (req: Request) => {
 </html>`
 
     const [clientResult, adminResult] = await Promise.allSettled([
-      sendEmail(to, `Solicitação recebida — ${protocol} | Pintai Floripa`, clientHtml),
-      sendEmail(ADMIN_EMAIL, `[Pintai] Nova solicitação ${protocol} — ${name}`, adminHtml),
+      sendEmail(to, name, `Solicitação recebida — ${protocol} | Pintai Floripa`, clientHtml),
+      sendEmail(ADMIN_EMAIL, 'Admin', `[Pintai] Nova solicitação ${protocol} — ${name}`, adminHtml),
     ])
-
-    console.log('Email results:', { client: clientResult.status, admin: adminResult.status })
 
     return new Response(
       JSON.stringify({ ok: true, client: clientResult.status, admin: adminResult.status }),

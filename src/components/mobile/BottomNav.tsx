@@ -20,7 +20,7 @@ const TABS: Tab[] = [
   { to: '/minha-area', icon: User, label: 'Eu' },
 ]
 
-const HIDE_ON = ['/admin', '/portal']
+const HIDE_ON = ['/admin', '/portal', '/minha-area']
 
 export function BottomNav() {
   const { pathname } = useLocation()
