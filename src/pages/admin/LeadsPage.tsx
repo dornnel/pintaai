@@ -117,31 +117,34 @@ export function LeadsPage() {
   }, [showPartial]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadLeads() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('leads')
       .select('*')
       .eq('is_partial', false)
       .order('created_at', { ascending: false })
+    if (error) console.error('[LeadsPage] loadLeads error:', error)
     setLeads((data as Lead[]) || [])
     setLoading(false)
   }
 
   async function loadPartialLeads() {
     setPartialLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('leads')
       .select('*')
       .eq('is_partial', true)
       .order('created_at', { ascending: false })
+    if (error) console.error('[LeadsPage] loadPartialLeads error:', error)
     setPartialLeads((data as Lead[]) || [])
     setPartialLoading(false)
   }
 
   async function loadPartialCount() {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from('leads')
       .select('id', { count: 'exact', head: true })
       .eq('is_partial', true)
+    if (error) console.error('[LeadsPage] loadPartialCount error:', error)
     setPartialCount(count || 0)
   }
 
