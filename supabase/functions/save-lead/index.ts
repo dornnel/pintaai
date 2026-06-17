@@ -106,6 +106,7 @@ Deno.serve(async (req: Request) => {
       email: data.email,
       source: 'chat',
       source_detail: 'web_chat',
+      lead_type: 'customer',
       service_interest: data.service_type,
       neighborhood: data.neighborhood,
       stage: 'new',

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { cn, formatRelativeTime } from '../../lib/utils'
 import type { ChatMessage } from '../../lib/types'
 import { BriefingSummary } from './BriefingSummary'
@@ -71,6 +72,16 @@ export function MessageBubble({ message, onQuickReply, onQuoteSelect }: Props) {
               </button>
             ))}
           </div>
+        )}
+
+        {/* CTA button (painter_done e outros estados terminais) */}
+        {isAgent && message.cta && (
+          <Link
+            to={message.cta.href}
+            className="mt-1 inline-flex items-center justify-center px-4 py-2.5 bg-brand text-white font-semibold text-sm rounded-xl hover:bg-orange-600 transition-colors"
+          >
+            {message.cta.label}
+          </Link>
         )}
 
         <span className="text-xs text-gray-400 px-1">{formatRelativeTime(message.timestamp)}</span>

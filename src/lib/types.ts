@@ -241,6 +241,7 @@ export interface ChatMessage {
   briefing?: BriefingData
   quotes?: Quote[]
   mediaUrls?: string[]
+  cta?: { label: string; href: string }
   timestamp: Date
 }
 

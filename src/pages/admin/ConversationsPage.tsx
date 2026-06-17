@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { MessageSquare, X, Globe, Smartphone, Filter, ExternalLink } from 'lucide-react'
+import { MessageSquare, X, Globe, Smartphone, Filter, ExternalLink, User, Brush } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatRelativeTime } from '../../lib/utils'
 import type { ConversationSession } from '../../lib/types'
+import { cn } from '../../lib/utils'
 
-interface Message { id: string; direction: string; body: string; channel: string; created_at: string }
+interface Message { id: string; direction: string; body: string; channel: string; created_at: string; metadata?: Record<string, unknown> }
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
-  web: <Globe className="w-3 h-3 text-blue-500" />,
-  whatsapp: <Smartphone className="w-3 h-3 text-green-500" />,
+  web: <Globe className="w-3.5 h-3.5 text-blue-500" />,
+  whatsapp: <Smartphone className="w-3.5 h-3.5 text-green-500" />,
 }
 const CHANNEL_LABELS: Record<string, string> = { web: 'Web', whatsapp: 'WhatsApp', instagram: 'Instagram', system: 'Sistema' }
+const CHANNEL_BADGE: Record<string, string> = {
+  web: 'bg-blue-50 text-blue-600',
+  whatsapp: 'bg-green-50 text-green-600',
+  instagram: 'bg-pink-50 text-pink-600',
+}
 
 export function ConversationsPage() {
   const [sessions, setSessions] = useState<ConversationSession[]>([])
@@ -91,41 +98,69 @@ export function ConversationsPage() {
         <div className="space-y-2">
           {filtered.map(session => {
             const collected = (session.collected_data || {}) as Record<string, string>
-            const userName = collected.name || session.user_identifier?.slice(0, 12) || 'Anônimo'
+            const userName = collected.name || session.user_identifier?.slice(0, 20) || 'Anônimo'
+            const isPainter = collected.role === 'painter'
+            const initial = userName[0]?.toUpperCase() || '?'
             return (
-              <div key={session.id} className="bg-white rounded-2xl border border-gray-100 p-4 hover:border-gray-200 transition-colors">
-                <div className="flex items-center justify-between gap-3">
+              <motion.div key={session.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl border border-gray-100 p-4 hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer"
+                onClick={() => openSession(session)}>
+                <div className="flex items-start gap-3">
+                  {/* Avatar */}
+                  <div className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0',
+                    isPainter ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-brand')}>
+                    {initial}
+                  </div>
+
                   <div className="flex-1 min-w-0">
+                    {/* Row 1: name + badges */}
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <div className="flex items-center gap-1">
-                        {CHANNEL_ICONS[session.channel] || <Globe className="w-3 h-3 text-gray-400" />}
-                        <span className="text-xs text-gray-500">{CHANNEL_LABELS[session.channel] || session.channel}</span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-900">{userName}</p>
+                      <p className="text-sm font-semibold text-gray-900">{userName}</p>
+                      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5', CHANNEL_BADGE[session.channel] || 'bg-gray-100 text-gray-500')}>
+                        {CHANNEL_ICONS[session.channel]}
+                        {CHANNEL_LABELS[session.channel] || session.channel}
+                      </span>
+                      {isPainter ? (
+                        <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                          <Brush className="w-2.5 h-2.5" /> Pintor
+                        </span>
+                      ) : collected.role === 'client' && (
+                        <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
+                          <User className="w-2.5 h-2.5" /> Cliente
+                        </span>
+                      )}
                       {session.service_request_id && (
-                        <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">Pedido gerado</span>
+                        <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">Lead gerado ✓</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
-                      <span>Estado: <strong className="text-gray-600">{session.current_state}</strong></span>
+
+                    {/* Row 2: dados coletados */}
+                    <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                      {collected.service_type && <span>🎨 {collected.service_type}</span>}
+                      {collected.neighborhood && <span>📍 {collected.neighborhood}</span>}
                       {collected.email && <span>📧 {collected.email}</span>}
                       {collected.whatsapp && <span>📱 {collected.whatsapp}</span>}
+                    </div>
+
+                    {/* Row 3: estado + tempo */}
+                    <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+                      <span className="bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded font-mono">
+                        {session.current_state}
+                      </span>
                       <span>{formatRelativeTime(session.updated_at)}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
                     {session.service_request_id && (
-                      <a href={`/admin/leads`} className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors cursor-pointer">
+                      <Link to="/admin/leads" className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors">
                         <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
+                      </Link>
                     )}
-                    <button onClick={() => openSession(session)}
-                      className="text-xs text-brand font-medium px-2.5 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 cursor-pointer transition-colors">
-                      Ver mensagens
-                    </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )
           })}
         </div>
@@ -158,10 +193,10 @@ export function ConversationsPage() {
                 ) : (
                   messages.map(msg => (
                     <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+                      <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
                         msg.direction === 'outbound' ? 'bg-brand text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
                       }`}>
-                        {msg.body.length > 200 ? `${msg.body.slice(0, 200)}...` : msg.body}
+                        <p className="whitespace-pre-wrap break-words">{msg.body}</p>
                         <p className={`text-[10px] mt-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-gray-400'}`}>
                           {formatRelativeTime(msg.created_at)}
                         </p>

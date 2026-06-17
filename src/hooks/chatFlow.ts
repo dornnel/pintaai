@@ -224,7 +224,11 @@ export function computeFieldValue(step: FlowStep, rawText: string): unknown {
   }
 
   if (step.field_key === 'role') {
-    return rawText.toLowerCase().includes('pintor') ? 'painter' : 'client'
+    const lower = rawText.toLowerCase()
+    // "cadastrar como pintor" / "ser pintor" / "quero me cadastrar como pintor" → painter
+    if (lower.includes('pintor') && (lower.includes('cadastr') || lower.includes('ser pintor') || lower.includes('me cadastrar'))) return 'painter'
+    if (lower.includes('🖌️') || lower.includes('quero me cadastrar')) return 'painter'
+    return 'client'
   }
 
   if (step.field_key === 'area_m2') {

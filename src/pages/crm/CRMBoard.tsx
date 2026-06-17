@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -40,6 +40,7 @@ interface Lead {
   wall_condition?: string
   calc_price_min?: number
   calc_price_max?: number
+  lead_type?: string
   _interaction_status?: string
 }
 
@@ -80,8 +81,9 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
 // ─── Lead Card ────────────────────────────────────────────────────────────────
 
 function LeadCard({ lead, isDragging = false, painterView = false }: { lead: Lead; isDragging?: boolean; painterView?: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: lead.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSorting } = useSortable({ id: lead.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
+  const navigate = useNavigate()
 
   const daysSinceUpdate = Math.floor(
     (Date.now() - new Date(lead.stage_updated_at).getTime()) / 86400000
@@ -96,12 +98,14 @@ function LeadCard({ lead, isDragging = false, painterView = false }: { lead: Lea
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <motion.div
         className={cn(
-          'bg-white rounded-xl border border-gray-100 p-3 shadow-sm cursor-grab active:cursor-grabbing select-none',
+          'bg-white rounded-xl border border-gray-100 p-3 shadow-sm select-none',
+          painterView ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
           isDragging && 'shadow-xl ring-2 ring-brand/30 rotate-1 opacity-90',
           isStale && 'border-l-4 border-l-orange-400',
         )}
         whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
         layout
+        onClick={!painterView && !isSorting ? () => navigate(`/admin/leads/${lead.id}`) : undefined}
       >
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -117,6 +121,11 @@ function LeadCard({ lead, isDragging = false, painterView = false }: { lead: Lea
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             {SOURCE_ICONS[lead.source] || <Globe className="w-3 h-3 text-gray-400" />}
+            {!painterView && lead.lead_type === 'painter' && (
+              <span className="text-[9px] bg-purple-100 text-purple-700 font-medium px-1 py-0.5 rounded leading-none">
+                🖌️ Pintor
+              </span>
+            )}
             {lead.service_request_id && (
               <span className="text-[9px] bg-green-100 text-green-700 font-medium px-1 py-0.5 rounded leading-none">
                 Pedido ✓

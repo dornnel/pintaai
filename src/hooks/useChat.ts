@@ -207,9 +207,11 @@ export function useChat() {
     if (nextKey === 'painter_done') {
       setCurrentState('painter_done')
       saveSessionState(nextKey, data).catch(console.error)
-      const { protocol } = await saveToDatabase(data, 'painter')
+      await saveToDatabase(data, 'painter')
       agentMessage(
-        `Ótimo, **${data.name}**! Cadastro recebido.\n\nProtocolo: **${protocol}**\n\nNossa equipe vai analisar e te contatar pelo WhatsApp **${data.whatsapp}** em breve. Você receberá pedidos alinhados com seus bairros e especialidades.`,
+        `Perfeito, **${data.name}**! 🎉 Coletei suas informações.\n\nAgora clique abaixo para finalizar seu cadastro e começar a receber pedidos nos seus bairros e especialidades.`,
+        undefined,
+        { cta: { label: '🖌️ Finalizar cadastro de pintor', href: '/seja-pintor' } },
       )
       return
     }
@@ -260,8 +262,12 @@ export function useChat() {
       if (authUser.name) { data.name = authUser.name; prefilled.add('name') }
       if (authUser.email) { data.email = authUser.email; prefilled.add('email') }
       if (authUser.phone) { data.whatsapp = authUser.phone; prefilled.add('whatsapp') }
-      data.role = authUser.activeRole === 'painter' ? 'painter' : 'client'
-      prefilled.add('role')
+      if (authUser.activeRole === 'painter') {
+        data.role = 'painter'
+        prefilled.add('role')
+      }
+      // Clientes não têm role preenchido automaticamente → role_select step aparece
+      // para que possam opcionalmente se cadastrar como pintores
     }
 
     let transitionField: string | null = null
@@ -272,13 +278,14 @@ export function useChat() {
       const matchedChip = Object.entries(CHIP_TO_SERVICE).find(([k]) => lower.includes(k))
       if (matchedChip) {
         data.service_type = matchedChip[1]
+        data.role = 'client'
         prefilled.add('service_type')
+        prefilled.add('role')  // chip de serviço pula role_select
         transitionField = 'service_type'
         transitionValue = matchedChip[1]
       } else {
         transitionValue = text
       }
-      if (!authUser) { data.role = 'client'; prefilled.add('role') }
     }
 
     dataRef.current = data
@@ -383,7 +390,31 @@ export function useChat() {
   // ── Salva o campo respondido e avança para o próximo step ───────────────────
   async function commitFieldAndAdvance(steps: FlowStep[], step: FlowStep, rawText: string) {
     const fieldValue = computeFieldValue(step, rawText)
-    const newData = setFieldValue(dataRef.current, step, fieldValue)
+    let newData = setFieldValue(dataRef.current, step, fieldValue) as CollectedData
+
+    // Quando o usuário responde role_select com uma opção de serviço (role='client'),
+    // extrai e prefila o service_type para pular o step seguinte de tipo de serviço.
+    if (step.field_key === 'role' && fieldValue === 'client') {
+      const SERVICE_MAP: Record<string, string> = {
+        'pintura interna': 'Pintura interna',
+        'fachada': 'Fachada externa',
+        'pós-obra': 'Pós-obra',
+        'pos-obra': 'Pós-obra',
+        'textura': 'Textura / massa corrida',
+        'impermeabiliz': 'Impermeabilização',
+        'arte': 'Arte / mural',
+        'mural': 'Arte / mural',
+      }
+      const lower = rawText.toLowerCase()
+      for (const [key, val] of Object.entries(SERVICE_MAP)) {
+        if (lower.includes(key)) {
+          newData = setFieldValue(newData, { ...step, field_key: 'service_type', is_core_field: true }, val) as CollectedData
+          prefilledFieldsRef.current.add('service_type')
+          break
+        }
+      }
+    }
+
     dataRef.current = newData
     setCollectedData(newData)
 

@@ -194,10 +194,15 @@ export function LeadDetailPage() {
   // Stage
   const [savingStage, setSavingStage] = useState(false)
 
+  // Comments
+  const [comments, setComments] = useState<{ id: string; body: string; user: { name: string } | null; created_at: string }[]>([])
+  const [commentInput, setCommentInput] = useState('')
+  const [savingComment, setSavingComment] = useState(false)
+
   const loadAll = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    const [leadRes, msgRes, interRes, schedRes, paintRes] = await Promise.all([
+    const [leadRes, msgRes, interRes, schedRes, paintRes, commentsRes] = await Promise.all([
       supabase.from('leads').select('*').eq('id', id).single(),
       supabase.from('messages').select('*').filter('metadata->>lead_id', 'eq', id).order('created_at'),
       supabase.from('lead_painter_interactions')
@@ -207,12 +212,14 @@ export function LeadDetailPage() {
         .select('*, painter:painters(user:users!painters_user_id_fkey(name))')
         .eq('lead_id', id).order('scheduled_at'),
       supabase.from('painters').select('id, user:users!painters_user_id_fkey(name,phone)').eq('availability_status', 'available'),
+      supabase.from('lead_comments').select('id, body, created_at, user:users(name)').eq('lead_id', id).order('created_at'),
     ])
     if (leadRes.data) setLead(leadRes.data as Lead)
     setMessages((msgRes.data || []) as LeadMessage[])
     setInteractions((interRes.data as unknown as PainterInteraction[]) || [])
     setSchedules((schedRes.data as unknown as VisitSchedule[]) || [])
     setAvailablePainters((paintRes.data as unknown as Painter[]) || [])
+    setComments((commentsRes.data as unknown as { id: string; body: string; user: { name: string } | null; created_at: string }[]) || [])
     setLoading(false)
   }, [id])
 
@@ -246,6 +253,19 @@ export function LeadDetailPage() {
       updated_at: new Date().toISOString(),
     }).eq('id', interactionId)
     loadAll()
+  }
+
+  async function addComment() {
+    if (!id || !commentInput.trim()) return
+    setSavingComment(true)
+    const body = commentInput.trim()
+    setCommentInput('')
+    const { data } = await supabase.from('lead_comments')
+      .insert({ lead_id: id, body })
+      .select('id, body, created_at, user:users(name)')
+      .single()
+    if (data) setComments(prev => [...prev, data as unknown as { id: string; body: string; user: { name: string } | null; created_at: string }])
+    setSavingComment(false)
   }
 
   async function saveSchedule() {
@@ -850,6 +870,46 @@ export function LeadDetailPage() {
                   <Mail className="w-3.5 h-3.5" /> Enviar email
                 </a>
               )}
+            </div>
+          </div>
+
+          {/* Comentários internos */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-brand" /> Comentários internos
+            </h3>
+            <div className="space-y-3 mb-3 max-h-48 overflow-y-auto">
+              {comments.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-2">Nenhum comentário ainda.</p>
+              )}
+              {comments.map(c => (
+                <div key={c.id} className="flex gap-2">
+                  <div className="w-6 h-6 rounded-full bg-orange-100 flex items-center justify-center text-brand text-[10px] font-bold shrink-0">
+                    {c.user?.name?.[0]?.toUpperCase() || 'A'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-1.5 mb-0.5">
+                      <span className="text-[10px] font-semibold text-gray-700">{c.user?.name || 'Admin'}</span>
+                      <span className="text-[10px] text-gray-400">{formatRelativeTime(c.created_at)}</span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{c.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <textarea
+                value={commentInput}
+                onChange={e => setCommentInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                placeholder="Adicionar comentário... (Cmd+Enter para enviar)"
+                rows={2}
+                className="flex-1 text-xs border border-gray-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:border-brand"
+              />
+              <button onClick={addComment} disabled={!commentInput.trim() || savingComment}
+                className="px-3 py-2 bg-brand text-white rounded-xl text-xs font-semibold disabled:opacity-50 cursor-pointer hover:bg-orange-600 transition-colors flex items-center">
+                <Send className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
