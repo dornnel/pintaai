@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
 import { Save, Loader2, CheckCircle, Settings, Key, Bell, Store, MessageCircle, MapPin } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { logAudit } from '../../lib/audit'
+import { useAuth } from '../../lib/auth'
+import { invalidatePlatformSettingsCache } from '../../lib/usePlatformSettings'
 
 
 const SETTING_DEFS = [
@@ -20,10 +23,12 @@ const SETTING_DEFS = [
 const GROUPS = ['Contato', 'Financeiro', 'Funcionalidades', 'Distribuição de Leads']
 
 export function SettingsPage() {
+  const { user } = useAuth()
   const [settings, setSettings] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [togglingKey, setTogglingKey] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -35,14 +40,52 @@ export function SettingsPage() {
     setLoading(false)
   }
 
+  async function saveToggle(key: string, newValue: boolean) {
+    setTogglingKey(key)
+    const old = getValue(key)
+    setSettings(prev => ({ ...prev, [key]: newValue }))
+    await supabase.from('platform_settings').upsert(
+      { key, value: newValue, updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    )
+    invalidatePlatformSettingsCache()
+    if (user) {
+      await logAudit({
+        actor_user_id: user.id,
+        entity_type: 'settings',
+        entity_id: user.id,
+        action: 'settings_updated',
+        old_values: { [key]: old },
+        new_values: { [key]: newValue },
+      })
+    }
+    setTogglingKey(null)
+  }
+
   async function saveAll() {
     setSaving(true)
+    const old: Record<string, unknown> = {}
+    const next: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(settings)) {
-      await supabase.from('platform_settings').upsert({
-        key,
-        value: typeof value === 'string' ? JSON.stringify(value) : value,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'key' })
+      const def = SETTING_DEFS.find(d => d.key === key)
+      if (def?.type === 'boolean') continue  // toggles save instantly
+      old[key] = settings[key]
+      next[key] = value
+      await supabase.from('platform_settings').upsert(
+        { key, value: typeof value === 'string' ? JSON.stringify(value) : value, updated_at: new Date().toISOString() },
+        { onConflict: 'key' },
+      )
+    }
+    invalidatePlatformSettingsCache()
+    if (user) {
+      await logAudit({
+        actor_user_id: user.id,
+        entity_type: 'settings',
+        entity_id: user.id,
+        action: 'settings_updated',
+        old_values: old,
+        new_values: next,
+      })
     }
     setSaving(false)
     setSaved(true)
@@ -106,8 +149,9 @@ export function SettingsPage() {
                             {def.description && <p className="text-xs text-gray-400 mt-0.5">{def.description}</p>}
                           </div>
                           <button
-                            onClick={() => updateSetting(def.key, !currentValue)}
-                            className={`w-11 h-6 rounded-full transition-colors cursor-pointer relative ${currentValue ? 'bg-brand' : 'bg-gray-200'}`}
+                            onClick={() => saveToggle(def.key, !currentValue)}
+                            disabled={togglingKey === def.key}
+                            className={`w-11 h-6 rounded-full transition-colors cursor-pointer relative disabled:opacity-60 ${currentValue ? 'bg-brand' : 'bg-gray-200'}`}
                           >
                             <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${currentValue ? 'translate-x-5.5' : 'translate-x-0.5'}`} />
                           </button>

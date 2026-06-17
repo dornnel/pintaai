@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Paintbrush, Mail, Lock, Phone, User, Eye, EyeOff, ArrowLeft, Loader2, CheckCircle, KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth, getRoleHome } from '../lib/auth'
+import { usePlatformSettings } from '../lib/usePlatformSettings'
 
 type Tab = 'login' | 'register' | 'forgot'
 type RegisterRole = 'customer' | 'painter' | 'partner'
@@ -18,6 +19,7 @@ export function LoginPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { user, loading: authLoading } = useAuth()
+  const { settings: platformSettings } = usePlatformSettings()
   const defaultRole = (params.get('role') || 'customer') as RegisterRole
 
   const [tab, setTab] = useState<Tab>(params.get('tab') === 'register' ? 'register' : 'login')
@@ -298,6 +300,19 @@ export function LoginPage() {
                     ← Voltar ao login
                   </button>
                 </motion.form>
+              ) : !platformSettings.registration_open ? (
+                <motion.div key="closed" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                  className="text-center py-10">
+                  <div className="w-14 h-14 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Lock className="w-7 h-7 text-brand" />
+                  </div>
+                  <p className="font-semibold text-gray-800 mb-1">Cadastro temporariamente fechado</p>
+                  <p className="text-sm text-gray-400">Novas inscrições estão pausadas no momento. Tente novamente em breve.</p>
+                  <button type="button" onClick={() => setTab('login')}
+                    className="mt-5 text-sm text-brand font-medium cursor-pointer hover:underline">
+                    ← Voltar ao login
+                  </button>
+                </motion.div>
               ) : (
                 <motion.form key="register" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2 }} onSubmit={handleRegister} className="space-y-4">

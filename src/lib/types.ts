@@ -44,6 +44,7 @@ export interface Painter {
   accepts_material_included: boolean
   average_response_minutes: number
   base_price_m2?: number
+  service_radius_km?: number
   availability_status: AvailabilityStatus
   verification_status: VerificationStatus
   pro_plan_status: ProPlanStatus

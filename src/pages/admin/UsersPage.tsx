@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { cn, formatDate, formatRelativeTime } from '../../lib/utils'
 import { Link } from 'react-router-dom'
+import { logAudit } from '../../lib/audit'
 
 interface UserRecord {
   id: string
@@ -264,9 +265,9 @@ function EditUserModal({ user, onClose, onSaved }: {
 
 // ─── User Detail Drawer ───────────────────────────────────────────────────────
 
-function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin }: {
+function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, actorUserId }: {
   user: UserRecord; onClose: () => void; onUpdated: (u: UserRecord) => void
-  onDeleted: (id: string) => void; isSuperAdmin: boolean
+  onDeleted: (id: string) => void; isSuperAdmin: boolean; actorUserId?: string
 }) {
   const [showEdit, setShowEdit] = useState(false)
   const [savingStatus, setSavingStatus] = useState(false)
@@ -284,13 +285,29 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin }:
       setDeleting(false)
       return
     }
+    await logAudit({
+      actor_user_id: actorUserId,
+      entity_type: 'user',
+      entity_id: user.id,
+      action: 'user_deleted',
+      old_values: { name: user.name, email: user.email, role: user.role, status: user.status },
+    })
     onDeleted(user.id)
     onClose()
   }
 
   async function setStatus(status: string) {
     setSavingStatus(true)
+    const oldStatus = user.status
     await supabase.from('users').update({ status }).eq('id', user.id)
+    await logAudit({
+      actor_user_id: actorUserId,
+      entity_type: 'user',
+      entity_id: user.id,
+      action: status === 'blocked' ? 'user_banned' : 'user_unbanned',
+      old_values: { status: oldStatus },
+      new_values: { status },
+    })
     onUpdated({ ...user, status })
     setSavingStatus(false)
   }
@@ -701,6 +718,7 @@ export function UsersPage() {
             onUpdated={updateLocal}
             onDeleted={removeLocal}
             isSuperAdmin={!!currentUser?.isSuperAdmin}
+            actorUserId={currentUser?.id}
           />
         )}
       </AnimatePresence>

@@ -9,13 +9,17 @@ export type AuditAction =
   | 'admin_permission_changed'
   | 'user_banned'
   | 'user_unbanned'
+  | 'user_deleted'
   | 'product_approved'
   | 'product_rejected'
   | 'ad_approved'
   | 'ad_rejected'
   | 'painter_status_changed'
+  | 'painter_availability_changed'
   | 'subscription_canceled'
   | 'budget_divergence_registered'
+  | 'settings_updated'
+  | 'profile_updated'
 
 interface AuditEntry {
   actor_user_id?: string

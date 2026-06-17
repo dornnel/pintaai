@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
-import { Pencil, CheckCircle, Loader2 } from 'lucide-react'
+import { Pencil, CheckCircle, Loader2, MapPin } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { usePainterContext } from './PainterLayout'
 import { cn } from '../../lib/utils'
+import { PainterAreaMap } from '../../components/PainterAreaMap'
+import type { Neighborhood } from '../../lib/types'
 
 const SPECIALTY_OPTIONS = [
   'Residencial', 'Comercial', 'Fachada', 'Pós-obra', 'Artístico',
@@ -11,15 +13,23 @@ const SPECIALTY_OPTIONS = [
 ]
 
 export function PainterPerfil() {
-  const { painter, loading, reload } = usePainterContext()
+  const { painter, loading, reload, saveAvailability } = usePainterContext()
 
   const [bio, setBio] = useState(painter?.bio || '')
   const [years, setYears] = useState(String(painter?.years_experience || 0))
   const [specialties, setSpecialties] = useState<string[]>(painter?.specialties || [])
   const [availability, setAvailability] = useState(painter?.availability_status || 'available')
   const [basePrice, setBasePrice] = useState(String(painter?.base_price_m2 || ''))
+  const [radiusKm, setRadiusKm] = useState(String(painter?.service_radius_km ?? 10))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([])
+
+  useEffect(() => {
+    supabase.from('neighborhoods').select('id,name,city,region,latitude,longitude,active,launch_priority')
+      .eq('active', true).order('name')
+      .then(({ data }) => setNeighborhoods((data as Neighborhood[]) ?? []))
+  }, [])
 
   // Re-initialize state if painter loads after mount
   if (painter && bio === '' && painter.bio) setBio(painter.bio)
@@ -38,7 +48,12 @@ export function PainterPerfil() {
       specialties,
       availability_status: availability,
       base_price_m2: parseFloat(basePrice) || null,
+      service_radius_km: parseFloat(radiusKm) || 10,
     }).eq('id', painter.id)
+    // Sync availability through context (keeps sidebar toggle in sync)
+    if (availability !== painter.availability_status) {
+      await saveAvailability(availability as 'available' | 'busy' | 'paused')
+    }
     setSaving(false)
     setSaved(true)
     setTimeout(() => { setSaved(false); reload() }, 1500)
@@ -117,6 +132,35 @@ export function PainterPerfil() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Área de atendimento (mapa) */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-brand" />
+              <p className="text-xs font-medium text-gray-700">Área de atendimento</p>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">
+                Raio de atendimento (km) a partir dos bairros selecionados
+              </label>
+              <input
+                type="number" value={radiusKm} onChange={e => setRadiusKm(e.target.value)}
+                min="1" max="100" step="1"
+                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand"
+              />
+            </div>
+            {painter?.neighborhoods_ids?.length > 0 ? (
+              <PainterAreaMap
+                neighborhoods={neighborhoods}
+                painterNeighborhoodIds={painter.neighborhoods_ids}
+                radiusKm={parseFloat(radiusKm) || 10}
+              />
+            ) : (
+              <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-4 text-center">
+                Nenhum bairro selecionado ainda. O mapa aparecerá aqui após você definir sua área no cadastro.
+              </p>
+            )}
           </div>
 
           <motion.button type="submit" disabled={saving}

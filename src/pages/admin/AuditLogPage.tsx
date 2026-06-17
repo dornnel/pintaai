@@ -23,21 +23,25 @@ const ACTION_COLORS: Record<string, string> = {
   payment_milestone_released: 'bg-emerald-100 text-emerald-700',
   user_banned: 'bg-red-100 text-red-700',
   user_unbanned: 'bg-gray-100 text-gray-600',
+  user_deleted: 'bg-red-200 text-red-800',
   product_approved: 'bg-green-100 text-green-700',
   product_rejected: 'bg-red-100 text-red-600',
   ad_approved: 'bg-green-100 text-green-700',
   ad_rejected: 'bg-red-100 text-red-600',
   painter_status_changed: 'bg-violet-100 text-violet-700',
+  painter_availability_changed: 'bg-teal-100 text-teal-700',
   budget_divergence_registered: 'bg-amber-100 text-amber-700',
   subscription_canceled: 'bg-orange-100 text-orange-700',
   admin_permission_changed: 'bg-purple-100 text-purple-700',
+  settings_updated: 'bg-indigo-100 text-indigo-700',
+  profile_updated: 'bg-sky-100 text-sky-700',
 }
 
 const ENTITY_LABELS: Record<string, string> = {
   lead: '📋 Lead', user: '👤 Usuário', painter: '🖌️ Pintor',
   payment_milestone: '💰 Pagamento', product: '📦 Produto',
   partner_ad: '📢 Anúncio', subscription: '💳 Assinatura',
-  budget_adjustment: '📊 Orçamento',
+  budget_adjustment: '📊 Orçamento', settings: '⚙️ Config',
 }
 
 export function AuditLogPage() {

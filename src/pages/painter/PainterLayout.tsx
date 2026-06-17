@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
 import { RoleSwitcher } from '../../components/RoleSwitcher'
+import { logAudit } from '../../lib/audit'
 import type { Painter, PainterScore, Review } from '../../lib/types'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
@@ -42,11 +43,12 @@ interface PainterContextType {
   loading: boolean
   reload: () => void
   declineInteraction: (id: string) => Promise<void>
+  saveAvailability: (status: 'available' | 'busy' | 'paused') => Promise<void>
 }
 
 const PainterContext = createContext<PainterContextType>({
   painter: null, score: null, leadInteractions: [], reviews: [],
-  loading: true, reload: () => {}, declineInteraction: async () => {},
+  loading: true, reload: () => {}, declineInteraction: async () => {}, saveAvailability: async () => {},
 })
 
 export function usePainterContext() {
@@ -84,7 +86,7 @@ export function PainterLayout() {
     if (!user) return
     try {
       const { data: painterData } = await supabase
-        .from('painters').select('*').eq('user_id', user.id).maybeSingle()
+        .from('painters').select('*, user:users(name,phone)').eq('user_id', user.id).maybeSingle()
 
       if (!painterData) {
         // User has painter role but no painter record — redirect to complete setup
@@ -123,6 +125,23 @@ export function PainterLayout() {
     }
   }, [loading, noPainterRecord, navigate])
 
+  async function saveAvailability(status: 'available' | 'busy' | 'paused') {
+    if (!painter) return
+    const old = painter.availability_status
+    setPainter(prev => prev ? { ...prev, availability_status: status } : null)
+    await supabase.from('painters').update({ availability_status: status }).eq('id', painter.id)
+    if (user) {
+      await logAudit({
+        actor_user_id: user.id,
+        entity_type: 'painter',
+        entity_id: painter.id,
+        action: 'painter_availability_changed',
+        old_values: { availability_status: old },
+        new_values: { availability_status: status },
+      })
+    }
+  }
+
   async function declineInteraction(id: string) {
     await supabase.from('lead_painter_interactions').update({
       status: 'declined',
@@ -159,7 +178,7 @@ export function PainterLayout() {
   const newCount = leadInteractions.filter(i => i.status === 'notified').length
 
   return (
-    <PainterContext.Provider value={{ painter, score, leadInteractions, reviews, loading, reload: load, declineInteraction }}>
+    <PainterContext.Provider value={{ painter, score, leadInteractions, reviews, loading, reload: load, declineInteraction, saveAvailability }}>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
 
         {/* Mobile backdrop */}
@@ -202,7 +221,24 @@ export function PainterLayout() {
                 )}
               </div>
             </div>
-            <div className="mt-2">
+            {painter && (
+              <div className="mt-2">
+                <div className="flex gap-1">
+                  {(['available', 'busy', 'paused'] as const).map(s => (
+                    <button key={s} onClick={() => saveAvailability(s)}
+                      className={cn('flex-1 py-1 text-[10px] font-medium rounded-lg transition-colors cursor-pointer',
+                        painter.availability_status === s
+                          ? s === 'available' ? 'bg-green-100 text-green-700'
+                            : s === 'busy' ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-gray-200 text-gray-600'
+                          : 'bg-gray-50 text-gray-400 hover:bg-gray-100')}>
+                      {s === 'available' ? 'Livre' : s === 'busy' ? 'Ocupado' : 'Pausado'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="mt-1">
               <RoleSwitcher />
             </div>
           </div>
