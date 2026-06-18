@@ -9,6 +9,7 @@ import { MarketplacePage } from './pages/MarketplacePage'
 import { CustomerLayout } from './pages/customer/CustomerLayout'
 import { CustomerDashboard } from './pages/customer/CustomerDashboard'
 import { CustomerPedidos } from './pages/customer/CustomerPedidos'
+import { CustomerContratos } from './pages/customer/CustomerContratos'
 import { CustomerAvaliacoes } from './pages/customer/CustomerAvaliacoes'
 import { CustomerPerfil } from './pages/customer/CustomerPerfil'
 import { PainterLayout } from './pages/painter/PainterLayout'
@@ -138,6 +139,7 @@ function AppRoutes() {
       }>
         <Route index element={<CustomerDashboard />} />
         <Route path="pedidos" element={<CustomerPedidos />} />
+        <Route path="contratos" element={<CustomerContratos />} />
         <Route path="avaliacoes" element={<CustomerAvaliacoes />} />
         <Route path="perfil" element={<CustomerPerfil />} />
       </Route>

@@ -17,16 +17,16 @@ export function CustomerDashboard() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Minha Área</h1>
-        <p className="text-gray-500 text-sm mt-1">Acompanhe seus pedidos e as propostas dos pintores.</p>
+        <p className="text-gray-500 text-sm mt-1">Acompanhe suas solicitações e as propostas dos pintores.</p>
       </motion.div>
 
       {/* Stats */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="grid grid-cols-3 gap-3 mb-6">
         {([
-          { icon: FileText, label: 'Pedidos', value: leads.length, color: 'text-brand', bg: 'bg-orange-50', to: '/minha-area/pedidos' },
+          { icon: FileText, label: 'Solicitações', value: leads.length, color: 'text-brand', bg: 'bg-orange-50', to: '/minha-area/pedidos' },
           { icon: MessageSquare, label: 'Propostas', value: totalProposals, color: 'text-blue-500', bg: 'bg-blue-50', to: '/minha-area/pedidos' },
-          { icon: CheckCircle, label: 'Contratados', value: totalContracted, color: 'text-green-500', bg: 'bg-green-50', to: '/minha-area/pedidos' },
+          { icon: CheckCircle, label: 'Pedidos', value: totalContracted, color: 'text-green-500', bg: 'bg-green-50', to: '/minha-area/contratos' },
         ] as const).map(({ icon: Icon, label, value, color, bg, to }) => (
           <Link key={label} to={to}
             className="bg-white rounded-2xl border border-gray-100 p-4 text-center hover:border-gray-200 transition-colors">
@@ -49,7 +49,7 @@ export function CustomerDashboard() {
               <Plus className="w-5 h-5 text-white" />
             </div>
             <div>
-              <p className="font-semibold text-white">Novo pedido de pintura</p>
+              <p className="font-semibold text-white">Nova solicitação de orçamento</p>
               <p className="text-white/70 text-xs">Receba propostas de pintores qualificados</p>
             </div>
           </div>
@@ -60,7 +60,7 @@ export function CustomerDashboard() {
       {/* Recent orders */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-900">Pedidos Recentes</h2>
+          <h2 className="font-semibold text-gray-900">Solicitações Recentes</h2>
           {leads.length > 3 && (
             <Link to="/minha-area/pedidos" className="text-xs text-brand font-medium hover:underline">
               Ver todos →
@@ -75,7 +75,7 @@ export function CustomerDashboard() {
         ) : leads.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
             <Paintbrush className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">Nenhum pedido ainda.</p>
+            <p className="text-gray-500 text-sm">Nenhuma solicitação ainda.</p>
             <p className="text-gray-400 text-xs mt-1">Use o chat para solicitar um orçamento grátis!</p>
           </div>
         ) : (

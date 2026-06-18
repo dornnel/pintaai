@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import {
   LayoutDashboard, FileText, Star, User,
-  Home, LogOut, Paintbrush2, Plus, Shield,
+  Home, LogOut, Paintbrush2, Plus, Shield, Briefcase,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -79,6 +79,7 @@ export function useCustomerContext() {
 const NAV_ITEMS = [
   { to: '/minha-area', icon: LayoutDashboard, label: 'Início', end: true },
   { to: '/minha-area/pedidos', icon: FileText, label: 'Minhas Solicitações' },
+  { to: '/minha-area/contratos', icon: Briefcase, label: 'Pedidos' },
   { to: '/minha-area/avaliacoes', icon: Star, label: 'Avaliações' },
   { to: '/minha-area/perfil', icon: User, label: 'Perfil' },
 ]
@@ -86,7 +87,7 @@ const NAV_ITEMS = [
 const MOBILE_TABS = [
   { to: '/minha-area', icon: LayoutDashboard, label: 'Início', end: true },
   { to: '/minha-area/pedidos', icon: FileText, label: 'Solic.' },
-  { to: '/minha-area/avaliacoes', icon: Star, label: 'Aval.' },
+  { to: '/minha-area/contratos', icon: Briefcase, label: 'Pedidos' },
   { to: '/minha-area/perfil', icon: User, label: 'Perfil' },
 ]
 
@@ -203,7 +204,7 @@ export function CustomerLayout() {
             <div className="pt-2">
               <button onClick={() => navigate('/chat')}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white bg-brand hover:bg-orange-700 transition-colors cursor-pointer font-medium">
-                <Plus className="w-4 h-4 shrink-0" /> Novo pedido
+                <Plus className="w-4 h-4 shrink-0" /> Nova solicitação
               </button>
             </div>
           </nav>
