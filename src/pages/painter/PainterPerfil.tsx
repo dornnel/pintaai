@@ -69,6 +69,11 @@ export function PainterPerfil() {
   const [lgpdAccepted, setLgpdAccepted] = useState(!!painter?.lgpd_accepted_at)
   const [savingCompliance, setSavingCompliance] = useState(false)
 
+  // Notification channels
+  const [notifyEmail, setNotifyEmail] = useState(painter?.notify_by_email ?? true)
+  const [notifyWhatsapp, setNotifyWhatsapp] = useState(painter?.notify_by_whatsapp ?? false)
+  const [savingNotif, setSavingNotif] = useState(false)
+
   // KYC
   const [kycUploading, setKycUploading] = useState<Record<string, boolean>>({})
   const [kycUrls, setKycUrls] = useState({
@@ -123,6 +128,13 @@ export function PainterPerfil() {
     setSaving(false)
     setSaved(true)
     setTimeout(() => { setSaved(false); reload() }, 1500)
+  }
+
+  async function saveNotifChannels(email: boolean, whatsapp: boolean) {
+    if (!painter) return
+    setSavingNotif(true)
+    await supabase.from('painters').update({ notify_by_email: email, notify_by_whatsapp: whatsapp }).eq('id', painter.id)
+    setSavingNotif(false)
   }
 
   async function saveCompliance(field: 'terms_accepted_at' | 'privacy_accepted_at' | 'lgpd_accepted_at', accept: boolean) {
@@ -327,6 +339,64 @@ export function PainterPerfil() {
                   </span>
                 )}
               </label>
+            </div>
+          ))}
+        </div>
+
+        {/* ─── Canais de Notificação ───────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3 mt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-800">Canais de Notificação</p>
+            {savingNotif && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+          </div>
+          <p className="text-xs text-gray-500">Como você quer receber avisos de novas solicitações de pintura.</p>
+
+          {[
+            {
+              key: 'email' as const,
+              label: 'E-mail',
+              hint: 'Receba detalhes da solicitação e link para responder.',
+              checked: notifyEmail,
+              disabled: false,
+            },
+            {
+              key: 'whatsapp' as const,
+              label: 'WhatsApp',
+              hint: 'Em breve — integração com WhatsApp Business em desenvolvimento.',
+              checked: notifyWhatsapp,
+              disabled: true,
+            },
+          ].map(item => (
+            <div key={item.key} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+              <div>
+                <p className={cn('text-sm font-medium', item.disabled ? 'text-gray-400' : 'text-gray-800')}>{item.label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{item.hint}</p>
+              </div>
+              <button
+                type="button"
+                disabled={item.disabled || savingNotif}
+                onClick={async () => {
+                  if (item.key === 'email') {
+                    const next = !notifyEmail
+                    setNotifyEmail(next)
+                    await saveNotifChannels(next, notifyWhatsapp)
+                  } else {
+                    const next = !notifyWhatsapp
+                    setNotifyWhatsapp(next)
+                    await saveNotifChannels(notifyEmail, next)
+                  }
+                }}
+                className={cn(
+                  'relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed',
+                  item.disabled ? 'bg-gray-200 opacity-50' :
+                    (item.key === 'email' ? notifyEmail : notifyWhatsapp) ? 'bg-brand' : 'bg-gray-200'
+                )}
+              >
+                <span className={cn(
+                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                  (item.key === 'email' ? notifyEmail : notifyWhatsapp) && !item.disabled ? 'translate-x-5' : 'translate-x-0'
+                )} />
+              </button>
             </div>
           ))}
         </div>

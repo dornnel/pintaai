@@ -62,6 +62,8 @@ export interface Painter {
   terms_accepted_at?: string
   privacy_accepted_at?: string
   lgpd_accepted_at?: string
+  notify_by_email: boolean
+  notify_by_whatsapp: boolean
   created_at: string
   updated_at: string
   user?: User

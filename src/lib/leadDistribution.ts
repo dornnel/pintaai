@@ -76,4 +76,11 @@ export async function sendLeadToPainters(lead: LeadForDistribution, painterIds: 
     sent_to_painters_at: new Date().toISOString(),
     painter_ids_notified: painterIds,
   }).eq('id', lead.id)
+
+  // Email notification to each painter (fire-and-forget)
+  await Promise.allSettled(painterIds.map(painterId =>
+    supabase.functions.invoke('notify-painter', {
+      body: { painter_id: painterId, lead_id: lead.id },
+    })
+  ))
 }
