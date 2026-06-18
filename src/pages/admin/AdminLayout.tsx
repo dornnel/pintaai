@@ -5,7 +5,7 @@ import {
   LayoutDashboard, FileText, Users, MessageSquare, AlertTriangle,
   Settings, DollarSign, Bot, Star, Shield, BarChart3, Layout, Inbox,
   Paintbrush, Home, LogOut, Package, Tag,
-  CreditCard, Megaphone, ClipboardList, Lock, MoreHorizontal,
+  CreditCard, Megaphone, ClipboardList, Lock, MoreHorizontal, Paintbrush2, UserCircle,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -84,7 +84,7 @@ const MORE_SUPERADMIN = {
 export function AdminLayout() {
   const [moreOpen, setMoreOpen] = useState(false)
   const navigate = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, signOut, switchRole } = useAuth()
 
   async function handleSignOut() {
     setMoreOpen(false)
@@ -137,7 +137,46 @@ export function AdminLayout() {
           )}
         </nav>
 
+        {/* Logged-in user identity */}
+        <div className="px-3 py-2.5 border-t border-gray-100 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF7A30] to-brand flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {user?.name?.charAt(0).toUpperCase() ?? 'A'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-gray-900 truncate">{user?.name}</p>
+              <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
+            </div>
+          </div>
+          {user?.roles && user.roles.length > 1 && (
+            <div className="flex flex-wrap gap-1 mt-1.5 pl-[42px]">
+              {user.roles.map(r => (
+                <span key={r} className={cn(
+                  'text-[9px] font-semibold px-1.5 py-0.5 rounded-full',
+                  r === user.role
+                    ? 'bg-gradient-to-r from-[#FF7A30] to-brand text-white'
+                    : 'bg-gray-100 text-gray-500',
+                )}>
+                  {r === 'admin' ? 'Admin' : r === 'painter' ? 'Pintor' : r === 'customer' ? 'Cliente' : r}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
+          {user?.roles?.includes('painter') && (
+            <button onClick={() => { switchRole('painter'); navigate('/portal/pintor') }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors">
+              <Paintbrush2 className="w-4 h-4 shrink-0" /> Portal do Pintor
+            </button>
+          )}
+          {user?.roles?.includes('customer') && (
+            <button onClick={() => { switchRole('customer'); navigate('/minha-area') }}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors">
+              <UserCircle className="w-4 h-4 shrink-0" /> Minha Área
+            </button>
+          )}
           <button onClick={() => navigate('/')}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors">
             <Home className="w-4 h-4 shrink-0" /> Voltar ao site
@@ -303,6 +342,20 @@ export function AdminLayout() {
 
                 {/* Account actions */}
                 <div className="px-3 pt-2 pb-2 mt-1 border-t border-gray-100 space-y-0.5">
+                  {user?.roles?.includes('painter') && (
+                    <button onClick={() => { switchRole('painter'); setMoreOpen(false); navigate('/portal/pintor') }}
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 active:bg-gray-50 transition-colors">
+                      <Paintbrush2 className="w-4 h-4 shrink-0 text-gray-400" />
+                      Portal do Pintor
+                    </button>
+                  )}
+                  {user?.roles?.includes('customer') && (
+                    <button onClick={() => { switchRole('customer'); setMoreOpen(false); navigate('/minha-area') }}
+                      className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 active:bg-gray-50 transition-colors">
+                      <UserCircle className="w-4 h-4 shrink-0 text-gray-400" />
+                      Minha Área
+                    </button>
+                  )}
                   <button onClick={() => { setMoreOpen(false); navigate('/') }}
                     className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-600 active:bg-gray-50 transition-colors">
                     <Home className="w-4 h-4 shrink-0 text-gray-400" />

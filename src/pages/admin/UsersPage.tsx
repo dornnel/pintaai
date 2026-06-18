@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   Search, Plus, UserX, UserCheck, Loader2, X, Mail,
   Phone, User, Shield, CheckCircle, Clock, AlertCircle,
-  Edit2, Eye, Send, Trash2,
+  Edit2, Eye, Send, Trash2, Save,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
@@ -17,6 +17,7 @@ interface UserRecord {
   email: string
   phone?: string
   role: string
+  roles?: string[]
   status: string
   registration_source?: string
   banned_at?: string
@@ -34,6 +35,14 @@ const ROLE_COLORS: Record<string, string> = {
   painter: 'bg-orange-100 text-orange-700',
   partner: 'bg-green-100 text-green-700',
   artist: 'bg-pink-100 text-pink-700',
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  customer: 'Cliente',
+  painter: 'Pintor',
+  partner: 'Parceiro',
+  artist: 'Artista',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -511,6 +520,43 @@ export function UsersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [showInvite, setShowInvite] = useState(false)
   const [detailUser, setDetailUser] = useState<UserRecord | null>(null)
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { role: string; roles: string[] }>>({})
+  const [saving, setSaving] = useState(false)
+
+  function effectiveState(u: UserRecord) {
+    const pending = pendingChanges[u.id]
+    if (pending) return pending
+    const roles = u.roles?.length ? u.roles : [u.role]
+    return { role: u.role, roles }
+  }
+
+  function updatePending(userId: string, change: { role: string; roles: string[] }) {
+    const u = users.find(x => x.id === userId)!
+    const origRoles = u.roles?.length ? u.roles : [u.role]
+    const unchanged = change.role === u.role &&
+      JSON.stringify([...change.roles].sort()) === JSON.stringify([...origRoles].sort())
+    if (unchanged) {
+      setPendingChanges(prev => { const n = { ...prev }; delete n[userId]; return n })
+    } else {
+      setPendingChanges(prev => ({ ...prev, [userId]: change }))
+    }
+  }
+
+  function changePrimaryRole(userId: string, newRole: string) {
+    const current = effectiveState(users.find(u => u.id === userId)!)
+    const newRoles = current.roles.includes(newRole) ? current.roles : [newRole, ...current.roles]
+    updatePending(userId, { role: newRole, roles: newRoles })
+  }
+
+  function toggleSecondaryRole(userId: string, roleToToggle: string) {
+    const current = effectiveState(users.find(u => u.id === userId)!)
+    if (roleToToggle === current.role) return
+    const newRoles = current.roles.includes(roleToToggle)
+      ? current.roles.filter(r => r !== roleToToggle)
+      : [...current.roles, roleToToggle]
+    if (!newRoles.includes(current.role)) newRoles.unshift(current.role)
+    updatePending(userId, { role: current.role, roles: newRoles })
+  }
 
   const loadUsers = useCallback(async () => {
     const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false })
@@ -538,6 +584,40 @@ export function UsersPage() {
   function removeLocal(id: string) {
     setUsers(prev => prev.filter(u => u.id !== id))
     if (detailUser?.id === id) setDetailUser(null)
+  }
+
+  async function saveAllPending() {
+    setSaving(true)
+    for (const [userId, change] of Object.entries(pendingChanges)) {
+      const u = users.find(x => x.id === userId)
+      if (!u) continue
+      const oldRole = u.role
+      const oldRoles = u.roles?.length ? u.roles : [u.role]
+      await supabase.from('users')
+        .update({ role: change.role, roles: change.roles, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+      if (change.roles.includes('painter')) {
+        const { data: existing } = await supabase.from('painters').select('id').eq('user_id', userId).maybeSingle()
+        if (!existing) {
+          await supabase.from('painters').insert({
+            user_id: userId, bio: '', years_experience: 0, specialties: [],
+            availability_status: 'available', verification_status: 'unverified',
+            kyc_status: 'not_started', service_radius_km: 10,
+          })
+        }
+      }
+      await logAudit({
+        actor_user_id: currentUser?.id,
+        entity_type: 'user',
+        entity_id: userId,
+        action: 'user_role_changed',
+        old_values: { role: oldRole, roles: oldRoles },
+        new_values: { role: change.role, roles: change.roles },
+      })
+      updateLocal({ ...u, role: change.role, roles: change.roles })
+    }
+    setPendingChanges({})
+    setSaving(false)
   }
 
   return (
@@ -608,28 +688,48 @@ export function UsersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <select value={user.role}
-                      onChange={async e => {
-                        const role = e.target.value
-                        await supabase.from('users').update({ role, roles: [role] }).eq('id', user.id)
-                        if (role === 'painter') {
-                          const { data: existing } = await supabase.from('painters').select('id').eq('user_id', user.id).maybeSingle()
-                          if (!existing) {
-                            await supabase.from('painters').insert({
-                              user_id: user.id, bio: '', years_experience: 0, specialties: [],
-                              availability_status: 'available', verification_status: 'unverified',
-                              kyc_status: 'not_started', service_radius_km: 10,
-                            })
-                          }
-                        }
-                        updateLocal({ ...user, role })
-                      }}
-                      className={cn('text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer', ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-600')}>
-                      <option value="customer">Cliente</option>
-                      <option value="painter">Pintor</option>
-                      <option value="partner">Parceiro</option>
-                      <option value="admin">Admin</option>
-                    </select>
+                    {(() => {
+                      const eff = effectiveState(user)
+                      const hasPending = !!pendingChanges[user.id]
+                      return (
+                        <div className="flex flex-col gap-1.5">
+                          <select
+                            value={eff.role}
+                            onChange={e => changePrimaryRole(user.id, e.target.value)}
+                            className={cn(
+                              'text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer w-fit',
+                              hasPending ? 'ring-2 ring-brand/40 ' : '',
+                              ROLE_COLORS[eff.role] || 'bg-gray-100 text-gray-600',
+                            )}>
+                            <option value="customer">Cliente</option>
+                            <option value="painter">Pintor</option>
+                            <option value="partner">Parceiro</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          <div className="flex flex-wrap gap-1">
+                            {(['admin', 'customer', 'painter', 'partner'] as const)
+                              .filter(r => r !== eff.role)
+                              .map(r => {
+                                const isActive = eff.roles.includes(r)
+                                return (
+                                  <button
+                                    key={r}
+                                    onClick={() => toggleSecondaryRole(user.id, r)}
+                                    title={isActive ? `Remover ${ROLE_LABELS[r]}` : `Adicionar ${ROLE_LABELS[r]}`}
+                                    className={cn(
+                                      'text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors cursor-pointer',
+                                      isActive
+                                        ? cn(ROLE_COLORS[r], 'opacity-85')
+                                        : 'bg-gray-100 text-gray-300 hover:bg-gray-200 hover:text-gray-500',
+                                    )}>
+                                    {isActive ? `✓ ${ROLE_LABELS[r]}` : `+ ${ROLE_LABELS[r]}`}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', STATUS_COLORS[user.status] || 'bg-gray-100 text-gray-600')}>
@@ -689,6 +789,21 @@ export function UsersPage() {
           </table>
         )}
       </div>
+
+      {/* Floating save button */}
+      <AnimatePresence>
+        {Object.keys(pendingChanges).length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-20 lg:bottom-6 right-6 z-40">
+            <button onClick={saveAllPending} disabled={saving}
+              className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-[#FF7A30] to-brand text-white rounded-2xl shadow-xl shadow-brand/30 text-sm font-semibold cursor-pointer disabled:opacity-60 transition-opacity">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Salvar {Object.keys(pendingChanges).length} alteração{Object.keys(pendingChanges).length !== 1 ? 'ões' : ''}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Modals */}
       <AnimatePresence>
