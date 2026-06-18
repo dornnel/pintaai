@@ -1,16 +1,21 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ArrowLeft, Phone, Mail, MessageCircle, Send, CheckCircle,
   Image as ImageIcon, ChevronDown, ChevronUp, Sparkles, Loader2,
   Calendar, X, Bot, User, AlertTriangle, Calculator, Check, Plus,
-  FileText, Activity, Play, Mic,
+  FileText, Activity, Play, Mic, Map,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatDate, formatRelativeTime, formatCurrency } from '../../lib/utils'
 import { calculateDivergence, BUDGET_ERROR_CATEGORIES } from '../../lib/budgetEngine'
 import { SendToPaintersModal } from '../../components/admin/SendToPaintersModal'
+import type { Neighborhood } from '../../lib/types'
+
+const LeadCoverageMap = lazy(() =>
+  import('../../components/LeadCoverageMap').then(m => ({ default: m.LeadCoverageMap }))
+)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +42,7 @@ interface PainterInteraction {
   id: string; painter_id: string; status: string
   notified_at: string; email_opened_at?: string; proposal_viewed_at?: string
   proposal_sent_at?: string; replied_at?: string; declined_at?: string
-  painter: { id: string; user: { name: string; phone: string } }
+  painter: { id: string; neighborhoods_ids?: string[]; service_radius_km?: number; user: { name: string; phone: string } }
 }
 
 interface VisitSchedule {
@@ -199,20 +204,26 @@ export function LeadDetailPage() {
   const [commentInput, setCommentInput] = useState('')
   const [savingComment, setSavingComment] = useState(false)
 
+  // Geolocation
+  const [liveViewers, setLiveViewers] = useState<string[]>([]) // painter_ids currently viewing
+  const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([])
+  const [showMap, setShowMap] = useState(false)
+
   const loadAll = useCallback(async () => {
     if (!id) return
     setLoading(true)
-    const [leadRes, msgRes, interRes, schedRes, paintRes, commentsRes] = await Promise.all([
+    const [leadRes, msgRes, interRes, schedRes, paintRes, commentsRes, nbhdRes] = await Promise.all([
       supabase.from('leads').select('*').eq('id', id).single(),
       supabase.from('messages').select('*').filter('metadata->>lead_id', 'eq', id).order('created_at'),
       supabase.from('lead_painter_interactions')
-        .select('*, painter:painters(id, user:users!painters_user_id_fkey(name,phone))')
+        .select('*, painter:painters(id, neighborhoods_ids, service_radius_km, user:users!painters_user_id_fkey(name,phone))')
         .eq('lead_id', id).order('notified_at'),
       supabase.from('visit_schedules')
         .select('*, painter:painters(user:users!painters_user_id_fkey(name))')
         .eq('lead_id', id).order('scheduled_at'),
       supabase.from('painters').select('id, user:users!painters_user_id_fkey(name,phone)').eq('availability_status', 'available'),
       supabase.from('lead_comments').select('id, body, created_at, user:users(name)').eq('lead_id', id).order('created_at'),
+      supabase.from('neighborhoods').select('id,name,city,region,latitude,longitude,active,launch_priority').eq('active', true),
     ])
     if (leadRes.data) setLead(leadRes.data as Lead)
     setMessages((msgRes.data || []) as LeadMessage[])
@@ -220,6 +231,7 @@ export function LeadDetailPage() {
     setSchedules((schedRes.data as unknown as VisitSchedule[]) || [])
     setAvailablePainters((paintRes.data as unknown as Painter[]) || [])
     setComments((commentsRes.data as unknown as { id: string; body: string; user: { name: string } | null; created_at: string }[]) || [])
+    setNeighborhoods((nbhdRes.data as unknown as Neighborhood[]) || [])
     setLoading(false)
   }, [id])
 
@@ -237,6 +249,29 @@ export function LeadDetailPage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [id, loadAll])
+
+  // Presence: track which painters are viewing this lead right now
+  useEffect(() => {
+    if (!id) return
+    const channel = supabase.channel(`lead-presence-${id}`)
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ painter_id: string }>()
+        setLiveViewers(Object.values(state).flat().map(p => p.painter_id).filter(Boolean))
+      })
+      .on('presence', { event: 'join' }, ({ newPresences }) => {
+        setLiveViewers(prev => {
+          const ids = (newPresences as { painter_id: string }[]).map(p => p.painter_id)
+          return [...new Set([...prev, ...ids])]
+        })
+      })
+      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+        const ids = new Set((leftPresences as { painter_id: string }[]).map(p => p.painter_id))
+        setLiveViewers(prev => prev.filter(id => !ids.has(id)))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
 
   async function changeStage(stage: string) {
     if (!lead) return
@@ -647,6 +682,12 @@ export function LeadDetailPage() {
               const declined = interactions.filter(i => i.status === 'declined').length
               return (
                 <div className="flex gap-2 flex-wrap mb-3 pb-3 border-b border-gray-50">
+                  {liveViewers.length > 0 && (
+                    <span className="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-lg font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      {liveViewers.length} vendo agora
+                    </span>
+                  )}
                   {evaluating > 0 && (
                     <span className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-2.5 py-1.5 rounded-lg font-medium">
                       <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -693,13 +734,22 @@ export function LeadDetailPage() {
                     notified: 'Avaliando...', interested: 'Interessado', proposal_sent: 'Proposta enviada',
                     declined: 'Recusou', accepted: 'Aceitou',
                   }
+                  const isLive = liveViewers.includes(inter.painter_id)
                   return (
                     <motion.div key={inter.id} layout initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                      className={`border rounded-xl p-3 transition-colors ${isEvaluating ? 'border-amber-100 bg-amber-50/30' : 'border-gray-100'}`}>
+                      className={`border rounded-xl p-3 transition-colors ${
+                        isLive ? 'border-emerald-200 bg-emerald-50/20' :
+                        isEvaluating ? 'border-amber-100 bg-amber-50/30' : 'border-gray-100'
+                      }`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          {isEvaluating && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />}
+                          {isLive
+                            ? <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Vendo agora" />
+                            : isEvaluating
+                              ? <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                              : null}
                           <p className="text-sm font-semibold text-gray-800">{inter.painter?.user?.name}</p>
+                          {isLive && <span className="text-[10px] text-emerald-600 font-semibold">ao vivo</span>}
                         </div>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${statusColors[inter.status] || 'bg-gray-100 text-gray-600'}`}>
                           {statusLabels[inter.status] || inter.status}
@@ -732,6 +782,43 @@ export function LeadDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Mapa de cobertura */}
+          {interactions.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <button onClick={() => setShowMap(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Map className="w-3.5 h-3.5 text-brand" /> Mapa de Cobertura
+                </h3>
+                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showMap ? 'rotate-180' : ''}`} />
+              </button>
+              {showMap && (
+                <div className="px-3 pb-3">
+                  <div className="flex flex-wrap gap-1.5 mb-2 text-[10px]">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-brand/80 inline-block" />Cliente</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />Notificado</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />Interessado</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />Proposta</span>
+                  </div>
+                  <Suspense fallback={<div className="h-[280px] bg-gray-100 rounded-xl animate-pulse" />}>
+                    <LeadCoverageMap
+                      leadNeighborhoodName={lead?.neighborhood ?? null}
+                      neighborhoods={neighborhoods}
+                      painters={interactions.map(i => ({
+                        painter_id: i.painter_id,
+                        name: i.painter?.user?.name ?? 'Pintor',
+                        status: i.status,
+                        neighborhoods_ids: i.painter?.neighborhoods_ids ?? [],
+                        service_radius_km: i.painter?.service_radius_km ?? 5,
+                        is_live: liveViewers.includes(i.painter_id),
+                      }))}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Agendamentos */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4">

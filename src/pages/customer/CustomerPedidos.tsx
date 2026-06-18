@@ -376,11 +376,26 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
   const [lead, setLead] = useState(initialLead)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [liveCount, setLiveCount] = useState(0)
 
   const proposals = lead.lead_painter_interactions.filter(
     i => i.status === 'proposal_sent' || i.status === 'accepted'
   )
   const accepted = lead.lead_painter_interactions.find(i => i.status === 'accepted')
+  const viewedCount = lead.lead_painter_interactions.filter(i => i.proposal_viewed_at).length
+  const notifiedCount = lead.lead_painter_interactions.length
+
+  // Real-time: painters currently viewing this lead
+  useEffect(() => {
+    const channel = supabase.channel(`lead-presence-${lead.id}`)
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        setLiveCount(Object.keys(state).length)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [lead.id])
 
   return (
     <>
@@ -397,9 +412,22 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
                 <span className="text-xs px-2 py-0.5 bg-brand/10 text-brand rounded-full font-medium">
                   {proposals.length} proposta{proposals.length > 1 ? 's' : ''}
                 </span>
-              ) : (
+              ) : liveCount > 0 ? (
+                <span className="text-xs px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {liveCount} {liveCount === 1 ? 'pintor' : 'pintores'} avaliando
+                </span>
+              ) : viewedCount > 0 ? (
+                <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full font-medium">
+                  {viewedCount} visualizou
+                </span>
+              ) : notifiedCount > 0 ? (
                 <span className="text-xs px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Aguardando pintores
+                  <Clock className="w-3 h-3" /> {notifiedCount} notificado{notifiedCount > 1 ? 's' : ''}
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-medium">
+                  Aguardando pintores
                 </span>
               )}
             </div>

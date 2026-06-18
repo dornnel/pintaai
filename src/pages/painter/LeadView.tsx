@@ -41,6 +41,7 @@ interface Interaction {
   metadata: InteractionMetadata
   notified_at: string | null
   proposal_sent_at: string | null
+  proposal_viewed_at: string | null
   lead: Lead
 }
 
@@ -169,6 +170,30 @@ export function LeadView() {
   }, [interactionId, navigate])
 
   useEffect(() => { load() }, [load])
+
+  // Presence: broadcast that this painter is currently viewing the lead
+  useEffect(() => {
+    if (!interaction || isAdmin) return
+    const channel = supabase.channel(`lead-presence-${interaction.lead.id}`)
+    channel.subscribe(async status => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ painter_id: interaction.painter_id, joined_at: new Date().toISOString() })
+      }
+    })
+    return () => { supabase.removeChannel(channel) }
+  }, [interaction, isAdmin])
+
+  // Mark proposal_viewed_at on first open
+  useEffect(() => {
+    if (!interaction || isAdmin || !interactionId) return
+    if (!interaction.proposal_viewed_at) {
+      supabase.from('lead_painter_interactions')
+        .update({ proposal_viewed_at: new Date().toISOString(), status: interaction.status === 'notified' ? 'interested' : interaction.status })
+        .eq('id', interactionId)
+        .then(() => {})
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactionId, isAdmin])
 
   useEffect(() => { agentBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [agentMessages])
   useEffect(() => { convBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [convMessages])

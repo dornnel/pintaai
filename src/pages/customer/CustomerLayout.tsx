@@ -33,6 +33,8 @@ export interface CustomerLead {
   lead_painter_interactions: Array<{
     id: string
     status: string
+    notified_at: string | null
+    proposal_viewed_at: string | null
     metadata: { quote?: {
       total_price: number
       includes_material: boolean
@@ -97,7 +99,7 @@ export function CustomerLayout() {
         wall_condition, final_notes, preferred_professional, estimated_budget, current_color,
         created_at, is_partial,
         lead_painter_interactions(
-          id, status, metadata,
+          id, status, metadata, notified_at, proposal_viewed_at,
           painter:painters(
             id, bio, years_experience, specialties, kyc_status,
             user:users!painters_user_id_fkey(name, phone)
