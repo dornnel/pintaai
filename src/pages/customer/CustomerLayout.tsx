@@ -1,8 +1,9 @@
 import { useState, useEffect, createContext, useContext } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { motion } from 'motion/react'
 import {
   LayoutDashboard, FileText, Star, User,
-  Menu, X, Home, LogOut, Paintbrush2, Plus,
+  Home, LogOut, Paintbrush2, Plus,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -80,12 +81,18 @@ const NAV_ITEMS = [
   { to: '/minha-area/perfil', icon: User, label: 'Perfil' },
 ]
 
+const MOBILE_TABS = [
+  { to: '/minha-area', icon: LayoutDashboard, label: 'Início', end: true },
+  { to: '/minha-area/pedidos', icon: FileText, label: 'Pedidos' },
+  { to: '/minha-area/avaliacoes', icon: Star, label: 'Aval.' },
+  { to: '/minha-area/perfil', icon: User, label: 'Perfil' },
+]
+
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 export function CustomerLayout() {
   const { user, signOut, switchRole } = useAuth()
   const navigate = useNavigate()
-  const [open, setOpen] = useState(false)
   const [leads, setLeads] = useState<CustomerLead[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -134,10 +141,7 @@ export function CustomerLayout() {
     await load()
   }
 
-  const close = () => setOpen(false)
-
   async function handleSignOut() {
-    close()
     await signOut()
     navigate('/', { replace: true })
   }
@@ -145,9 +149,7 @@ export function CustomerLayout() {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-      isActive
-        ? 'bg-orange-50 text-brand font-medium'
-        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+      isActive ? 'bg-orange-50 text-brand font-medium' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
     )
 
   const pendingProposals = leads.reduce((acc, l) =>
@@ -157,32 +159,17 @@ export function CustomerLayout() {
     <CustomerContext.Provider value={{ leads, loading, reload: load, selectProposal }}>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-        {/* Mobile backdrop */}
-        {open && (
-          <div className="fixed inset-0 z-20 bg-black/40 backdrop-blur-sm lg:hidden" onClick={close} />
-        )}
-
-        {/* Sidebar */}
-        <aside className={cn(
-          'fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-100 flex flex-col',
-          'transition-transform duration-300 ease-in-out',
-          'lg:relative lg:translate-x-0 lg:w-56 lg:z-auto lg:shrink-0',
-          open ? 'translate-x-0 shadow-2xl' : '-translate-x-full',
-        )}>
-          {/* Header */}
-          <div className="h-14 px-4 flex items-center justify-between border-b border-gray-100 shrink-0">
+        {/* ═══ DESKTOP SIDEBAR (hidden on mobile) ═══ */}
+        <aside className="hidden lg:flex lg:flex-col w-56 bg-white border-r border-gray-100 shrink-0">
+          <div className="h-14 px-4 flex items-center border-b border-gray-100 shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-base font-bold text-brand">Pintai</span>
               <span className="text-xs bg-orange-100 text-brand px-2 py-0.5 rounded font-medium">
                 Minha Área
               </span>
             </div>
-            <button onClick={close} className="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer transition-colors">
-              <X className="w-4 h-4" />
-            </button>
           </div>
 
-          {/* User info */}
           <div className="px-4 py-3 border-b border-gray-100 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
@@ -194,16 +181,13 @@ export function CustomerLayout() {
               </div>
             </div>
             {user?.roles?.includes('painter') && (
-              <div className="mt-2">
-                <RoleSwitcher />
-              </div>
+              <div className="mt-2"><RoleSwitcher /></div>
             )}
           </div>
 
-          {/* Navigation */}
           <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto scrollbar-hide">
             {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
-              <NavLink key={to} to={to} end={end} onClick={close} className={navLinkClass}>
+              <NavLink key={to} to={to} end={end} className={navLinkClass}>
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1">{label}</span>
                 {label === 'Meus Pedidos' && pendingProposals > 0 && (
@@ -215,22 +199,21 @@ export function CustomerLayout() {
             ))}
 
             <div className="pt-2">
-              <button onClick={() => { close(); navigate('/chat') }}
+              <button onClick={() => navigate('/chat')}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-white bg-brand hover:bg-orange-700 transition-colors cursor-pointer font-medium">
                 <Plus className="w-4 h-4 shrink-0" /> Novo pedido
               </button>
             </div>
           </nav>
 
-          {/* Footer */}
           <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
             {user?.roles?.includes('painter') && (
-              <button onClick={() => { close(); switchRole('painter'); navigate('/portal/pintor') }}
+              <button onClick={() => { switchRole('painter'); navigate('/portal/pintor') }}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand hover:bg-orange-50 cursor-pointer transition-colors">
                 <Paintbrush2 className="w-4 h-4 shrink-0" /> Portal do Pintor
               </button>
             )}
-            <button onClick={() => { close(); navigate('/') }}
+            <button onClick={() => navigate('/')}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900 cursor-pointer transition-colors">
               <Home className="w-4 h-4 shrink-0" /> Voltar ao site
             </button>
@@ -241,33 +224,129 @@ export function CustomerLayout() {
           </div>
         </aside>
 
-        {/* Main area */}
+        {/* ═══ MAIN CONTENT AREA ═══ */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          {/* Mobile top bar */}
-          <div className="lg:hidden h-14 bg-white border-b border-gray-100 flex items-center gap-3 px-4 shrink-0 z-10">
-            <button onClick={() => setOpen(true)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 cursor-pointer transition-colors">
-              <Menu className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-brand">Pintai</span>
-              <span className="text-xs bg-orange-100 text-brand px-2 py-0.5 rounded font-medium">
-                Minha Área
-              </span>
+
+          {/* Top bar */}
+          <header className="bg-white border-b border-gray-100 shrink-0 z-10">
+            <div className="h-12 lg:h-14 px-4 flex items-center gap-3"
+              style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-sm font-bold text-brand shrink-0">Pintai</span>
+                <span className="text-[11px] bg-orange-100 text-brand px-2 py-0.5 rounded font-semibold shrink-0">
+                  Minha Área
+                </span>
+              </div>
+
+              {/* Mobile: role switcher + proposal badge */}
+              <div className="lg:hidden flex items-center gap-2 shrink-0">
+                <RoleSwitcher />
+                {pendingProposals > 0 && (
+                  <span className="flex items-center gap-1 text-xs font-bold text-brand">
+                    <span className="w-2 h-2 bg-brand rounded-full animate-pulse" />
+                    {pendingProposals}
+                  </span>
+                )}
+              </div>
+
+              {/* Desktop: proposal count */}
+              {pendingProposals > 0 && (
+                <span className="hidden lg:flex items-center gap-1.5 text-xs text-brand font-medium">
+                  <span className="w-2 h-2 bg-brand rounded-full animate-pulse" />
+                  {pendingProposals} proposta{pendingProposals > 1 ? 's' : ''} nova{pendingProposals > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
-            {pendingProposals > 0 && (
-              <span className="ml-auto flex items-center gap-1.5 text-xs text-brand font-medium">
-                <span className="w-2 h-2 bg-brand rounded-full animate-pulse" />
-                {pendingProposals} proposta{pendingProposals > 1 ? 's' : ''} nova{pendingProposals > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
+          </header>
 
           {/* Page content */}
           <main className="flex-1 overflow-y-auto">
             <Outlet />
+            {/* Spacer so content isn't hidden behind mobile bottom nav */}
+            <div className="lg:hidden" aria-hidden="true"
+              style={{ height: 'calc(80px + env(safe-area-inset-bottom, 0px))' }} />
           </main>
         </div>
+
+        {/* ═══ MOBILE BOTTOM TAB BAR ═══ */}
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40">
+          <div className="mx-3 rounded-2xl border border-gray-200/70 overflow-hidden"
+            style={{
+              marginBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
+              background: 'rgba(255,255,255,0.94)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              boxShadow: '0 -2px 20px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.08)',
+            }}>
+            <div className="flex items-stretch h-[56px]">
+
+              {/* First 2 tabs */}
+              {MOBILE_TABS.slice(0, 2).map(({ to, icon: Icon, label, end }) => (
+                <NavLink key={to} to={to} end={end}
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 pt-2 pb-1.5 relative">
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <motion.div layoutId="customer-tab-pill"
+                          className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-brand rounded-full" />
+                      )}
+                      <div className="relative">
+                        <Icon className={cn('w-[22px] h-[22px] transition-colors duration-150',
+                          isActive ? 'text-brand' : 'text-gray-400')} />
+                        {label === 'Pedidos' && pendingProposals > 0 && (
+                          <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] bg-brand text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                            {pendingProposals > 9 ? '9+' : pendingProposals}
+                          </span>
+                        )}
+                      </div>
+                      <span className={cn('text-[10px] font-semibold leading-none transition-colors duration-150',
+                        isActive ? 'text-brand' : 'text-gray-400')}>
+                        {label}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+
+              {/* Center "+" action button */}
+              <button onClick={() => navigate('/chat')}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative cursor-pointer">
+                <motion.div
+                  whileTap={{ scale: 0.88 }}
+                  className="w-11 h-11 rounded-[14px] flex items-center justify-center -mt-3"
+                  style={{
+                    background: 'linear-gradient(135deg, #FF8C42, #E35A1A)',
+                    boxShadow: '0 4px 14px rgba(227,90,26,0.38)',
+                  }}>
+                  <Plus className="w-5 h-5 text-white" />
+                </motion.div>
+                <span className="text-[10px] font-semibold text-gray-400 leading-none mt-0.5">Pedir</span>
+              </button>
+
+              {/* Last 2 tabs */}
+              {MOBILE_TABS.slice(2).map(({ to, icon: Icon, label, end }) => (
+                <NavLink key={to} to={to} end={end}
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 pt-2 pb-1.5 relative">
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <motion.div layoutId="customer-tab-pill"
+                          className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-brand rounded-full" />
+                      )}
+                      <Icon className={cn('w-[22px] h-[22px] transition-colors duration-150',
+                        isActive ? 'text-brand' : 'text-gray-400')} />
+                      <span className={cn('text-[10px] font-semibold leading-none transition-colors duration-150',
+                        isActive ? 'text-brand' : 'text-gray-400')}>
+                        {label}
+                      </span>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        </nav>
+
       </div>
     </CustomerContext.Provider>
   )
