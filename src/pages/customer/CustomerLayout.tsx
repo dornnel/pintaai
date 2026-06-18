@@ -100,7 +100,7 @@ export function CustomerLayout() {
           id, status, metadata,
           painter:painters(
             id, bio, years_experience, specialties, kyc_status,
-            user:users(name, phone)
+            user:users!painters_user_id_fkey(name, phone)
           )
         )
       `)

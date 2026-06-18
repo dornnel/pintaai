@@ -86,7 +86,7 @@ export function PainterLayout() {
     if (!user) return
     try {
       const { data: painterData, error: painterErr } = await supabase
-        .from('painters').select('*, user:users(name,phone)').eq('user_id', user.id).maybeSingle()
+        .from('painters').select('*, user:users!painters_user_id_fkey(name,phone)').eq('user_id', user.id).maybeSingle()
 
       if (painterErr) {
         // Query error (network, RLS, etc.) — do NOT redirect, just log and stop
