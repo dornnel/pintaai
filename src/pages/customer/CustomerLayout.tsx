@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import {
   LayoutDashboard, FileText, Star, User,
-  Home, LogOut, Paintbrush2, Plus,
+  Home, LogOut, Paintbrush2, Plus, Shield,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -209,6 +209,12 @@ export function CustomerLayout() {
           </nav>
 
           <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
+            {user?.roles?.includes('admin') && (
+              <button onClick={() => { switchRole('admin'); navigate('/admin') }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-purple-600 hover:bg-purple-50 cursor-pointer transition-colors">
+                <Shield className="w-4 h-4 shrink-0" /> Painel Admin
+              </button>
+            )}
             {user?.roles?.includes('painter') && (
               <button onClick={() => { switchRole('painter'); navigate('/portal/pintor') }}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand hover:bg-orange-50 cursor-pointer transition-colors">

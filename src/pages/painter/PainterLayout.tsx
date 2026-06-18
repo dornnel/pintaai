@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   LayoutDashboard, Inbox, Send, Star, Wrench, CreditCard, User,
-  Home, LogOut, Loader2, UserCircle, MoreHorizontal, Briefcase,
+  Home, LogOut, Loader2, UserCircle, MoreHorizontal, Briefcase, Shield,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -268,6 +268,12 @@ export function PainterLayout() {
           </nav>
 
           <div className="p-2 border-t border-gray-100 shrink-0 space-y-0.5">
+            {user?.roles?.includes('admin') && (
+              <button onClick={() => { switchRole('admin'); navigate('/admin') }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-purple-600 hover:bg-purple-50 cursor-pointer transition-colors">
+                <Shield className="w-4 h-4 shrink-0" /> Painel Admin
+              </button>
+            )}
             <button onClick={goToCustomerPortal}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-brand hover:bg-orange-50 cursor-pointer transition-colors">
               <UserCircle className="w-4 h-4 shrink-0" />
@@ -453,6 +459,13 @@ export function PainterLayout() {
 
                 {/* Divider + account actions */}
                 <div className="mx-3 mt-2 pt-3 border-t border-gray-100/80 space-y-0.5">
+                  {user?.roles?.includes('admin') && (
+                    <button onClick={() => { switchRole('admin'); setMoreOpen(false); navigate('/admin') }}
+                      className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-[15px] font-medium text-purple-600 active:bg-purple-50 transition-colors">
+                      <Shield className="w-5 h-5 shrink-0" />
+                      Painel Admin
+                    </button>
+                  )}
                   <button onClick={goToCustomerPortal}
                     className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-[15px] font-medium text-brand active:bg-orange-50 transition-colors">
                     <UserCircle className="w-5 h-5 shrink-0" />
