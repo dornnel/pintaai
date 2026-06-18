@@ -1,10 +1,13 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useRef } from 'react'
 import { motion } from 'motion/react'
-import { Pencil, CheckCircle, Loader2, MapPin, FileText } from 'lucide-react'
+import {
+  Pencil, CheckCircle, Loader2, MapPin, FileText, Upload,
+  ShieldCheck, ShieldAlert, ShieldX, Clock, AlertCircle,
+} from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { usePainterContext } from './PainterLayout'
 import { useAuth } from '../../lib/auth'
-import { cn } from '../../lib/utils'
+import { cn, formatDate } from '../../lib/utils'
 import type { Neighborhood } from '../../lib/types'
 
 const PainterAreaMap = lazy(() =>
@@ -23,10 +26,32 @@ function formatCpf(value: string) {
     .replace(/(\d{3})(\d{1,3})/, '$1.$2')
 }
 
+function formatTs(iso?: string | null) {
+  if (!iso) return null
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+async function uploadKycFile(file: File, painterId: string, type: string): Promise<string | null> {
+  const ext = file.name.split('.').pop()
+  const path = `kyc/${painterId}/${type}.${ext}`
+  const { error } = await supabase.storage.from('pintae-media').upload(path, file, { upsert: true })
+  if (error) { console.error('KYC upload error:', error); return null }
+  const { data } = supabase.storage.from('pintae-media').getPublicUrl(path)
+  return data.publicUrl
+}
+
+const KYC_STATUS_CONFIG: Record<string, { label: string; icon: typeof ShieldCheck; color: string }> = {
+  not_started: { label: 'Não iniciado', icon: ShieldAlert, color: 'text-gray-400' },
+  pending:      { label: 'Em análise', icon: Clock, color: 'text-yellow-500' },
+  approved:     { label: 'Aprovado', icon: ShieldCheck, color: 'text-green-600' },
+  rejected:     { label: 'Rejeitado', icon: ShieldX, color: 'text-red-500' },
+}
+
 export function PainterPerfil() {
   const { painter, loading, reload, saveAvailability } = usePainterContext()
   const { user, updateProfile } = useAuth()
 
+  // Profile fields
   const [bio, setBio] = useState(painter?.bio || '')
   const [years, setYears] = useState(String(painter?.years_experience || 0))
   const [specialties, setSpecialties] = useState<string[]>(painter?.specialties || [])
@@ -38,14 +63,39 @@ export function PainterPerfil() {
   const [saved, setSaved] = useState(false)
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([])
 
+  // Compliance
+  const [termsAccepted, setTermsAccepted] = useState(!!painter?.terms_accepted_at)
+  const [privacyAccepted, setPrivacyAccepted] = useState(!!painter?.privacy_accepted_at)
+  const [lgpdAccepted, setLgpdAccepted] = useState(!!painter?.lgpd_accepted_at)
+  const [savingCompliance, setSavingCompliance] = useState(false)
+
+  // KYC
+  const [kycUploading, setKycUploading] = useState<Record<string, boolean>>({})
+  const [kycUrls, setKycUrls] = useState({
+    profile_photo_url: painter?.profile_photo_url || '',
+    document_photo_url: painter?.document_photo_url || '',
+    selfie_with_doc_url: painter?.selfie_with_doc_url || '',
+  })
+  const profilePhotoRef = useRef<HTMLInputElement>(null)
+  const docPhotoRef = useRef<HTMLInputElement>(null)
+  const selfieRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     supabase.from('neighborhoods').select('id,name,city,region,latitude,longitude,active,launch_priority')
       .eq('active', true).order('name')
       .then(({ data }) => setNeighborhoods((data as Neighborhood[]) ?? []))
   }, [])
 
-  // Re-initialize state if painter loads after mount
-  if (painter && bio === '' && painter.bio) setBio(painter.bio)
+  // Sync state when painter loads
+  if (painter) {
+    if (bio === '' && painter.bio) setBio(painter.bio)
+    if (!termsAccepted && painter.terms_accepted_at) setTermsAccepted(true)
+    if (!privacyAccepted && painter.privacy_accepted_at) setPrivacyAccepted(true)
+    if (!lgpdAccepted && painter.lgpd_accepted_at) setLgpdAccepted(true)
+    if (!kycUrls.profile_photo_url && painter.profile_photo_url) {
+      setKycUrls(prev => ({ ...prev, profile_photo_url: painter.profile_photo_url! }))
+    }
+  }
 
   function toggleSpecialty(s: string) {
     setSpecialties(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
@@ -63,18 +113,42 @@ export function PainterPerfil() {
       base_price_m2: parseFloat(basePrice) || null,
       service_radius_km: parseFloat(radiusKm) || 10,
     }).eq('id', painter.id)
-    // Save CPF to user profile if provided
     const cleanCpf = cpf.replace(/\D/g, '')
     if (cleanCpf.length === 11 && cpf !== (user?.cpf || '')) {
       await updateProfile({ cpf })
     }
-    // Sync availability through context (keeps sidebar toggle in sync)
     if (availability !== painter.availability_status) {
       await saveAvailability(availability as 'available' | 'busy' | 'paused')
     }
     setSaving(false)
     setSaved(true)
     setTimeout(() => { setSaved(false); reload() }, 1500)
+  }
+
+  async function saveCompliance(field: 'terms_accepted_at' | 'privacy_accepted_at' | 'lgpd_accepted_at', accept: boolean) {
+    if (!painter) return
+    setSavingCompliance(true)
+    await supabase.from('painters').update({
+      [field]: accept ? new Date().toISOString() : null,
+    }).eq('id', painter.id)
+    setSavingCompliance(false)
+    reload()
+  }
+
+  async function handleKycUpload(file: File, type: 'profile_photo' | 'document_photo' | 'selfie_with_doc') {
+    if (!painter) return
+    setKycUploading(prev => ({ ...prev, [type]: true }))
+    const url = await uploadKycFile(file, painter.id, type)
+    if (url) {
+      const field = `${type}_url` as keyof typeof kycUrls
+      setKycUrls(prev => ({ ...prev, [field]: url }))
+      await supabase.from('painters').update({
+        [`${type}_url`]: url,
+        kyc_status: painter.kyc_status === 'not_started' ? 'pending' : painter.kyc_status,
+      }).eq('id', painter.id)
+      reload()
+    }
+    setKycUploading(prev => ({ ...prev, [type]: false }))
   }
 
   if (loading || !painter) {
@@ -87,6 +161,9 @@ export function PainterPerfil() {
     )
   }
 
+  const kycConfig = KYC_STATUS_CONFIG[painter.kyc_status] ?? KYC_STATUS_CONFIG.not_started
+  const KycIcon = kycConfig.icon
+
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <div className="mb-5">
@@ -96,6 +173,7 @@ export function PainterPerfil() {
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <form onSubmit={save} className="space-y-4">
+
           {/* Availability */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <label className="text-xs font-medium text-gray-600 mb-2 block">Disponibilidade</label>
@@ -114,7 +192,7 @@ export function PainterPerfil() {
             </div>
           </div>
 
-          {/* Bio + experience */}
+          {/* Bio + experience + CPF */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Bio</label>
@@ -159,23 +237,19 @@ export function PainterPerfil() {
             </div>
           </div>
 
-          {/* Área de atendimento (mapa) */}
+          {/* Area map */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-brand" />
               <p className="text-xs font-medium text-gray-700">Área de atendimento</p>
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">
-                Raio de atendimento (km) a partir dos bairros selecionados
-              </label>
-              <input
-                type="number" value={radiusKm} onChange={e => setRadiusKm(e.target.value)}
+              <label className="text-xs text-gray-500 mb-1 block">Raio de atendimento (km)</label>
+              <input type="number" value={radiusKm} onChange={e => setRadiusKm(e.target.value)}
                 min="1" max="100" step="1"
-                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand"
-              />
+                className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
             </div>
-            {painter?.neighborhoods_ids?.length > 0 ? (
+            {painter.neighborhoods_ids?.length > 0 ? (
               <Suspense fallback={<div className="h-[280px] bg-gray-100 rounded-xl animate-pulse" />}>
                 <PainterAreaMap
                   neighborhoods={neighborhoods}
@@ -185,11 +259,12 @@ export function PainterPerfil() {
               </Suspense>
             ) : (
               <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-4 text-center">
-                Nenhum bairro selecionado ainda. O mapa aparecerá aqui após você definir sua área no cadastro.
+                Nenhum bairro selecionado. O mapa aparecerá após definir sua área no cadastro.
               </p>
             )}
           </div>
 
+          {/* Save button */}
           <motion.button type="submit" disabled={saving}
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             className="w-full py-3 bg-brand text-white font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
@@ -197,6 +272,176 @@ export function PainterPerfil() {
             {saved ? 'Salvo!' : 'Salvar perfil'}
           </motion.button>
         </form>
+
+        {/* ─── Compliance ─────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 mt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-800">Termos e Conformidade</p>
+            {savingCompliance && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+          </div>
+
+          {[
+            {
+              key: 'terms_accepted_at' as const,
+              label: 'Termos de Uso',
+              desc: 'Aceito os Termos de Uso da plataforma Pintai Floripa.',
+              state: termsAccepted,
+              set: setTermsAccepted,
+              acceptedAt: painter.terms_accepted_at,
+            },
+            {
+              key: 'privacy_accepted_at' as const,
+              label: 'Política de Privacidade',
+              desc: 'Li e aceito a Política de Privacidade da Pintai Floripa.',
+              state: privacyAccepted,
+              set: setPrivacyAccepted,
+              acceptedAt: painter.privacy_accepted_at,
+            },
+            {
+              key: 'lgpd_accepted_at' as const,
+              label: 'LGPD — Consentimento de Dados',
+              desc: 'Consinto com o tratamento dos meus dados pessoais para fins de intermediação de serviços, conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018).',
+              state: lgpdAccepted,
+              set: setLgpdAccepted,
+              acceptedAt: painter.lgpd_accepted_at,
+            },
+          ].map(item => (
+            <div key={item.key} className="flex items-start gap-3 pb-3 border-b border-gray-50 last:border-0 last:pb-0">
+              <input
+                type="checkbox"
+                id={item.key}
+                checked={item.state}
+                disabled={savingCompliance || !!item.acceptedAt}
+                onChange={async e => {
+                  item.set(e.target.checked)
+                  await saveCompliance(item.key, e.target.checked)
+                }}
+                className="mt-0.5 w-4 h-4 accent-brand cursor-pointer disabled:cursor-default"
+              />
+              <label htmlFor={item.key} className={cn('flex-1 cursor-pointer', item.acceptedAt && 'cursor-default')}>
+                <span className="text-sm font-medium text-gray-800 block">{item.label}</span>
+                <span className="text-xs text-gray-500 block mt-0.5">{item.desc}</span>
+                {item.acceptedAt && (
+                  <span className="text-xs text-green-600 font-medium flex items-center gap-1 mt-1">
+                    <CheckCircle className="w-3 h-3" /> Aceito em {formatTs(item.acceptedAt)}
+                  </span>
+                )}
+              </label>
+            </div>
+          ))}
+        </div>
+
+        {/* ─── KYC ─────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">Verificação de Identidade (KYC)</p>
+              <p className="text-xs text-gray-500 mt-0.5">Necessário para receber pagamentos e exibir o selo verificado.</p>
+            </div>
+            <div className={cn('flex items-center gap-1.5 text-xs font-medium', kycConfig.color)}>
+              <KycIcon className="w-4 h-4" />
+              {kycConfig.label}
+            </div>
+          </div>
+
+          {painter.kyc_status === 'rejected' && painter.kyc_rejection_reason && (
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700">{painter.kyc_rejection_reason}</p>
+            </div>
+          )}
+
+          {painter.kyc_status === 'approved' ? (
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4 flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-sm font-semibold text-green-800">Identidade verificada</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  {painter.kyc_reviewed_at ? `Aprovado em ${formatDate(painter.kyc_reviewed_at)}` : 'Verificação aprovada'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[
+                {
+                  key: 'profile_photo' as const,
+                  label: 'Foto de perfil',
+                  hint: 'Foto clara do seu rosto, em boa iluminação.',
+                  ref: profilePhotoRef,
+                  url: kycUrls.profile_photo_url,
+                },
+                {
+                  key: 'document_photo' as const,
+                  label: 'Documento de identidade',
+                  hint: 'RG, CNH ou passaporte — frente legível.',
+                  ref: docPhotoRef,
+                  url: kycUrls.document_photo_url,
+                },
+                {
+                  key: 'selfie_with_doc' as const,
+                  label: 'Selfie com o documento',
+                  hint: 'Segure o documento ao lado do rosto na mesma foto.',
+                  ref: selfieRef,
+                  url: kycUrls.selfie_with_doc_url,
+                },
+              ].map(item => (
+                <div key={item.key} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50">
+                  {item.url ? (
+                    <img src={item.url} alt={item.label}
+                      className="w-14 h-14 rounded-lg object-cover border border-gray-200 shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-gray-200 flex items-center justify-center shrink-0">
+                      <Upload className="w-5 h-5 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-gray-700">{item.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{item.hint}</p>
+                  </div>
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={item.ref}
+                      className="hidden"
+                      onChange={async e => {
+                        const file = e.target.files?.[0]
+                        if (file) await handleKycUpload(file, item.key)
+                        e.target.value = ''
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => item.ref.current?.click()}
+                      disabled={!!kycUploading[item.key]}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand border border-brand rounded-lg hover:bg-orange-50 transition-colors cursor-pointer disabled:opacity-60">
+                      {kycUploading[item.key]
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Upload className="w-3 h-3" />}
+                      {item.url ? 'Trocar' : 'Enviar'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {(kycUrls.profile_photo_url || kycUrls.document_photo_url || kycUrls.selfie_with_doc_url) && painter.kyc_status !== 'pending' && (
+                <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-100 rounded-xl p-3 flex items-start gap-2">
+                  <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  Seus documentos foram enviados e estão aguardando análise pela nossa equipe. Isso pode levar até 2 dias úteis.
+                </p>
+              )}
+
+              {painter.kyc_status === 'pending' && (
+                <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-100 rounded-xl p-3 flex items-start gap-2">
+                  <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  Documentos em análise. Você será notificado quando a verificação for concluída.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
       </motion.div>
     </div>
   )

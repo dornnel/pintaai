@@ -51,6 +51,17 @@ export interface Painter {
   pro_plan_status: ProPlanStatus
   pro_granted_by_admin: boolean
   portfolio_url?: string
+  cpf?: string
+  profile_photo_url?: string
+  document_photo_url?: string
+  selfie_with_doc_url?: string
+  kyc_status: string
+  kyc_reviewed_at?: string
+  kyc_rejection_reason?: string
+  registration_source?: string
+  terms_accepted_at?: string
+  privacy_accepted_at?: string
+  lgpd_accepted_at?: string
   created_at: string
   updated_at: string
   user?: User
