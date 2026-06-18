@@ -5,7 +5,7 @@ import {
   ArrowLeft, MapPin, Home, Calendar, Package2, Ruler,
   ChevronDown, ChevronUp, Send, CheckCircle, Loader2,
   Pencil, Image as ImageIcon, Zap, Star, FileDown, Eye, History, Info,
-  Bot, MessageCircle, User,
+  Bot, MessageCircle, User, Paperclip, XCircle,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCurrency } from '../../lib/utils'
@@ -93,7 +93,8 @@ export function LeadView() {
   const { interactionId } = useParams<{ interactionId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const isAdmin = user?.roles?.includes('admin') || user?.role === 'admin'
+  // Only treat as admin-readonly when actively operating as admin (activeRole), not when a multi-role user is in painter mode
+  const isAdmin = user?.activeRole === 'admin'
 
   const [interaction, setInteraction] = useState<Interaction | null>(null)
   const [loading, setLoading] = useState(true)
@@ -118,6 +119,9 @@ export function LeadView() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [uploadingMedia, setUploadingMedia] = useState(false)
+  const chatFileRef = useRef<HTMLInputElement>(null)
 
   // AI agent assistant
   const [agentOpen, setAgentOpen] = useState(false)
@@ -404,11 +408,57 @@ export function LeadView() {
     await load()
   }
 
-  async function startEditing() {
-    if (!interactionId) return
-    await supabase.from('lead_painter_interactions').update({ status: 'interested' }).eq('id', interactionId)
+  function startEditing() {
     setEditing(true)
+  }
+
+  async function cancelProposal() {
+    if (!interactionId || !interaction) return
+    setCancelling(true)
+    const prevQuote = interaction.metadata?.quote
+    const prevHistory = interaction.metadata?.quote_history || []
+    const newHistory = prevQuote
+      ? [...prevHistory, { ...prevQuote, archived_at: new Date().toISOString() }]
+      : prevHistory
+    await supabase.from('lead_painter_interactions').update({
+      status: 'interested',
+      proposal_sent_at: null,
+      metadata: { ...interaction.metadata, quote: null, quote_history: newHistory } as Record<string, unknown>,
+    }).eq('id', interactionId)
+    setEditing(false)
+    setCancelling(false)
     await load()
+  }
+
+  async function uploadChatMedia(file: File) {
+    if (!interactionId || !interaction) return
+    setUploadingMedia(true)
+    const ext = file.name.split('.').pop() ?? 'jpg'
+    const path = `chat/${interactionId}/${Date.now()}.${ext}`
+    const { data: stored, error } = await supabase.storage
+      .from('lead-media')
+      .upload(path, file, { upsert: false })
+    if (error || !stored) { setUploadingMedia(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('lead-media').getPublicUrl(path)
+    // Send as special chat message
+    const body = `[media]${publicUrl}`
+    const { data: msgData } = await supabase
+      .from('lead_conversation_messages')
+      .insert({ interaction_id: interactionId, sender_role: 'painter', body })
+      .select().single()
+    if (msgData) {
+      const msg = msgData as ConvMessage
+      setConvMessages(prev => [...prev, msg])
+      convChannelRef.current?.send({ type: 'broadcast', event: 'message', payload: msg })
+      // Also append to lead.media_urls so it shows in the photos section
+      const current = interaction.lead.media_urls || []
+      await supabase.from('leads').update({ media_urls: [...current, publicUrl] }).eq('id', interaction.lead.id)
+      setInteraction(prev => prev
+        ? { ...prev, lead: { ...prev.lead, media_urls: [...(prev.lead.media_urls || []), publicUrl] } }
+        : prev)
+    }
+    setUploadingMedia(false)
+    if (chatFileRef.current) chatFileRef.current.value = ''
   }
 
   if (loading) {
@@ -423,6 +473,7 @@ export function LeadView() {
 
   const lead = interaction.lead
   const isSubmitted = interaction.status === 'proposal_sent' && !editing
+  const isResending = editing && !!(interaction.metadata?.quote)
   const confidenceCfg = CONFIDENCE_CFG[lead.calc_confidence || ''] ?? CONFIDENCE_CFG.baixa
   const savedQuote = interaction.metadata?.quote
   const quoteHistory = interaction.metadata?.quote_history || []
@@ -582,19 +633,21 @@ export function LeadView() {
           )}
         </motion.div>
 
-        {/* Media gallery */}
-        {lead.media_urls && lead.media_urls.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-            className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <button onClick={() => setMediaOpen(v => !v)}
-              className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-gray-400" />
-                <span className="font-medium text-gray-900 text-sm">Fotos e vídeos ({lead.media_urls.length})</span>
-              </div>
-              {mediaOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-            </button>
-            {mediaOpen && (
+        {/* Media gallery - always show */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <button onClick={() => setMediaOpen(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-gray-400" />
+              <span className="font-medium text-gray-900 text-sm">
+                Fotos e vídeos{lead.media_urls?.length ? ` (${lead.media_urls.length})` : ''}
+              </span>
+            </div>
+            {mediaOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
+          {mediaOpen && (
+            lead.media_urls?.length > 0 ? (
               <div className="px-5 pb-5 grid grid-cols-3 gap-2">
                 {lead.media_urls.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noopener noreferrer"
@@ -607,9 +660,13 @@ export function LeadView() {
                   </a>
                 ))}
               </div>
-            )}
-          </motion.div>
-        )}
+            ) : (
+              <p className="text-xs text-gray-400 text-center px-5 pb-5 pt-1">
+                O cliente não enviou fotos ou vídeos.
+              </p>
+            )
+          )}
+        </motion.div>
 
         {/* AI Briefing */}
         {lead.ai_briefing && (
@@ -659,9 +716,16 @@ export function LeadView() {
             </h3>
           </div>
 
-          {!isAdmin && !isSubmitted && (
+          {!isAdmin && !isSubmitted && !isResending && (
             <div className="mb-4 px-3 py-2.5 bg-orange-50 border border-orange-100 rounded-xl text-xs text-orange-800">
               💡 Dica: coloque um preço justo. O cliente verá seu perfil e avaliações ao lado desta proposta.
+            </div>
+          )}
+          {!isAdmin && isResending && savedQuote && (
+            <div className="mb-4 px-3 py-2.5 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-900 space-y-0.5">
+              <p className="font-semibold">Editando proposta já enviada</p>
+              <p className="text-yellow-700">Valor anterior: <span className="font-medium">{formatCurrency(savedQuote.total_price)}</span> · enviada em {savedQuote.submitted_at ? new Date(savedQuote.submitted_at).toLocaleDateString('pt-BR') : '—'}</p>
+              <p className="text-yellow-600">O histórico será mantido automaticamente ao reenviar.</p>
             </div>
           )}
 
@@ -759,8 +823,15 @@ export function LeadView() {
               <motion.button type="submit" disabled={submitting} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 className="w-full py-3 bg-brand text-white font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Enviar proposta ao cliente
+                {isResending ? 'Reenviar proposta' : 'Enviar proposta ao cliente'}
               </motion.button>
+              {isResending && (
+                <button type="button" onClick={cancelProposal} disabled={cancelling}
+                  className="w-full py-2.5 border border-red-200 text-red-600 text-sm font-medium rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50 transition-colors disabled:opacity-50">
+                  {cancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                  Cancelar proposta
+                </button>
+              )}
             </form>
           )}
         </motion.div>
@@ -873,7 +944,7 @@ export function LeadView() {
         )}
 
         {/* Conversa com o cliente */}
-        {!isAdmin && (isSubmitted || interaction.status === 'accepted' || interaction.status === 'declined') && (
+        {!isAdmin && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}
             className="bg-white rounded-2xl border border-gray-100 overflow-hidden print:hidden">
             <button onClick={() => setConvOpen(v => !v)}
@@ -925,16 +996,31 @@ export function LeadView() {
                               <User className="w-3 h-3 text-gray-500" />
                             </div>
                           )}
-                          <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
-                            isPainter
-                              ? 'bg-gray-800 text-white rounded-br-sm'
-                              : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
-                          } ${m.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
-                            <p className="whitespace-pre-wrap">{m.body}</p>
-                            <p className={`text-[10px] mt-0.5 ${isPainter ? 'text-white/50 text-right' : 'text-gray-400'}`}>
-                              {m.id.startsWith('temp-') ? '⏳' : timeStr}
-                            </p>
-                          </div>
+                          {m.body.startsWith('[media]') ? (
+                            <div className={`max-w-[200px] ${m.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
+                              {/\.(mp4|mov|webm)/i.test(m.body) ? (
+                                <video src={m.body.slice(7)} controls className="rounded-2xl max-w-full" />
+                              ) : (
+                                <a href={m.body.slice(7)} target="_blank" rel="noopener noreferrer">
+                                  <img src={m.body.slice(7)} alt="Mídia" className="rounded-2xl max-w-full object-cover" />
+                                </a>
+                              )}
+                              <p className={`text-[10px] mt-0.5 ${isPainter ? 'text-white/50 text-right' : 'text-gray-400'}`}>
+                                {m.id.startsWith('temp-') ? '⏳' : timeStr}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                              isPainter
+                                ? 'bg-gray-800 text-white rounded-br-sm'
+                                : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
+                            } ${m.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
+                              <p className="whitespace-pre-wrap">{m.body}</p>
+                              <p className={`text-[10px] mt-0.5 ${isPainter ? 'text-white/50 text-right' : 'text-gray-400'}`}>
+                                {m.id.startsWith('temp-') ? '⏳' : timeStr}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
@@ -965,6 +1051,13 @@ export function LeadView() {
                   </div>
                 ) : (
                   <div className="border-t border-gray-100 px-4 py-3 flex gap-2">
+                    <input ref={chatFileRef} type="file" accept="image/*,video/*" className="hidden"
+                      onChange={e => { if (e.target.files?.[0]) uploadChatMedia(e.target.files[0]) }} />
+                    <button type="button" onClick={() => chatFileRef.current?.click()} disabled={uploadingMedia}
+                      title="Enviar foto ou vídeo"
+                      className="w-8 h-8 bg-gray-100 text-gray-500 rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0 hover:bg-gray-200 transition-colors">
+                      {uploadingMedia ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                    </button>
                     <input
                       value={convInput}
                       onChange={e => handleConvInputChange(e.target.value)}
