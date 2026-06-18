@@ -5,12 +5,22 @@ import {
   ArrowLeft, MapPin, Home, Calendar, Package2, Ruler,
   ChevronDown, ChevronUp, Send, CheckCircle, Loader2,
   Pencil, Image as ImageIcon, Zap, Star, FileDown, Eye, History, Info,
-  Bot, MessageCircle, User, Paperclip, XCircle,
+  Bot, MessageCircle, User, Paperclip, XCircle, TrendingUp, BarChart2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCurrency } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
 import { BudgetBreakdownModal } from '../../components/BudgetBreakdownModal'
+
+const BENCHMARK: Record<string, { m2Labor: [number,number]; m2Full: [number,number]; hourly: [number,number] }> = {
+  'Pintura interna':   { m2Labor: [18,32],  m2Full: [45,80],   hourly: [35,55] },
+  'Pintura externa':   { m2Labor: [22,40],  m2Full: [50,95],   hourly: [40,65] },
+  'Fachada':           { m2Labor: [25,50],  m2Full: [60,110],  hourly: [45,80] },
+  'Textura':           { m2Labor: [30,60],  m2Full: [65,120],  hourly: [50,90] },
+  'Pós-obra':          { m2Labor: [25,45],  m2Full: [55,100],  hourly: [40,70] },
+  'Arte / mural':      { m2Labor: [60,150], m2Full: [80,180],  hourly: [60,120] },
+  'Impermeabilização': { m2Labor: [30,65],  m2Full: [70,130],  hourly: [50,85] },
+}
 
 interface Lead {
   id: string
@@ -100,6 +110,7 @@ export function LeadView() {
   const [loading, setLoading] = useState(true)
   const [briefingOpen, setBriefingOpen] = useState(false)
   const [mediaOpen, setMediaOpen] = useState(false)
+  const [marketOpen, setMarketOpen] = useState(true)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showBudgetModal, setShowBudgetModal] = useState(false)
   const [feedbackToast, setFeedbackToast] = useState<string | null>(null)
@@ -476,6 +487,9 @@ export function LeadView() {
   const isResending = editing && !!(interaction.metadata?.quote)
   const confidenceCfg = CONFIDENCE_CFG[lead.calc_confidence || ''] ?? CONFIDENCE_CFG.baixa
   const savedQuote = interaction.metadata?.quote
+  const matchedBenchmark = Object.entries(BENCHMARK).find(([key]) =>
+    lead.service_interest?.toLowerCase().includes(key.toLowerCase())
+  )?.[1]
   const quoteHistory = interaction.metadata?.quote_history || []
 
   function handlePrint() {
@@ -688,6 +702,67 @@ export function LeadView() {
           </motion.div>
         )}
 
+        {/* Market Reference (painter only) */}
+        {!isAdmin && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.09 }}
+            className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <button onClick={() => setMarketOpen(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-500" />
+                <span className="font-medium text-gray-900 text-sm">Referência de Mercado</span>
+                <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-medium">Florianópolis</span>
+              </div>
+              {marketOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+            {marketOpen && (
+              <div className="px-5 pb-5 space-y-3">
+                {matchedBenchmark ? (
+                  <>
+                    <p className="text-xs font-semibold text-gray-700">{lead.service_interest} — Florianópolis</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Mão de obra /m²</p>
+                        <p className="font-bold text-gray-900 text-sm">R${matchedBenchmark.m2Labor[0]}–{matchedBenchmark.m2Labor[1]}</p>
+                        {lead.area_m2 && (
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            {lead.area_m2} m² → ~R${(lead.area_m2 * matchedBenchmark.m2Labor[0]).toLocaleString('pt-BR', {maximumFractionDigits: 0})}–{(lead.area_m2 * matchedBenchmark.m2Labor[1]).toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                          </p>
+                        )}
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Com material /m²</p>
+                        <p className="font-bold text-gray-900 text-sm">R${matchedBenchmark.m2Full[0]}–{matchedBenchmark.m2Full[1]}</p>
+                        {lead.area_m2 && (
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            {lead.area_m2} m² → ~R${(lead.area_m2 * matchedBenchmark.m2Full[0]).toLocaleString('pt-BR', {maximumFractionDigits: 0})}–{(lead.area_m2 * matchedBenchmark.m2Full[1]).toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Por hora (ref. sindical)</p>
+                      <p className="font-bold text-brand text-sm">R${matchedBenchmark.hourly[0]}–{matchedBenchmark.hourly[1]}/h</p>
+                    </div>
+                    <p className="text-[10px] text-gray-400">Fonte: SINDUSCON-SC + fóruns de pintores profissionais.</p>
+                  </>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-gray-500 mb-2">Referências gerais — Florianópolis:</p>
+                    {Object.entries(BENCHMARK).map(([svc, ref]) => (
+                      <div key={svc} className="flex items-center justify-between text-xs py-1.5 border-b border-gray-50 last:border-0">
+                        <span className="text-gray-700 font-medium">{svc}</span>
+                        <span className="text-gray-500">R${ref.m2Labor[0]}–{ref.m2Labor[1]}/m²</span>
+                      </div>
+                    ))}
+                    <p className="text-[10px] text-gray-400 pt-1">Fonte: SINDUSCON-SC + fóruns de pintores profissionais.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Painter notes */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -773,6 +848,21 @@ export function LeadView() {
                   </div>
                   <Zap className="w-4 h-4 text-brand shrink-0" />
                 </button>
+              )}
+
+              {matchedBenchmark && (
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-900">
+                  <BarChart2 className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold">Ref. mercado:</span>{' '}
+                    R${matchedBenchmark.m2Labor[0]}–{matchedBenchmark.m2Labor[1]}/m² (mão de obra) · R${matchedBenchmark.m2Full[0]}–{matchedBenchmark.m2Full[1]}/m² (c/ material)
+                    {lead.area_m2 && (
+                      <span className="block mt-0.5 text-blue-700">
+                        Para {lead.area_m2} m²: ~R${(lead.area_m2 * matchedBenchmark.m2Labor[0]).toLocaleString('pt-BR', {maximumFractionDigits: 0})}–{(lead.area_m2 * matchedBenchmark.m2Full[1]).toLocaleString('pt-BR', {maximumFractionDigits: 0})}
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
 
               <div className="grid grid-cols-2 gap-3">
