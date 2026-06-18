@@ -131,7 +131,11 @@ export function LeadView() {
   const [convMessages, setConvMessages] = useState<ConvMessage[]>([])
   const [convInput, setConvInput] = useState('')
   const [convSending, setConvSending] = useState(false)
+  const [customerTyping, setCustomerTyping] = useState(false)
   const convBottomRef = useRef<HTMLDivElement>(null)
+  const convChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const convTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const customerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(async () => {
     if (!interactionId) return
@@ -196,25 +200,54 @@ export function LeadView() {
   }, [interactionId, isAdmin])
 
   useEffect(() => { agentBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [agentMessages])
-  useEffect(() => { convBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [convMessages])
+  useEffect(() => { convBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [convMessages, customerTyping])
 
-  // Realtime: incoming messages from customer
+  // Realtime: incoming messages from customer via Broadcast + Postgres Changes
   useEffect(() => {
     if (!interactionId) return
-    const channel = supabase
-      .channel(`conv-painter-${interactionId}`)
+
+    const channel = supabase.channel(`chat-${interactionId}`, {
+      config: { broadcast: { self: false } },
+    })
+      // New message from customer via Broadcast (zero-latency)
+      .on('broadcast', { event: 'message' }, ({ payload }) => {
+        const msg = payload as ConvMessage
+        setConvMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+      })
+      // Typing indicator from customer
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const { role, typing } = payload as { role: string; typing: boolean }
+        if (role === 'customer') {
+          setCustomerTyping(typing)
+          if (typing) {
+            clearTimeout(customerTypingTimer.current!)
+            customerTypingTimer.current = setTimeout(() => setCustomerTyping(false), 3500)
+          }
+        }
+      })
+      // Postgres Changes as WAL fallback
       .on('postgres_changes', {
         event: 'INSERT', schema: 'pintae',
         table: 'lead_conversation_messages',
         filter: `interaction_id=eq.${interactionId}`,
-      }, payload => {
+      }, ({ new: row }) => {
+        const msg = row as ConvMessage
         setConvMessages(prev => {
-          if (prev.some(m => m.id === (payload.new as ConvMessage).id)) return prev
-          return [...prev, payload.new as ConvMessage]
+          const tempIdx = prev.findIndex(m => m.id.startsWith('temp-') && m.body === msg.body && m.sender_role === msg.sender_role)
+          if (tempIdx >= 0) {
+            const next = [...prev]; next[tempIdx] = msg; return next
+          }
+          return prev.some(m => m.id === msg.id) ? prev : [...prev, msg]
         })
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    convChannelRef.current = channel
+    return () => {
+      supabase.removeChannel(channel)
+      convChannelRef.current = null
+      clearTimeout(customerTypingTimer.current!)
+    }
   }, [interactionId])
 
   function buildAgentContext(lead: Lead): string {
@@ -264,16 +297,41 @@ export function LeadView() {
     setAgentLoading(false)
   }
 
+  function handleConvInputChange(value: string) {
+    setConvInput(value)
+    if (!convChannelRef.current) return
+    convChannelRef.current.send({ type: 'broadcast', event: 'typing', payload: { role: 'painter', typing: true } })
+    clearTimeout(convTypingTimer.current!)
+    convTypingTimer.current = setTimeout(() => {
+      convChannelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { role: 'painter', typing: false } })
+    }, 2000)
+  }
+
   async function sendConvMessage() {
     const body = convInput.trim()
     if (!body || convSending || !interactionId) return
+
+    // Stop typing broadcast
+    clearTimeout(convTypingTimer.current!)
+    convChannelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { role: 'painter', typing: false } })
+
+    // Optimistic update
+    const tempId = `temp-${Date.now()}`
+    const tempMsg: ConvMessage = { id: tempId, sender_role: 'painter', body, created_at: new Date().toISOString() }
+    setConvMessages(prev => [...prev, tempMsg])
     setConvInput('')
     setConvSending(true)
-    await supabase.from('lead_conversation_messages').insert({
-      interaction_id: interactionId,
-      sender_role: 'painter',
-      body,
-    })
+
+    const { data } = await supabase
+      .from('lead_conversation_messages')
+      .insert({ interaction_id: interactionId, sender_role: 'painter', body })
+      .select()
+      .single()
+
+    if (data) {
+      setConvMessages(prev => prev.map(m => m.id === tempId ? data as ConvMessage : m))
+      convChannelRef.current?.send({ type: 'broadcast', event: 'message', payload: data })
+    }
     setConvSending(false)
   }
 
@@ -815,7 +873,7 @@ export function LeadView() {
         )}
 
         {/* Conversa com o cliente */}
-        {!isAdmin && (isSubmitted || interaction.status === 'accepted') && (
+        {!isAdmin && (isSubmitted || interaction.status === 'accepted' || interaction.status === 'declined') && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}
             className="bg-white rounded-2xl border border-gray-100 overflow-hidden print:hidden">
             <button onClick={() => setConvOpen(v => !v)}
@@ -828,52 +886,98 @@ export function LeadView() {
                     {convMessages.length}
                   </span>
                 )}
+                {customerTyping && !convOpen && (
+                  <span className="text-[10px] text-gray-400 italic">digitando...</span>
+                )}
               </div>
               {convOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
             </button>
 
             {convOpen && (
               <div className="border-t border-gray-100">
-                <div className="px-4 py-3 space-y-3 max-h-72 overflow-y-auto">
+                <div className="px-4 py-3 space-y-2 max-h-72 overflow-y-auto bg-gray-50/50">
                   {convMessages.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-3">
-                      Nenhuma mensagem ainda. Inicie a conversa com o cliente.
+                    <p className="text-xs text-gray-400 text-center py-6">
+                      {interaction.status === 'declined'
+                        ? 'Conversa encerrada.'
+                        : 'Nenhuma mensagem ainda. Inicie a conversa com o cliente.'}
                     </p>
                   )}
-                  {convMessages.map(m => (
-                    <div key={m.id} className={`flex gap-2 ${m.sender_role === 'painter' ? 'justify-end' : 'justify-start'}`}>
-                      {m.sender_role === 'customer' && (
-                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5">
-                          <User className="w-3 h-3 text-gray-500" />
+                  {convMessages.map((m, i) => {
+                    const isPainter = m.sender_role === 'painter'
+                    const prevMsg = convMessages[i - 1]
+                    const showDate = !prevMsg || new Date(m.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString()
+                    const today = new Date().toDateString()
+                    const msgDay = new Date(m.created_at).toDateString()
+                    const timeStr = msgDay === today
+                      ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                      : new Date(m.created_at).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    return (
+                      <div key={m.id}>
+                        {showDate && (
+                          <p className="text-[10px] text-gray-400 text-center my-2">
+                            {new Date(m.created_at).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                          </p>
+                        )}
+                        <div className={`flex gap-2 ${isPainter ? 'justify-end' : 'justify-start'}`}>
+                          {!isPainter && (
+                            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5">
+                              <User className="w-3 h-3 text-gray-500" />
+                            </div>
+                          )}
+                          <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                            isPainter
+                              ? 'bg-gray-800 text-white rounded-br-sm'
+                              : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
+                          } ${m.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
+                            <p className="whitespace-pre-wrap">{m.body}</p>
+                            <p className={`text-[10px] mt-0.5 ${isPainter ? 'text-white/50 text-right' : 'text-gray-400'}`}>
+                              {m.id.startsWith('temp-') ? '⏳' : timeStr}
+                            </p>
+                          </div>
                         </div>
-                      )}
-                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
-                        m.sender_role === 'painter'
-                          ? 'bg-gray-800 text-white rounded-br-sm'
-                          : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                      }`}>
-                        <p>{m.body}</p>
-                        <p className={`text-[10px] mt-0.5 ${m.sender_role === 'painter' ? 'text-white/50' : 'text-gray-400'}`}>
-                          {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
+                      </div>
+                    )
+                  })}
+
+                  {/* Typing indicator */}
+                  {customerTyping && (
+                    <div className="flex gap-2 justify-start">
+                      <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center shrink-0">
+                        <User className="w-3 h-3 text-gray-500" />
+                      </div>
+                      <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm shadow-sm px-3 py-2 flex gap-1 items-center">
+                        {[0, 1, 2].map(i => (
+                          <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
+                            style={{ animationDelay: `${i * 0.15}s`, animationDuration: '0.8s' }} />
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
+
                   <div ref={convBottomRef} />
                 </div>
-                <div className="border-t border-gray-100 px-4 py-3 flex gap-2">
-                  <input
-                    value={convInput}
-                    onChange={e => setConvInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendConvMessage() } }}
-                    placeholder="Mensagem ao cliente..."
-                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
-                  />
-                  <button onClick={sendConvMessage} disabled={convSending || !convInput.trim()}
-                    className="w-8 h-8 bg-gray-800 text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0">
-                    {convSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
+
+                {interaction.status === 'declined' ? (
+                  <div className="border-t border-gray-200 px-4 py-3 bg-gray-50 flex items-center gap-2">
+                    <History className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <p className="text-xs text-gray-400">Conversa encerrada · histórico preservado</p>
+                  </div>
+                ) : (
+                  <div className="border-t border-gray-100 px-4 py-3 flex gap-2">
+                    <input
+                      value={convInput}
+                      onChange={e => handleConvInputChange(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendConvMessage() } }}
+                      placeholder="Mensagem ao cliente..."
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
+                    />
+                    <button onClick={sendConvMessage} disabled={convSending || !convInput.trim()}
+                      className="w-8 h-8 bg-gray-800 text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0 transition-opacity">
+                      {convSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </motion.div>

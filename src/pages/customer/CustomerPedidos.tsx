@@ -173,61 +173,149 @@ function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
 
 type ConvMsg = { id: string; sender_role: 'customer' | 'painter'; body: string; created_at: string }
 
+function msgTime(iso: string) {
+  const d = new Date(iso)
+  const today = new Date()
+  const sameDay = d.toDateString() === today.toDateString()
+  if (sameDay) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function TypingDots() {
+  return (
+    <div className="flex gap-1 items-center px-3 py-2">
+      {[0, 1, 2].map(i => (
+        <span key={i} className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
+          style={{ animationDelay: `${i * 0.15}s`, animationDuration: '0.8s' }} />
+      ))}
+    </div>
+  )
+}
+
 function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onSelect: (id: string) => void }) {
   const painter = interaction.painter
   const quote = interaction.metadata?.quote
   const isAccepted = interaction.status === 'accepted'
+  const isClosed = interaction.status === 'declined'
 
-  // Chat state (must be before any early return)
+  // Chat state — ALL hooks must be before any conditional return
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ConvMsg[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatSending, setChatSending] = useState(false)
+  const [painterTyping, setPainterTyping] = useState(false)
   const chatBottomRef = useRef<HTMLDivElement>(null)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const painterTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Load messages + subscribe to realtime on chat open
   useEffect(() => {
     if (!chatOpen) return
+
+    // Load history
     supabase.from('lead_conversation_messages').select('*')
       .eq('interaction_id', interaction.id).order('created_at')
       .then(({ data }) => setChatMessages((data || []) as ConvMsg[]))
 
-    const channel = supabase.channel(`conv-customer-${interaction.id}`)
+    const channel = supabase.channel(`chat-${interaction.id}`, {
+      config: { broadcast: { self: false } },
+    })
+      // New messages via Broadcast (real-time, zero-latency, from painter)
+      .on('broadcast', { event: 'message' }, ({ payload }) => {
+        const msg = payload as ConvMsg
+        setChatMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
+      })
+      // Typing indicator from painter
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const { role, typing } = payload as { role: string; typing: boolean }
+        if (role === 'painter') {
+          setPainterTyping(typing)
+          if (typing) {
+            clearTimeout(painterTypingTimer.current!)
+            painterTypingTimer.current = setTimeout(() => setPainterTyping(false), 3500)
+          }
+        }
+      })
+      // Postgres Changes as fallback (catches messages from DB directly)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'pintae',
         table: 'lead_conversation_messages',
         filter: `interaction_id=eq.${interaction.id}`,
-      }, payload => {
+      }, ({ new: row }) => {
+        const msg = row as ConvMsg
         setChatMessages(prev => {
-          if (prev.some(m => m.id === (payload.new as ConvMsg).id)) return prev
-          return [...prev, payload.new as ConvMsg]
+          // Replace matching temp message or deduplicate
+          const tempIdx = prev.findIndex(m => m.id.startsWith('temp-') && m.body === msg.body && m.sender_role === msg.sender_role)
+          if (tempIdx >= 0) {
+            const next = [...prev]; next[tempIdx] = msg; return next
+          }
+          return prev.some(m => m.id === msg.id) ? prev : [...prev, msg]
         })
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    channelRef.current = channel
+    return () => {
+      supabase.removeChannel(channel)
+      channelRef.current = null
+      clearTimeout(painterTypingTimer.current!)
+    }
   }, [chatOpen, interaction.id])
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages])
+  }, [chatMessages, painterTyping])
+
+  function handleInputChange(value: string) {
+    setChatInput(value)
+    if (!channelRef.current) return
+    channelRef.current.send({ type: 'broadcast', event: 'typing', payload: { role: 'customer', typing: true } })
+    clearTimeout(typingTimer.current!)
+    typingTimer.current = setTimeout(() => {
+      channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { role: 'customer', typing: false } })
+    }, 2000)
+  }
 
   async function sendChatMessage() {
     const body = chatInput.trim()
     if (!body || chatSending) return
+
+    // Stop typing broadcast
+    clearTimeout(typingTimer.current!)
+    channelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { role: 'customer', typing: false } })
+
+    // Optimistic update — appears instantly
+    const tempId = `temp-${Date.now()}`
+    const tempMsg: ConvMsg = { id: tempId, sender_role: 'customer', body, created_at: new Date().toISOString() }
+    setChatMessages(prev => [...prev, tempMsg])
     setChatInput('')
     setChatSending(true)
-    await supabase.from('lead_conversation_messages').insert({
-      interaction_id: interaction.id,
-      sender_role: 'customer',
-      body,
-    })
+
+    const { data } = await supabase
+      .from('lead_conversation_messages')
+      .insert({ interaction_id: interaction.id, sender_role: 'customer', body })
+      .select()
+      .single()
+
+    if (data) {
+      // Replace temp with the real row (has real UUID + server timestamp)
+      setChatMessages(prev => prev.map(m => m.id === tempId ? data as ConvMsg : m))
+      // Broadcast to painter for zero-latency delivery
+      channelRef.current?.send({ type: 'broadcast', event: 'message', payload: data })
+    }
     setChatSending(false)
   }
 
-  if (interaction.status !== 'proposal_sent' && !isAccepted) return null
+  if (interaction.status !== 'proposal_sent' && !isAccepted && !isClosed) return null
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className={cn('rounded-xl border overflow-hidden', isAccepted ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white')}>
+      className={cn('rounded-xl border overflow-hidden',
+        isAccepted ? 'border-green-200 bg-green-50' :
+        isClosed ? 'border-gray-100 bg-gray-50 opacity-75' :
+        'border-gray-100 bg-white'
+      )}>
       <div className="p-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
@@ -248,6 +336,9 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
             <span className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-medium shrink-0 flex items-center gap-1">
               <CheckCircle className="w-3 h-3" /> Contratado
             </span>
+          )}
+          {isClosed && (
+            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-medium shrink-0">Encerrado</span>
           )}
         </div>
 
@@ -288,32 +379,43 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
           </div>
         )}
 
-        <div className="space-y-2">
-          {isAccepted && painter?.user?.phone && (
-            <a href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pintai e gostaria de agendar o serviço.`}
-              target="_blank" rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors">
-              <Phone className="w-3.5 h-3.5" /> WhatsApp do pintor
-            </a>
-          )}
-          {!isAccepted && (
-            <motion.button onClick={() => onSelect(interaction.id)}
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="w-full py-2.5 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer">
-              Selecionar esta proposta
-            </motion.button>
-          )}
-          <button onClick={() => setChatOpen(v => !v)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-            <MessageSquare className="w-3.5 h-3.5" />
-            {chatOpen ? 'Fechar conversa' : 'Conversar com o pintor'}
-            {chatMessages.length > 0 && !chatOpen && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-semibold">
-                {chatMessages.length}
-              </span>
+        {!isClosed && (
+          <div className="space-y-2">
+            {isAccepted && painter?.user?.phone && (
+              <a href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pintai e gostaria de agendar o serviço.`}
+                target="_blank" rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors">
+                <Phone className="w-3.5 h-3.5" /> WhatsApp do pintor
+              </a>
             )}
+            {!isAccepted && (
+              <motion.button onClick={() => onSelect(interaction.id)}
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                className="w-full py-2.5 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer">
+                Selecionar esta proposta
+              </motion.button>
+            )}
+            <button onClick={() => setChatOpen(v => !v)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+              <MessageSquare className="w-3.5 h-3.5" />
+              {chatOpen ? 'Fechar conversa' : 'Conversar com o pintor'}
+              {chatMessages.length > 0 && !chatOpen && (
+                <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-semibold">
+                  {chatMessages.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Show chat history toggle even for closed interactions */}
+        {isClosed && chatMessages.length > 0 && (
+          <button onClick={() => setChatOpen(v => !v)}
+            className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-gray-400 cursor-pointer hover:text-gray-600 transition-colors">
+            <History className="w-3 h-3" />
+            {chatOpen ? 'Ocultar' : 'Ver'} histórico da conversa
           </button>
-        </div>
+        )}
       </div>
 
       {/* Chat panel */}
@@ -322,46 +424,82 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
             className="border-t border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto bg-gray-50">
+
+            <div className="px-4 py-3 space-y-2 max-h-72 overflow-y-auto bg-gray-50/70">
               {chatMessages.length === 0 && (
-                <p className="text-xs text-gray-400 text-center py-4">
-                  Tire suas dúvidas diretamente com o pintor.
+                <p className="text-xs text-gray-400 text-center py-6">
+                  Nenhuma mensagem ainda. Tire suas dúvidas com o pintor.
                 </p>
               )}
-              {chatMessages.map(m => (
-                <div key={m.id} className={`flex gap-2 ${m.sender_role === 'customer' ? 'justify-end' : 'justify-start'}`}>
-                  {m.sender_role === 'painter' && (
-                    <div className="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <User className="w-3 h-3 text-brand" />
+              {chatMessages.map((m, i) => {
+                const isCustomer = m.sender_role === 'customer'
+                const prevMsg = chatMessages[i - 1]
+                const showDate = !prevMsg || new Date(m.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString()
+                return (
+                  <div key={m.id}>
+                    {showDate && (
+                      <p className="text-[10px] text-gray-400 text-center my-2">
+                        {new Date(m.created_at).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                      </p>
+                    )}
+                    <div className={`flex gap-2 ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                      {!isCustomer && (
+                        <div className="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <User className="w-3 h-3 text-brand" />
+                        </div>
+                      )}
+                      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                        isCustomer
+                          ? 'bg-brand text-white rounded-br-sm'
+                          : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'
+                      } ${m.id.startsWith('temp-') ? 'opacity-60' : ''}`}>
+                        <p className="whitespace-pre-wrap">{m.body}</p>
+                        <p className={`text-[10px] mt-0.5 ${isCustomer ? 'text-white/60 text-right' : 'text-gray-400'}`}>
+                          {m.id.startsWith('temp-') ? '⏳' : msgTime(m.created_at)}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
-                    m.sender_role === 'customer'
-                      ? 'bg-brand text-white rounded-br-sm'
-                      : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'
-                  }`}>
-                    <p>{m.body}</p>
-                    <p className={`text-[10px] mt-0.5 ${m.sender_role === 'customer' ? 'text-white/60' : 'text-gray-400'}`}>
-                      {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                  </div>
+                )
+              })}
+
+              {/* Typing indicator */}
+              {painterTyping && (
+                <div className="flex gap-2 justify-start">
+                  <div className="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                    <User className="w-3 h-3 text-brand" />
+                  </div>
+                  <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm shadow-sm">
+                    <TypingDots />
                   </div>
                 </div>
-              ))}
+              )}
+
               <div ref={chatBottomRef} />
             </div>
-            <div className="border-t border-gray-200 px-4 py-3 flex gap-2 bg-white">
-              <input
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
-                placeholder="Sua mensagem..."
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
-              />
-              <button onClick={sendChatMessage} disabled={chatSending || !chatInput.trim()}
-                className="w-8 h-8 bg-brand text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0">
-                {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              </button>
-            </div>
+
+            {/* Input or closed notice */}
+            {isClosed ? (
+              <div className="border-t border-gray-200 px-4 py-3 bg-gray-50 flex items-center gap-2">
+                <History className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <p className="text-xs text-gray-400">Conversa encerrada · histórico preservado</p>
+              </div>
+            ) : (
+              <div className="border-t border-gray-200 px-4 py-3 flex gap-2 bg-white">
+                <input
+                  value={chatInput}
+                  onChange={e => handleInputChange(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
+                  placeholder="Mensagem..."
+                  autoFocus
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
+                />
+                <button onClick={sendChatMessage} disabled={chatSending || !chatInput.trim()}
+                  className="w-8 h-8 bg-brand text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0 transition-opacity">
+                  {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

@@ -261,12 +261,12 @@ export function LeadDetailPage() {
       })
       .on('presence', { event: 'join' }, ({ newPresences }) => {
         setLiveViewers(prev => {
-          const ids = (newPresences as { painter_id: string }[]).map(p => p.painter_id)
+          const ids = (newPresences as unknown as { painter_id: string }[]).map(p => p.painter_id)
           return [...new Set([...prev, ...ids])]
         })
       })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        const ids = new Set((leftPresences as { painter_id: string }[]).map(p => p.painter_id))
+        const ids = new Set((leftPresences as unknown as { painter_id: string }[]).map(p => p.painter_id))
         setLiveViewers(prev => prev.filter(id => !ids.has(id)))
       })
       .subscribe()
