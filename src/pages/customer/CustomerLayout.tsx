@@ -78,14 +78,14 @@ export function useCustomerContext() {
 
 const NAV_ITEMS = [
   { to: '/minha-area', icon: LayoutDashboard, label: 'Início', end: true },
-  { to: '/minha-area/pedidos', icon: FileText, label: 'Meus Pedidos' },
+  { to: '/minha-area/pedidos', icon: FileText, label: 'Minhas Solicitações' },
   { to: '/minha-area/avaliacoes', icon: Star, label: 'Avaliações' },
   { to: '/minha-area/perfil', icon: User, label: 'Perfil' },
 ]
 
 const MOBILE_TABS = [
   { to: '/minha-area', icon: LayoutDashboard, label: 'Início', end: true },
-  { to: '/minha-area/pedidos', icon: FileText, label: 'Pedidos' },
+  { to: '/minha-area/pedidos', icon: FileText, label: 'Solic.' },
   { to: '/minha-area/avaliacoes', icon: Star, label: 'Aval.' },
   { to: '/minha-area/perfil', icon: User, label: 'Perfil' },
 ]
@@ -192,7 +192,7 @@ export function CustomerLayout() {
               <NavLink key={to} to={to} end={end} className={navLinkClass}>
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1">{label}</span>
-                {label === 'Meus Pedidos' && pendingProposals > 0 && (
+                {label === 'Minhas Solicitações' && pendingProposals > 0 && (
                   <span className="text-xs bg-brand text-white px-1.5 py-0.5 rounded-full font-medium shrink-0">
                     {pendingProposals}
                   </span>
@@ -295,7 +295,7 @@ export function CustomerLayout() {
                       <div className="relative">
                         <Icon className={cn('w-[22px] h-[22px] transition-colors duration-150',
                           isActive ? 'text-brand' : 'text-gray-400')} />
-                        {label === 'Pedidos' && pendingProposals > 0 && (
+                        {label === 'Solic.' && pendingProposals > 0 && (
                           <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] bg-brand text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
                             {pendingProposals > 9 ? '9+' : pendingProposals}
                           </span>

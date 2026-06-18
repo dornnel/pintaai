@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   LayoutDashboard, Inbox, Send, Star, Wrench, CreditCard, User,
-  Home, LogOut, Loader2, UserCircle, MoreHorizontal,
+  Home, LogOut, Loader2, UserCircle, MoreHorizontal, Briefcase,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
@@ -62,6 +62,7 @@ const NAV_ITEMS = [
   { to: '/portal/pintor', icon: LayoutDashboard, label: 'Início', end: true },
   { to: '/portal/pintor/solicitacoes', icon: Inbox, label: 'Solicitações' },
   { to: '/portal/pintor/propostas', icon: Send, label: 'Propostas' },
+  { to: '/portal/pintor/pedidos', icon: Briefcase, label: 'Pedidos' },
   { to: '/portal/pintor/avaliacoes', icon: Star, label: 'Avaliações' },
   { to: '/portal/pintor/ferramentas', icon: Wrench, label: 'Ferramentas' },
   { to: '/portal/pintor/assinatura', icon: CreditCard, label: 'Assinatura' },
@@ -73,11 +74,12 @@ const MOBILE_TABS = [
   { to: '/portal/pintor', icon: LayoutDashboard, label: 'Início', end: true },
   { to: '/portal/pintor/solicitacoes', icon: Inbox, label: 'Leads' },
   { to: '/portal/pintor/propostas', icon: Send, label: 'Propostas' },
-  { to: '/portal/pintor/perfil', icon: User, label: 'Perfil' },
+  { to: '/portal/pintor/pedidos', icon: Briefcase, label: 'Pedidos' },
 ]
 
 // Secondary items in the "Mais" bottom sheet
 const MOBILE_MORE = [
+  { to: '/portal/pintor/perfil', icon: User, label: 'Perfil' },
   { to: '/portal/pintor/avaliacoes', icon: Star, label: 'Avaliações' },
   { to: '/portal/pintor/ferramentas', icon: Wrench, label: 'Ferramentas' },
   { to: '/portal/pintor/assinatura', icon: CreditCard, label: 'Assinatura' },
@@ -195,6 +197,9 @@ export function PainterLayout() {
     )
 
   const newCount = leadInteractions.filter(i => i.status === 'notified').length
+  const activeJobsCount = leadInteractions.filter(i =>
+    i.status === 'accepted' && !(i.metadata as { job_completed_at?: string }).job_completed_at
+  ).length
 
   const availColor = painter?.availability_status === 'available'
     ? 'bg-green-100 text-green-700'
@@ -254,6 +259,9 @@ export function PainterLayout() {
                 <span className="flex-1">{label}</span>
                 {label === 'Solicitações' && newCount > 0 && (
                   <span className="text-xs bg-brand text-white px-1.5 py-0.5 rounded-full font-medium shrink-0">{newCount}</span>
+                )}
+                {label === 'Pedidos' && activeJobsCount > 0 && (
+                  <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full font-medium shrink-0">{activeJobsCount}</span>
                 )}
               </NavLink>
             ))}
@@ -359,6 +367,11 @@ export function PainterLayout() {
                         {label === 'Leads' && newCount > 0 && (
                           <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] bg-brand text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
                             {newCount > 9 ? '9+' : newCount}
+                          </span>
+                        )}
+                        {label === 'Pedidos' && activeJobsCount > 0 && (
+                          <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] bg-green-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
+                            {activeJobsCount > 9 ? '9+' : activeJobsCount}
                           </span>
                         )}
                       </div>

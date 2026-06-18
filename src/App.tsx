@@ -15,6 +15,7 @@ import { PainterLayout } from './pages/painter/PainterLayout'
 import { PainterDashboard } from './pages/painter/PainterDashboard'
 import { PainterSolicitacoes } from './pages/painter/PainterSolicitacoes'
 import { PainterPropostas } from './pages/painter/PainterPropostas'
+import { PainterPedidos } from './pages/painter/PainterPedidos'
 import { PainterAvaliacoes } from './pages/painter/PainterAvaliacoes'
 import { PainterPerfil } from './pages/painter/PainterPerfil'
 import { PainterSubscriptionPage } from './pages/painter/PainterSubscriptionPage'
@@ -150,6 +151,7 @@ function AppRoutes() {
         <Route index element={<PainterDashboard />} />
         <Route path="solicitacoes" element={<PainterSolicitacoes />} />
         <Route path="propostas" element={<PainterPropostas />} />
+        <Route path="pedidos" element={<PainterPedidos />} />
         <Route path="avaliacoes" element={<PainterAvaliacoes />} />
         <Route path="perfil" element={<PainterPerfil />} />
         <Route path="ferramentas" element={<PainterToolsPage />} />

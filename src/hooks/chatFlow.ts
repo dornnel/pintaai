@@ -8,6 +8,7 @@ export interface FlowStep {
   branch: 'client' | 'painter'
   order_index: number
   active: boolean
+  enabled: boolean
   editable: boolean
   question_template: string
   step_type: 'text' | 'quick_reply' | 'media'
@@ -122,7 +123,7 @@ export const EXTRACTABLE_VALIDATIONS = new Set<FlowStep['validation_type']>(['na
 
 // ─── Acesso a steps ───────────────────────────────────────────────────────────
 export function branchSteps(steps: FlowStep[], branch: 'client' | 'painter'): FlowStep[] {
-  return steps.filter(s => s.branch === branch).sort((a, b) => a.order_index - b.order_index)
+  return steps.filter(s => s.branch === branch && s.enabled !== false).sort((a, b) => a.order_index - b.order_index)
 }
 
 export function getStep(steps: FlowStep[], stepKey: string): FlowStep | undefined {

@@ -1,7 +1,18 @@
 import { useEffect, useState, useCallback } from 'react'
 import { motion } from 'motion/react'
-import { Plus, Trash2, ChevronUp, ChevronDown, Edit2, Save, Loader2, X } from 'lucide-react'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, useSortable, arrayMove, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
+  Plus, Trash2, ChevronUp, ChevronDown, Edit2, Save, Loader2, X, GripVertical, Info,
+} from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { cn } from '../../lib/utils'
 import type { FlowStep } from '../../hooks/chatFlow'
 
 const STEP_TYPE_OPTIONS = [
@@ -31,6 +42,120 @@ const STEP_TYPE_LABEL: Record<string, string> = {
   media: 'Mídia',
 }
 
+// ─── Sortable row ─────────────────────────────────────────────────────────────
+
+function SortableStepRow({
+  step,
+  isFirst,
+  isLast,
+  onMove,
+  onEdit,
+  onDelete,
+}: {
+  step: FlowStep
+  isFirst: boolean
+  isLast: boolean
+  onMove: (dir: -1 | 1) => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        'flex items-start gap-2 p-3 border rounded-xl bg-white transition-colors',
+        isDragging ? 'border-brand/30 shadow-lg' : 'border-gray-200 hover:border-gray-300',
+        !step.enabled && 'opacity-50',
+      )}
+    >
+      {/* Drag handle */}
+      {step.editable ? (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex items-center justify-center w-4 shrink-0 mt-1.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing touch-none"
+          title="Arrastar para reordenar"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+      ) : (
+        <div className="w-4 shrink-0" />
+      )}
+
+      {/* Arrow reorder */}
+      <div className="flex flex-col gap-0.5 pt-1 shrink-0">
+        <button
+          onClick={() => onMove(-1)}
+          disabled={isFirst || !step.editable}
+          className="text-gray-300 hover:text-gray-600 disabled:opacity-20 cursor-pointer"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => onMove(1)}
+          disabled={isLast || !step.editable}
+          className="text-gray-300 hover:text-gray-600 disabled:opacity-20 cursor-pointer"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+          <span className="text-xs font-mono text-gray-400">{step.step_key}</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STEP_TYPE_CLASS[step.step_type] ?? 'bg-gray-100 text-gray-600'}`}>
+            {STEP_TYPE_LABEL[step.step_type] ?? step.step_type}
+          </span>
+          {!step.editable && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">estrutural</span>
+          )}
+          {step.use_ai_transition && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">IA</span>
+          )}
+          {step.skippable && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 font-medium">opcional</span>
+          )}
+          {!step.enabled && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-500 font-medium">desativada</span>
+          )}
+        </div>
+        <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">
+          {step.question_template.replace(/\n/g, ' ')}
+        </p>
+        {step.quick_replies && step.quick_replies.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {step.quick_replies.slice(0, 4).map((qr, qi) => (
+              <span key={qi} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{qr}</span>
+            ))}
+            {step.quick_replies.length > 4 && (
+              <span className="text-[10px] text-gray-400">+{step.quick_replies.length - 4}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+        <button onClick={onEdit} className="text-gray-400 hover:text-gray-700 cursor-pointer" title="Editar">
+          <Edit2 className="w-3.5 h-3.5" />
+        </button>
+        {step.editable && (
+          <button onClick={onDelete} className="text-red-300 hover:text-red-600 cursor-pointer" title="Remover">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function JourneyBuilderTab() {
   const [steps, setSteps] = useState<FlowStep[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,6 +163,10 @@ export function JourneyBuilderTab() {
   const [isNew, setIsNew] = useState(false)
   const [saving, setSaving] = useState(false)
   const [qrText, setQrText] = useState('')
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -68,6 +197,7 @@ export function JourneyBuilderTab() {
       branch,
       order_index: maxOrder + 1,
       active: true,
+      enabled: true,
       editable: true,
       question_template: '',
       step_type: 'text',
@@ -119,15 +249,34 @@ export function JourneyBuilderTab() {
     await load()
   }
 
+  async function handleDragEnd(event: DragEndEvent, branchList: FlowStep[]) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIdx = branchList.findIndex(s => s.id === active.id)
+    const newIdx = branchList.findIndex(s => s.id === over.id)
+    const reordered = arrayMove(branchList, oldIdx, newIdx)
+    await Promise.all(
+      reordered.map((step, i) =>
+        supabase.from('agent_flow_steps').update({ order_index: i }).eq('id', step.id)
+      )
+    )
+    await load()
+  }
+
   function renderBranch(branchList: FlowStep[], branch: 'client' | 'painter') {
     const title = branch === 'client' ? 'Fluxo do Cliente' : 'Fluxo do Pintor'
+    const enabledCount = branchList.filter(s => s.enabled).length
+    const disabledCount = branchList.length - enabledCount
 
     return (
       <div>
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{branchList.length} pergunta(s) ativa(s)</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {enabledCount} pergunta{enabledCount !== 1 ? 's' : ''} ativa{enabledCount !== 1 ? 's' : ''}
+              {disabledCount > 0 && ` · ${disabledCount} desativada${disabledCount !== 1 ? 's' : ''}`}
+            </p>
           </div>
           <button
             onClick={() => openNew(branch)}
@@ -143,73 +292,27 @@ export function JourneyBuilderTab() {
           </div>
         )}
 
-        <div className="space-y-2">
-          {branchList.map((step, i) => (
-            <div key={step.id} className="flex items-start gap-2 p-3 border border-gray-200 rounded-xl bg-white hover:border-gray-300 transition-colors">
-              {/* Reorder */}
-              <div className="flex flex-col gap-0.5 pt-1 shrink-0">
-                <button
-                  onClick={() => moveStep(branchList, i, -1)}
-                  disabled={i === 0 || !step.editable}
-                  className="text-gray-300 hover:text-gray-600 disabled:opacity-20 cursor-pointer"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => moveStep(branchList, i, 1)}
-                  disabled={i === branchList.length - 1 || !step.editable}
-                  className="text-gray-300 hover:text-gray-600 disabled:opacity-20 cursor-pointer"
-                >
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <span className="text-xs font-mono text-gray-400">{step.step_key}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STEP_TYPE_CLASS[step.step_type] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {STEP_TYPE_LABEL[step.step_type] ?? step.step_type}
-                  </span>
-                  {!step.editable && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">estrutural</span>
-                  )}
-                  {step.use_ai_transition && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">IA</span>
-                  )}
-                  {step.skippable && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 font-medium">opcional</span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">
-                  {step.question_template.replace(/\n/g, ' ')}
-                </p>
-                {step.quick_replies && step.quick_replies.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {step.quick_replies.slice(0, 4).map((qr, qi) => (
-                      <span key={qi} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{qr}</span>
-                    ))}
-                    {step.quick_replies.length > 4 && (
-                      <span className="text-[10px] text-gray-400">+{step.quick_replies.length - 4}</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                <button onClick={() => openEdit(step)} className="text-gray-400 hover:text-gray-700 cursor-pointer" title="Editar">
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                {step.editable && (
-                  <button onClick={() => softDelete(step)} className="text-red-300 hover:text-red-600 cursor-pointer" title="Remover">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(e) => handleDragEnd(e, branchList)}
+        >
+          <SortableContext items={branchList.map(s => s.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {branchList.map((step, i) => (
+                <SortableStepRow
+                  key={step.id}
+                  step={step}
+                  isFirst={i === 0}
+                  isLast={i === branchList.length - 1}
+                  onMove={(dir) => moveStep(branchList, i, dir)}
+                  onEdit={() => openEdit(step)}
+                  onDelete={() => softDelete(step)}
+                />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       </div>
     )
   }
@@ -249,6 +352,27 @@ export function JourneyBuilderTab() {
             </div>
 
             <div className="p-5 space-y-4">
+              {/* Ativa/inativa toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl bg-gray-50/50">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Pergunta ativa</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">Quando desativada, é ignorada no fluxo mas mantida no banco</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingStep(prev => prev ? { ...prev, enabled: !(prev.enabled ?? true) } : prev)}
+                  className={cn(
+                    'relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 cursor-pointer',
+                    (editingStep.enabled ?? true) ? 'bg-brand' : 'bg-gray-300',
+                  )}
+                >
+                  <span className={cn(
+                    'absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200',
+                    (editingStep.enabled ?? true) ? 'translate-x-5' : 'translate-x-0',
+                  )} />
+                </button>
+              </div>
+
               {/* field_key */}
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1.5 block">
@@ -340,7 +464,8 @@ export function JourneyBuilderTab() {
                     <p className="text-[10px] text-gray-400">O usuário pode digitar "pular" para avançar sem responder</p>
                   </div>
                 </label>
-                <label className="flex items-start gap-3 cursor-pointer">
+
+                <label className="flex items-start gap-3 cursor-pointer group/ai">
                   <input
                     type="checkbox"
                     checked={editingStep.use_ai_transition ?? false}
@@ -348,7 +473,17 @@ export function JourneyBuilderTab() {
                     className="accent-brand w-4 h-4 mt-0.5 shrink-0"
                   />
                   <div>
-                    <p className="text-sm text-gray-700">Transição com IA</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm text-gray-700">Transição com IA</p>
+                      <div className="relative">
+                        <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-2.5 bg-gray-900 text-white text-[11px] rounded-lg leading-relaxed
+                          opacity-0 group-hover/ai:opacity-100 pointer-events-none transition-opacity duration-150 z-10 whitespace-normal">
+                          Antes de fazer esta pergunta, o agente gera uma resposta curta e natural à resposta anterior do usuário — tornando a conversa mais fluida e humanizada.
+                          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                        </div>
+                      </div>
+                    </div>
                     <p className="text-[10px] text-gray-400">O agente reage brevemente à resposta anterior antes de fazer esta pergunta</p>
                   </div>
                 </label>

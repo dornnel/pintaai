@@ -104,6 +104,7 @@ export function useChat() {
           .from('agent_flow_steps')
           .select('*')
           .eq('active', true)
+          .eq('enabled', true)
           .order('order_index')
         if (error) {
           console.error('Erro ao carregar agent_flow_steps:', error)
