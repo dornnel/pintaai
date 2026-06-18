@@ -112,6 +112,26 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Generic AI assistant mode — painter/admin context-aware chat
+    if (action === 'assistant' || (body as Record<string, unknown>).adminMode === true) {
+      const customMessages = (body as Record<string, unknown>).messages as { role: string; content: string }[] | undefined
+      if (customMessages && customMessages.length > 0) {
+        const resp = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          max_tokens: 1024,
+          temperature: 0.7,
+          messages: customMessages.map(m => ({
+            role: m.role as 'system' | 'user' | 'assistant',
+            content: m.content,
+          })),
+        })
+        return new Response(
+          JSON.stringify({ message: resp.choices[0].message.content?.trim() || '' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
+      }
+    }
+
     // Generate a natural, conversational question or validation feedback
     if (action === 'generate_question' && collected) {
       const { field, context } = collected as { field: string; context: Record<string, unknown> }

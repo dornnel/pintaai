@@ -294,7 +294,7 @@ export function LeadDetailPage() {
     const systemContext = `Você é um assistente especialista em pintura e negociação. Analise esta solicitação e ajude o admin a tomar decisões.\n\nLEAD: ${lead.protocol} — ${lead.name}\nServiço: ${lead.service_interest}\nBairro: ${lead.neighborhood}\nImóvel: ${lead.property_type || '?'}\nParedes: ${lead.wall_condition || '?'}\nPrazo: ${lead.deadline || '?'}\nMaterial: ${lead.material || '?'}\nEstimativa IA: R$${lead.ai_price_min || '?'}–R$${lead.ai_price_max || '?'}\nBriefing: ${lead.ai_briefing || 'N/A'}\nObs cliente: ${lead.final_notes || 'N/A'}`
 
     try {
-      const { data } = await supabase.functions.invoke('chat-agent', {
+      const { data } = await supabase.functions.invoke('agent-chat', {
         body: {
           messages: [
             { role: 'system', content: systemContext },

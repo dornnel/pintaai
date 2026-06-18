@@ -5,6 +5,7 @@ import {
   ArrowLeft, MapPin, Home, Calendar, Package2, Ruler,
   ChevronDown, ChevronUp, Send, CheckCircle, Loader2,
   Pencil, Image as ImageIcon, Zap, Star, FileDown, Eye, History, Info,
+  Bot, MessageCircle, User,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCurrency } from '../../lib/utils'
@@ -69,6 +70,18 @@ interface ProposalForm {
   notes: string
 }
 
+interface ConvMessage {
+  id: string
+  sender_role: 'customer' | 'painter'
+  body: string
+  created_at: string
+}
+
+interface AgentMsg {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 const CONFIDENCE_CFG: Record<string, { color: string; text: string }> = {
   alta: { color: 'bg-green-100 text-green-700', text: 'Alta confiança' },
   média: { color: 'bg-yellow-100 text-yellow-700', text: 'Confiança média' },
@@ -105,6 +118,20 @@ export function LeadView() {
   const [submitting, setSubmitting] = useState(false)
   const [editing, setEditing] = useState(false)
 
+  // AI agent assistant
+  const [agentOpen, setAgentOpen] = useState(false)
+  const [agentMessages, setAgentMessages] = useState<AgentMsg[]>([])
+  const [agentInput, setAgentInput] = useState('')
+  const [agentLoading, setAgentLoading] = useState(false)
+  const agentBottomRef = useRef<HTMLDivElement>(null)
+
+  // Customer ↔ painter conversation
+  const [convOpen, setConvOpen] = useState(false)
+  const [convMessages, setConvMessages] = useState<ConvMessage[]>([])
+  const [convInput, setConvInput] = useState('')
+  const [convSending, setConvSending] = useState(false)
+  const convBottomRef = useRef<HTMLDivElement>(null)
+
   const load = useCallback(async () => {
     if (!interactionId) return
     const { data, error } = await supabase
@@ -130,10 +157,100 @@ export function LeadView() {
         notes: String(quote.notes ?? ''),
       })
     }
+
+    const { data: convData } = await supabase
+      .from('lead_conversation_messages')
+      .select('*')
+      .eq('interaction_id', interactionId)
+      .order('created_at')
+    setConvMessages((convData || []) as ConvMessage[])
+
     setLoading(false)
   }, [interactionId, navigate])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => { agentBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [agentMessages])
+  useEffect(() => { convBottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [convMessages])
+
+  // Realtime: incoming messages from customer
+  useEffect(() => {
+    if (!interactionId) return
+    const channel = supabase
+      .channel(`conv-painter-${interactionId}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'pintae',
+        table: 'lead_conversation_messages',
+        filter: `interaction_id=eq.${interactionId}`,
+      }, payload => {
+        setConvMessages(prev => {
+          if (prev.some(m => m.id === (payload.new as ConvMessage).id)) return prev
+          return [...prev, payload.new as ConvMessage]
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [interactionId])
+
+  function buildAgentContext(lead: Lead): string {
+    const lines = [
+      'Você é um assistente especializado em projetos de pintura para pintores profissionais em Florianópolis, SC.',
+      '',
+      'Contexto desta solicitação:',
+      `• Protocolo: ${lead.protocol}`,
+      `• Serviço: ${lead.service_interest ?? 'Não informado'}`,
+      `• Bairro: ${lead.neighborhood ?? 'Não informado'}`,
+      `• Imóvel: ${lead.property_type ?? 'Não informado'}`,
+      `• Estado das paredes: ${lead.wall_condition ?? 'Não informado'}`,
+      `• Prazo desejado: ${lead.deadline ?? 'Não informado'}`,
+      `• Material: ${lead.material ?? 'Não informado'}`,
+    ]
+    if (lead.area_m2) lines.push(`• Área: ${lead.area_m2} m²${lead.num_rooms ? ` · ${lead.num_rooms} cômodo${lead.num_rooms > 1 ? 's' : ''}` : ''}`)
+    if (lead.calc_price_min && lead.calc_price_max) {
+      lines.push(`• Estimativa da plataforma: R$${lead.calc_price_min.toLocaleString('pt-BR')} – R$${lead.calc_price_max.toLocaleString('pt-BR')} (confiança: ${lead.calc_confidence ?? 'baixa'})`)
+    }
+    if (lead.ai_briefing) lines.push(`• Análise técnica: ${lead.ai_briefing}`)
+    if (lead.final_notes) lines.push(`• Observações do cliente: ${lead.final_notes}`)
+    lines.push('', 'Ajude o pintor de forma direta e prática. Foque em: materiais necessários, preço justo para Floripa, prazo realista, pontos de atenção. PT-BR.')
+    return lines.join('\n')
+  }
+
+  async function sendAgentMessage() {
+    if (!agentInput.trim() || agentLoading || !interaction) return
+    const userMsg: AgentMsg = { role: 'user', content: agentInput }
+    const newMsgs = [...agentMessages, userMsg]
+    setAgentMessages(newMsgs)
+    setAgentInput('')
+    setAgentLoading(true)
+    try {
+      const { data } = await supabase.functions.invoke('agent-chat', {
+        body: {
+          action: 'assistant',
+          messages: [
+            { role: 'system', content: buildAgentContext(interaction.lead) },
+            ...newMsgs,
+          ],
+        },
+      })
+      setAgentMessages(prev => [...prev, { role: 'assistant', content: String(data?.message || 'Sem resposta da IA.') }])
+    } catch {
+      setAgentMessages(prev => [...prev, { role: 'assistant', content: 'Erro ao conectar com o assistente. Tente novamente.' }])
+    }
+    setAgentLoading(false)
+  }
+
+  async function sendConvMessage() {
+    const body = convInput.trim()
+    if (!body || convSending || !interactionId) return
+    setConvInput('')
+    setConvSending(true)
+    await supabase.from('lead_conversation_messages').insert({
+      interaction_id: interactionId,
+      sender_role: 'painter',
+      body,
+    })
+    setConvSending(false)
+  }
 
   function handleNotesChange(value: string) {
     setPainterNotes(value)
@@ -604,9 +721,142 @@ export function LeadView() {
           </motion.div>
         )}
 
+        {/* Assistente de Proposta IA */}
+        {!isAdmin && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="bg-white rounded-2xl border border-gray-100 overflow-hidden print:hidden">
+            <button onClick={() => setAgentOpen(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-brand" />
+                <span className="font-medium text-gray-900 text-sm">Assistente de Proposta</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand rounded font-semibold uppercase tracking-wide">IA</span>
+              </div>
+              {agentOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+
+            {agentOpen && (
+              <div className="border-t border-gray-100">
+                <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto">
+                  {agentMessages.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-3">
+                      Pergunte sobre materiais, precificação ou como redigir a proposta...
+                    </p>
+                  )}
+                  {agentMessages.map((m, i) => (
+                    <div key={i} className={`flex gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {m.role === 'assistant' && (
+                        <div className="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bot className="w-3 h-3 text-brand" />
+                        </div>
+                      )}
+                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-line ${
+                        m.role === 'user'
+                          ? 'bg-brand text-white rounded-br-sm'
+                          : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                      }`}>
+                        {m.content}
+                      </div>
+                    </div>
+                  ))}
+                  {agentLoading && (
+                    <div className="flex gap-2">
+                      <div className="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                        <Bot className="w-3 h-3 text-brand" />
+                      </div>
+                      <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-3 py-2.5">
+                        <Loader2 className="w-3 h-3 animate-spin text-gray-400" />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={agentBottomRef} />
+                </div>
+                <div className="border-t border-gray-100 px-4 py-3 flex gap-2">
+                  <input
+                    value={agentInput}
+                    onChange={e => setAgentInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAgentMessage() } }}
+                    placeholder="Ex: Quanto de tinta eu preciso para 80m²?"
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
+                  />
+                  <button onClick={sendAgentMessage} disabled={agentLoading || !agentInput.trim()}
+                    className="w-8 h-8 bg-brand text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0">
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Conversa com o cliente */}
+        {!isAdmin && (isSubmitted || interaction.status === 'accepted') && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}
+            className="bg-white rounded-2xl border border-gray-100 overflow-hidden print:hidden">
+            <button onClick={() => setConvOpen(v => !v)}
+              className="w-full flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-gray-500" />
+                <span className="font-medium text-gray-900 text-sm">Conversa com o cliente</span>
+                {convMessages.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-semibold">
+                    {convMessages.length}
+                  </span>
+                )}
+              </div>
+              {convOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </button>
+
+            {convOpen && (
+              <div className="border-t border-gray-100">
+                <div className="px-4 py-3 space-y-3 max-h-72 overflow-y-auto">
+                  {convMessages.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-3">
+                      Nenhuma mensagem ainda. Inicie a conversa com o cliente.
+                    </p>
+                  )}
+                  {convMessages.map(m => (
+                    <div key={m.id} className={`flex gap-2 ${m.sender_role === 'painter' ? 'justify-end' : 'justify-start'}`}>
+                      {m.sender_role === 'customer' && (
+                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-0.5">
+                          <User className="w-3 h-3 text-gray-500" />
+                        </div>
+                      )}
+                      <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                        m.sender_role === 'painter'
+                          ? 'bg-gray-800 text-white rounded-br-sm'
+                          : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                      }`}>
+                        <p>{m.body}</p>
+                        <p className={`text-[10px] mt-0.5 ${m.sender_role === 'painter' ? 'text-white/50' : 'text-gray-400'}`}>
+                          {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={convBottomRef} />
+                </div>
+                <div className="border-t border-gray-100 px-4 py-3 flex gap-2">
+                  <input
+                    value={convInput}
+                    onChange={e => setConvInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendConvMessage() } }}
+                    placeholder="Mensagem ao cliente..."
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
+                  />
+                  <button onClick={sendConvMessage} disabled={convSending || !convInput.trim()}
+                    className="w-8 h-8 bg-gray-800 text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0">
+                    {convSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Profile reminder */}
         {!isAdmin && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}
             className="bg-gray-50 rounded-2xl border border-gray-100 p-4 flex items-center gap-3 print:hidden">
             <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
               <Star className="w-4 h-4 text-brand" />

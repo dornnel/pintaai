@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ChevronDown, ChevronUp, MapPin, CheckCircle, Clock,
   MessageSquare, User, Phone, Paintbrush, Plus, Pencil,
-  X, Save, Loader2, History,
+  X, Save, Loader2, History, Send,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useCustomerContext, type CustomerLead } from './CustomerLayout'
@@ -171,88 +171,200 @@ function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
 
 // ─── Proposal Card ────────────────────────────────────────────────────────────
 
+type ConvMsg = { id: string; sender_role: 'customer' | 'painter'; body: string; created_at: string }
+
 function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onSelect: (id: string) => void }) {
   const painter = interaction.painter
   const quote = interaction.metadata?.quote
   const isAccepted = interaction.status === 'accepted'
 
+  // Chat state (must be before any early return)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<ConvMsg[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatSending, setChatSending] = useState(false)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!chatOpen) return
+    supabase.from('lead_conversation_messages').select('*')
+      .eq('interaction_id', interaction.id).order('created_at')
+      .then(({ data }) => setChatMessages((data || []) as ConvMsg[]))
+
+    const channel = supabase.channel(`conv-customer-${interaction.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'pintae',
+        table: 'lead_conversation_messages',
+        filter: `interaction_id=eq.${interaction.id}`,
+      }, payload => {
+        setChatMessages(prev => {
+          if (prev.some(m => m.id === (payload.new as ConvMsg).id)) return prev
+          return [...prev, payload.new as ConvMsg]
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [chatOpen, interaction.id])
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  async function sendChatMessage() {
+    const body = chatInput.trim()
+    if (!body || chatSending) return
+    setChatInput('')
+    setChatSending(true)
+    await supabase.from('lead_conversation_messages').insert({
+      interaction_id: interaction.id,
+      sender_role: 'customer',
+      body,
+    })
+    setChatSending(false)
+  }
+
   if (interaction.status !== 'proposal_sent' && !isAccepted) return null
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className={cn('rounded-xl border p-4', isAccepted ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white')}>
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
-          <User className="w-4 h-4 text-brand" />
+      className={cn('rounded-xl border overflow-hidden', isAccepted ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white')}>
+      <div className="p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+            <User className="w-4 h-4 text-brand" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 text-sm truncate">
+              {isAccepted ? (painter?.user?.name ?? 'Pintor') : `Pintor ${painter?.specialties?.[0] ?? 'Qualificado'}`}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {painter?.years_experience ? <span className="text-xs text-gray-400">{painter.years_experience} anos de exp.</span> : null}
+              {painter?.kyc_status === 'approved' && (
+                <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">Verificado</span>
+              )}
+            </div>
+          </div>
+          {isAccepted && (
+            <span className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-medium shrink-0 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" /> Contratado
+            </span>
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 text-sm truncate">
-            {isAccepted ? (painter?.user?.name ?? 'Pintor') : `Pintor ${painter?.specialties?.[0] ?? 'Qualificado'}`}
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            {painter?.years_experience ? <span className="text-xs text-gray-400">{painter.years_experience} anos de exp.</span> : null}
-            {painter?.kyc_status === 'approved' && (
-              <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">Verificado</span>
+
+        {painter?.specialties && painter.specialties.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {painter.specialties.slice(0, 3).map(s => (
+              <span key={s} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{s}</span>
+            ))}
+          </div>
+        )}
+
+        {quote && (
+          <div className="space-y-1.5 mb-3">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-400">Preço total</span>
+              <span className="font-bold text-gray-900">{formatCurrency(quote.total_price)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-400">Material</span>
+              <span className="text-xs text-gray-700">{quote.includes_material ? 'Incluso' : 'Não incluso'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-xs text-gray-400">Prazo de execução</span>
+              <span className="text-xs text-gray-700">{quote.duration_days} dias</span>
+            </div>
+            {quote.payment_terms && (
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-400">Pagamento</span>
+                <span className="text-xs text-gray-700 text-right max-w-[60%]">{quote.payment_terms}</span>
+              </div>
+            )}
+            {quote.notes && (
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-xs text-gray-400 mb-0.5">Obs. do pintor</p>
+                <p className="text-xs text-gray-600">{quote.notes}</p>
+              </div>
             )}
           </div>
-        </div>
-        {isAccepted && (
-          <span className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-full font-medium shrink-0 flex items-center gap-1">
-            <CheckCircle className="w-3 h-3" /> Contratado
-          </span>
         )}
+
+        <div className="space-y-2">
+          {isAccepted && painter?.user?.phone && (
+            <a href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pintai e gostaria de agendar o serviço.`}
+              target="_blank" rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors">
+              <Phone className="w-3.5 h-3.5" /> WhatsApp do pintor
+            </a>
+          )}
+          {!isAccepted && (
+            <motion.button onClick={() => onSelect(interaction.id)}
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="w-full py-2.5 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer">
+              Selecionar esta proposta
+            </motion.button>
+          )}
+          <button onClick={() => setChatOpen(v => !v)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+            <MessageSquare className="w-3.5 h-3.5" />
+            {chatOpen ? 'Fechar conversa' : 'Conversar com o pintor'}
+            {chatMessages.length > 0 && !chatOpen && (
+              <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-semibold">
+                {chatMessages.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {painter?.specialties && painter.specialties.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {painter.specialties.slice(0, 3).map(s => (
-            <span key={s} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{s}</span>
-          ))}
-        </div>
-      )}
-
-      {quote && (
-        <div className="space-y-1.5 mb-3">
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-gray-400">Preço total</span>
-            <span className="font-bold text-gray-900">{formatCurrency(quote.total_price)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-xs text-gray-400">Material</span>
-            <span className="text-xs text-gray-700">{quote.includes_material ? 'Incluso' : 'Não incluso'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-xs text-gray-400">Prazo de execução</span>
-            <span className="text-xs text-gray-700">{quote.duration_days} dias</span>
-          </div>
-          {quote.payment_terms && (
-            <div className="flex justify-between">
-              <span className="text-xs text-gray-400">Pagamento</span>
-              <span className="text-xs text-gray-700 text-right max-w-[60%]">{quote.payment_terms}</span>
+      {/* Chat panel */}
+      <AnimatePresence>
+        {chatOpen && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+            className="border-t border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto bg-gray-50">
+              {chatMessages.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-4">
+                  Tire suas dúvidas diretamente com o pintor.
+                </p>
+              )}
+              {chatMessages.map(m => (
+                <div key={m.id} className={`flex gap-2 ${m.sender_role === 'customer' ? 'justify-end' : 'justify-start'}`}>
+                  {m.sender_role === 'painter' && (
+                    <div className="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <User className="w-3 h-3 text-brand" />
+                    </div>
+                  )}
+                  <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                    m.sender_role === 'customer'
+                      ? 'bg-brand text-white rounded-br-sm'
+                      : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'
+                  }`}>
+                    <p>{m.body}</p>
+                    <p className={`text-[10px] mt-0.5 ${m.sender_role === 'customer' ? 'text-white/60' : 'text-gray-400'}`}>
+                      {new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              <div ref={chatBottomRef} />
             </div>
-          )}
-          {quote.notes && (
-            <div className="pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-400 mb-0.5">Obs. do pintor</p>
-              <p className="text-xs text-gray-600">{quote.notes}</p>
+            <div className="border-t border-gray-200 px-4 py-3 flex gap-2 bg-white">
+              <input
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage() } }}
+                placeholder="Sua mensagem..."
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-brand"
+              />
+              <button onClick={sendChatMessage} disabled={chatSending || !chatInput.trim()}
+                className="w-8 h-8 bg-brand text-white rounded-xl flex items-center justify-center disabled:opacity-40 cursor-pointer shrink-0">
+                {chatSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              </button>
             </div>
-          )}
-        </div>
-      )}
-
-      {isAccepted && painter?.user?.phone ? (
-        <a href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pintai e gostaria de agendar o serviço.`}
-          target="_blank" rel="noopener noreferrer"
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors">
-          <Phone className="w-3.5 h-3.5" /> Abrir conversa no WhatsApp
-        </a>
-      ) : !isAccepted ? (
-        <motion.button onClick={() => onSelect(interaction.id)}
-          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-          className="w-full py-2.5 bg-brand text-white text-sm font-semibold rounded-xl cursor-pointer">
-          Selecionar esta proposta
-        </motion.button>
-      ) : null}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
