@@ -31,6 +31,8 @@ export interface CustomerLead {
   current_color: string | null
   created_at: string
   is_partial: boolean
+  cancelled_at: string | null
+  cancel_reason: string | null
   lead_painter_interactions: Array<{
     id: string
     status: string
@@ -104,7 +106,7 @@ export function CustomerLayout() {
         id, protocol, service_interest, neighborhood, area_m2, num_rooms,
         calc_price_min, calc_price_max, property_type, deadline, material,
         wall_condition, final_notes, preferred_professional, estimated_budget, current_color,
-        created_at, is_partial,
+        created_at, is_partial, cancelled_at, cancel_reason,
         lead_painter_interactions(
           id, status, metadata, notified_at, proposal_viewed_at,
           painter:painters(

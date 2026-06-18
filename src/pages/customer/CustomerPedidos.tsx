@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   ChevronDown, ChevronUp, MapPin, CheckCircle, Clock,
   MessageSquare, User, Phone, Paintbrush, Plus, Pencil,
-  X, Save, Loader2, History, Send,
+  X, Save, Loader2, History, Send, AlertTriangle, Trash2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useCustomerContext, type CustomerLead } from './CustomerLayout'
@@ -20,10 +20,14 @@ interface EditLeadModalProps {
   lead: CustomerLead
   onClose: () => void
   onSaved: (updated: Partial<CustomerLead>) => void
+  onCancelled: () => void
 }
 
-function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
+function EditLeadModal({ lead, onClose, onSaved, onCancelled }: EditLeadModalProps) {
   const { user } = useAuth()
+  const [step, setStep] = useState<'edit' | 'cancel'>('edit')
+
+  // Edit fields
   const [neighborhood, setNeighborhood] = useState(lead.neighborhood ?? '')
   const [areaM2, setAreaM2] = useState(String(lead.area_m2 ?? ''))
   const [numRooms, setNumRooms] = useState(String(lead.num_rooms ?? ''))
@@ -32,6 +36,15 @@ function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
   const [finalNotes, setFinalNotes] = useState(lead.final_notes ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  // Cancel fields
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+
+  const hasAccepted = lead.lead_painter_interactions.some(i => i.status === 'accepted')
+  const activeInteractions = lead.lead_painter_interactions.filter(
+    i => !['declined'].includes(i.status)
+  )
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -82,6 +95,59 @@ function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
     setTimeout(() => { setSaved(false); onClose() }, 900)
   }
 
+  async function handleCancel() {
+    if (cancelReason.trim().length < 10 || cancelling) return
+    setCancelling(true)
+
+    const now = new Date().toISOString()
+    const reason = cancelReason.trim()
+
+    // 1. Mark lead as cancelled
+    await supabase.from('leads')
+      .update({ cancelled_at: now, cancel_reason: reason })
+      .eq('id', lead.id)
+
+    // 2. Decline all active interactions, recording the cancellation reason
+    for (const interaction of activeInteractions) {
+      await supabase.from('lead_painter_interactions')
+        .update({
+          status: 'declined',
+          metadata: {
+            ...interaction.metadata,
+            cancelled_by_customer: true,
+            cancel_reason: reason,
+            cancelled_at: now,
+          },
+        })
+        .eq('id', interaction.id)
+    }
+
+    // 3. Lead history
+    await supabase.from('lead_history').insert({
+      lead_id: lead.id,
+      changed_by: user?.id ?? null,
+      old_values: { cancelled_at: null, cancel_reason: null },
+      new_values: { cancelled_at: now, cancel_reason: reason },
+      change_note: `Pedido cancelado pelo cliente. Motivo: ${reason}`,
+    })
+
+    // 4. Audit log
+    if (user) {
+      await logAudit({
+        actor_user_id: user.id,
+        entity_type: 'lead',
+        entity_id: lead.id,
+        action: 'lead_cancelled',
+        old_values: { cancelled_at: null },
+        new_values: { cancelled_at: now, cancel_reason: reason, affected_interactions: activeInteractions.length },
+      })
+    }
+
+    setCancelling(false)
+    onCancelled()
+    onClose()
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
@@ -90,9 +156,13 @@ function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
         className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
         onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <h3 className="font-bold text-gray-900">Editar pedido</h3>
+            <h3 className="font-bold text-gray-900">
+              {step === 'cancel' ? 'Cancelar pedido' : 'Editar pedido'}
+            </h3>
             <p className="text-xs text-gray-400 font-mono">{lead.protocol}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors">
@@ -100,70 +170,141 @@ function EditLeadModal({ lead, onClose, onSaved }: EditLeadModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSave} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div className="flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2.5">
-            <History className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">Alterações são registradas no histórico do pedido.</p>
-          </div>
+        {/* ── Edit step ── */}
+        {step === 'edit' && (
+          <form onSubmit={handleSave} className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2.5">
+              <History className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">Alterações são registradas no histórico do pedido.</p>
+            </div>
 
-          <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Metragem (m²)</label>
+                <input type="number" value={areaM2} onChange={e => setAreaM2(e.target.value)} min="1" step="0.5"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Cômodos</label>
+                <input type="number" value={numRooms} onChange={e => setNumRooms(e.target.value)} min="1" step="1"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+              </div>
+            </div>
+
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Metragem (m²)</label>
-              <input type="number" value={areaM2} onChange={e => setAreaM2(e.target.value)} min="1" step="0.5"
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Bairro</label>
+              <input type="text" value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
             </div>
+
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Cômodos</label>
-              <input type="number" value={numRooms} onChange={e => setNumRooms(e.target.value)} min="1" step="1"
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Prazo desejado</label>
+              <input type="text" value={deadline} onChange={e => setDeadline(e.target.value)}
+                placeholder="Ex: Próximas 2 semanas"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
             </div>
-          </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Bairro</label>
-            <input type="text" value={neighborhood} onChange={e => setNeighborhood(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
-          </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Material</label>
+              <select value={material} onChange={e => setMaterial(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand bg-white">
+                <option value="">Não informado</option>
+                <option value="Incluso no serviço">Incluso no serviço</option>
+                <option value="Cliente fornece">Cliente fornece</option>
+                <option value="Pintor sugere">Pintor sugere</option>
+              </select>
+            </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Prazo desejado</label>
-            <input type="text" value={deadline} onChange={e => setDeadline(e.target.value)}
-              placeholder="Ex: Próximas 2 semanas"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
-          </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Observações</label>
+              <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)} rows={3}
+                placeholder="Detalhes adicionais para o pintor..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand resize-none" />
+            </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Material</label>
-            <select value={material} onChange={e => setMaterial(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand bg-white">
-              <option value="">Não informado</option>
-              <option value="Incluso no serviço">Incluso no serviço</option>
-              <option value="Cliente fornece">Cliente fornece</option>
-              <option value="Pintor sugere">Pintor sugere</option>
-            </select>
-          </div>
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                Fechar
+              </button>
+              <motion.button type="submit" disabled={saving}
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                className="flex-1 py-2.5 bg-brand text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
+                {saved ? <><CheckCircle className="w-4 h-4" /> Salvo!</>
+                  : saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
+                  : <><Save className="w-4 h-4" /> Salvar</>}
+              </motion.button>
+            </div>
 
-          <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Observações</label>
-            <textarea value={finalNotes} onChange={e => setFinalNotes(e.target.value)} rows={3}
-              placeholder="Detalhes adicionais para o pintor..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand resize-none" />
-          </div>
+            {/* Destructive zone */}
+            <div className="border-t border-gray-100 pt-3">
+              <button type="button" onClick={() => setStep('cancel')}
+                className="w-full flex items-center justify-center gap-2 py-2 text-sm text-red-500 hover:text-red-600 cursor-pointer transition-colors rounded-xl hover:bg-red-50">
+                <Trash2 className="w-3.5 h-3.5" />
+                Cancelar este pedido
+              </button>
+            </div>
+          </form>
+        )}
 
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-              Cancelar
-            </button>
-            <motion.button type="submit" disabled={saving}
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="flex-1 py-2.5 bg-brand text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60">
-              {saved ? <><CheckCircle className="w-4 h-4" /> Salvo!</>
-                : saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
-                : <><Save className="w-4 h-4" /> Salvar</>}
-            </motion.button>
+        {/* ── Cancel step ── */}
+        {step === 'cancel' && (
+          <div className="p-5 space-y-4">
+
+            {/* Warning */}
+            <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-2xl p-4">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-red-800 mb-1">Esta ação não pode ser desfeita</p>
+                <ul className="text-xs text-red-600 space-y-0.5">
+                  {activeInteractions.length > 0 && (
+                    <li>· {activeInteractions.length} pintor{activeInteractions.length > 1 ? 'es serão notificados' : ' será notificado'} do cancelamento</li>
+                  )}
+                  {hasAccepted && (
+                    <li>· Um pintor já foi contratado — ele também será notificado</li>
+                  )}
+                  <li>· Histórico e auditoria do pedido serão mantidos</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="text-xs font-semibold text-gray-700 mb-1.5 block">
+                Motivo do cancelamento <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+                rows={4}
+                autoFocus
+                placeholder="Ex: Já encontrei um pintor por outro meio, projeto adiado, mudei de planos..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none"
+              />
+              <p className={cn('text-xs mt-1', cancelReason.trim().length >= 10 ? 'text-gray-400' : 'text-red-400')}>
+                {cancelReason.trim().length < 10
+                  ? `Mínimo 10 caracteres (${cancelReason.trim().length}/10)`
+                  : '✓ Motivo registrado no histórico e enviado aos pintores'}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep('edit')}
+                className="flex-1 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                Voltar
+              </button>
+              <motion.button
+                onClick={handleCancel}
+                disabled={cancelReason.trim().length < 10 || cancelling}
+                whileTap={{ scale: 0.97 }}
+                className="flex-1 py-2.5 bg-red-500 text-white text-sm font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 transition-opacity">
+                {cancelling
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelando...</>
+                  : <><Trash2 className="w-4 h-4" /> Confirmar cancelamento</>}
+              </motion.button>
+            </div>
           </div>
-        </form>
+        )}
       </motion.div>
     </motion.div>
   )
@@ -510,12 +651,13 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
 // ─── Lead Card ────────────────────────────────────────────────────────────────
 
 function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
-  const { selectProposal } = useCustomerContext()
+  const { selectProposal, reload } = useCustomerContext()
   const [lead, setLead] = useState(initialLead)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [liveCount, setLiveCount] = useState(0)
 
+  const isCancelled = !!lead.cancelled_at
   const proposals = lead.lead_painter_interactions.filter(
     i => i.status === 'proposal_sent' || i.status === 'accepted'
   )
@@ -523,8 +665,9 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
   const viewedCount = lead.lead_painter_interactions.filter(i => i.proposal_viewed_at).length
   const notifiedCount = lead.lead_painter_interactions.length
 
-  // Real-time: painters currently viewing this lead
+  // Presence: painters currently viewing this lead (only track if not cancelled)
   useEffect(() => {
+    if (isCancelled) return
     const channel = supabase.channel(`lead-presence-${lead.id}`)
     channel
       .on('presence', { event: 'sync' }, () => {
@@ -533,18 +676,26 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [lead.id])
+  }, [lead.id, isCancelled])
 
   return (
     <>
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        className={cn('rounded-2xl border overflow-hidden transition-all',
+          isCancelled
+            ? 'bg-gray-50 border-gray-100 opacity-70'
+            : 'bg-white border-gray-100')}>
         <button onClick={() => setOpen(v => !v)}
           className="w-full flex items-start justify-between gap-3 p-5 cursor-pointer hover:bg-gray-50/50 transition-colors text-left">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1.5">
               <span className="text-xs font-mono text-gray-400">{lead.protocol}</span>
-              {accepted ? (
+              {isCancelled ? (
+                <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-500 rounded-full font-medium flex items-center gap-1">
+                  <X className="w-3 h-3" />
+                  Cancelado · {new Date(lead.cancelled_at!).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                </span>
+              ) : accepted ? (
                 <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Contratado</span>
               ) : proposals.length > 0 ? (
                 <span className="text-xs px-2 py-0.5 bg-brand/10 text-brand rounded-full font-medium">
@@ -569,7 +720,7 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
                 </span>
               )}
             </div>
-            <p className="font-medium text-gray-800 text-sm">
+            <p className={cn('font-medium text-sm', isCancelled ? 'text-gray-500 line-through' : 'text-gray-800')}>
               {lead.service_interest ?? 'Pintura'}
               {lead.neighborhood ? ` · ${lead.neighborhood}` : ''}
             </p>
@@ -597,10 +748,24 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
               exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
               <div className="px-5 pb-5 space-y-4 border-t border-gray-100 pt-4">
 
+                {/* Cancellation notice */}
+                {isCancelled && lead.cancel_reason && (
+                  <div className="flex items-start gap-2.5 bg-gray-100 rounded-xl px-3.5 py-3">
+                    <AlertTriangle className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-600 mb-0.5">Pedido cancelado</p>
+                      <p className="text-xs text-gray-500">Motivo: {lead.cancel_reason}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Histórico e auditoria preservados.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sua solicitação</p>
-                    {!accepted && (
+                    {!accepted && !isCancelled && (
                       <button onClick={() => setEditing(true)}
                         className="flex items-center gap-1 text-xs text-brand hover:text-orange-700 cursor-pointer transition-colors">
                         <Pencil className="w-3 h-3" /> Editar
@@ -630,24 +795,26 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
                   )}
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                    Propostas dos pintores ({proposals.length})
-                  </p>
-                  {proposals.length === 0 ? (
-                    <div className="flex items-center gap-2 text-xs text-gray-400 py-3">
-                      <MessageSquare className="w-4 h-4 shrink-0" />
-                      Nenhuma proposta ainda. Os pintores estão avaliando sua solicitação.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {lead.lead_painter_interactions.map(interaction => (
-                        <ProposalCard key={interaction.id} interaction={interaction}
-                          onSelect={iId => selectProposal(lead.id, iId)} />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {!isCancelled && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      Propostas dos pintores ({proposals.length})
+                    </p>
+                    {proposals.length === 0 ? (
+                      <div className="flex items-center gap-2 text-xs text-gray-400 py-3">
+                        <MessageSquare className="w-4 h-4 shrink-0" />
+                        Nenhuma proposta ainda. Os pintores estão avaliando sua solicitação.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {lead.lead_painter_interactions.map(interaction => (
+                          <ProposalCard key={interaction.id} interaction={interaction}
+                            onSelect={iId => selectProposal(lead.id, iId)} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -656,8 +823,12 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
 
       <AnimatePresence>
         {editing && (
-          <EditLeadModal lead={lead} onClose={() => setEditing(false)}
-            onSaved={updates => setLead(prev => ({ ...prev, ...updates }))} />
+          <EditLeadModal
+            lead={lead}
+            onClose={() => setEditing(false)}
+            onSaved={updates => setLead(prev => ({ ...prev, ...updates }))}
+            onCancelled={() => reload()}
+          />
         )}
       </AnimatePresence>
     </>
