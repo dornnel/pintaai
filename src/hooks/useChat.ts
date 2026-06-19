@@ -545,40 +545,43 @@ export function useChat() {
         updated_at: new Date().toISOString(),
       }, { onConflict: 'session_id' })
 
-      if (role === 'client') {
-        // Enviar email de confirmação (async, não bloqueia)
-        if (data.email) {
-          const summaryText =
-            `Nome: ${data.name}\nEmail: ${data.email}\nWhatsApp: ${data.whatsapp}\n` +
-            `Bairro: ${data.neighborhood} · ${data.property_type}\n` +
-            `Serviço: ${data.service_type}\nParedes: ${data.wall_condition}\n` +
-            `Prazo: ${data.deadline} · Material: ${data.material}\n` +
-            (data.final_notes ? `Observações: ${data.final_notes}\n` : '')
+      if (role === 'client' && data.email) {
+        const emailPayload = {
+          to: data.email,
+          name: data.name || 'Cliente',
+          protocol,
+          neighborhood: data.neighborhood || '',
+          service_type: data.service_type || '',
+          summary: `Nome: ${data.name}\nEmail: ${data.email}\nWhatsApp: ${data.whatsapp}\nBairro: ${data.neighborhood} · ${data.property_type}\nServiço: ${data.service_type}\nParedes: ${data.wall_condition}\nPrazo: ${data.deadline} · Material: ${data.material}${data.final_notes ? `\nObservações: ${data.final_notes}` : ''}`,
+          calc_price_min: calc?.estimated_min,
+          calc_price_max: calc?.estimated_max,
+          area_m2: data.area_m2,
+          num_rooms: data.num_rooms,
+        }
+        console.log('[Email] sending to:', data.email, 'protocol:', protocol)
 
-          supabase.functions.invoke('send-notification-email', {
-            body: {
-              to: data.email,
-              name: data.name || 'Cliente',
-              protocol,
-              neighborhood: data.neighborhood || '',
-              service_type: data.service_type || '',
-              summary: summaryText,
-              calc_price_min: calc?.estimated_min,
-              calc_price_max: calc?.estimated_max,
-              area_m2: data.area_m2,
-              num_rooms: data.num_rooms,
-            },
-          }).then(({ data: resp, error: emailErr }) => {
-            if (emailErr) {
-              console.error('[Email] invocation error:', emailErr)
-              return
-            }
-            console.log('[Email] sent:', resp)
-            supabase.from('leads')
-              .update({ email_confirmation_sent: true })
-              .eq('protocol', protocol)
-              .then(() => {})
-          }).catch(err => console.error('[Email] failed:', err))
+        try {
+          const { data: resp, error: emailErr } = await supabase.functions.invoke('send-notification-email', { body: emailPayload })
+          if (emailErr) {
+            console.error('[Email] supabase invoke error:', emailErr)
+            // Fallback: fetch direto
+            const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-notification-email`
+            const fallback = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify(emailPayload),
+            })
+            const fallbackData = await fallback.json()
+            console.log('[Email] fallback result:', fallbackData)
+          } else {
+            console.log('[Email] sent ok:', resp)
+          }
+          await supabase.from('leads').update({ email_confirmation_sent: true }).eq('protocol', protocol)
+        } catch (emailCatchErr) {
+          console.error('[Email] catch error:', emailCatchErr)
         }
       }
 
