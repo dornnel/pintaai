@@ -161,7 +161,10 @@ Deno.serve(async (req: Request) => {
 <html lang="pt-BR">
 <body style="font-family:system-ui,-apple-system,sans-serif;background:#f5f5f5;padding:20px">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb">
-  <h2 style="color:#111;margin:0 0 4px">🎨 Nova solicitação — ${protocol}</h2>
+  <div style="background:#f0f0f0;border-radius:6px;padding:8px 12px;margin-bottom:16px;display:inline-block">
+    <span style="color:#666;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">⚙️ Cópia interna — Admin</span>
+  </div>
+  <h2 style="color:#111;margin:0 0 4px">Nova solicitação — ${protocol}</h2>
   <p style="color:#666;margin:0 0 20px;font-size:13px">${service_type} em ${neighborhood}</p>
 
   <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -183,7 +186,7 @@ Deno.serve(async (req: Request) => {
 
     const [clientResult, adminResult] = await Promise.allSettled([
       sendEmail(to, name, `Solicitação recebida — ${protocol} | Pintai Floripa`, clientHtml),
-      sendEmail(ADMIN_EMAIL, 'Admin', `[Pintai] Nova solicitação ${protocol} — ${name}`, adminHtml),
+      sendEmail(ADMIN_EMAIL, 'Admin Pintai', `⚙️ [ADMIN] Nova solicitação ${protocol} — ${name} · ${service_type}`, adminHtml),
     ])
 
     return new Response(
