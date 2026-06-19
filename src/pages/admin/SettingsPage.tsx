@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { Save, Loader2, CheckCircle, Settings, Key, Bell, Store, MessageCircle, MapPin } from 'lucide-react'
+import { Save, Loader2, CheckCircle, Settings, Key, Bell, Store, MessageCircle, MapPin, Mail, Send } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { logAudit } from '../../lib/audit'
 import { useAuth } from '../../lib/auth'
@@ -10,6 +10,9 @@ import { invalidatePlatformSettingsCache } from '../../lib/usePlatformSettings'
 const SETTING_DEFS = [
   { key: 'whatsapp_number', label: 'WhatsApp da plataforma', description: 'Número para contato (sem +)', type: 'text', group: 'Contato' },
   { key: 'admin_email', label: 'E-mail do admin', description: 'Recebe notificações do sistema', type: 'email', group: 'Contato' },
+  { key: 'email_from_name', label: 'Nome do remetente', description: 'Nome exibido nos emails enviados (ex: Pintai Floripa)', type: 'text', group: 'Email' },
+  { key: 'email_from_address', label: 'Email do remetente', description: 'Endereço do remetente (deve ser validado no Brevo)', type: 'email', group: 'Email' },
+  { key: 'email_reply_to', label: 'Responder para', description: 'Email que receberá respostas dos clientes', type: 'email', group: 'Email' },
   { key: 'platform_fee_rate', label: 'Taxa da plataforma (%)', description: 'Percentual retido em cada serviço', type: 'number', group: 'Financeiro' },
   { key: 'minimum_job_price', label: 'Preço mínimo por job (R$)', description: 'Valor mínimo aceito para um serviço', type: 'number', group: 'Financeiro' },
   { key: 'registration_open', label: 'Registro aberto', description: 'Permitir novos cadastros na plataforma', type: 'boolean', group: 'Funcionalidades' },
@@ -20,7 +23,7 @@ const SETTING_DEFS = [
   { key: 'auto_assign_radius_km_default', label: 'Raio padrão (km)', description: 'Raio de busca quando o pintor não define um valor próprio', type: 'number', group: 'Distribuição de Leads' },
 ]
 
-const GROUPS = ['Contato', 'Financeiro', 'Funcionalidades', 'Distribuição de Leads']
+const GROUPS = ['Contato', 'Email', 'Financeiro', 'Funcionalidades', 'Distribuição de Leads']
 
 export function SettingsPage() {
   const { user } = useAuth()
@@ -29,6 +32,9 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
+  const [testEmail, setTestEmail] = useState('')
+  const [sendingTest, setSendingTest] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -104,6 +110,32 @@ export function SettingsPage() {
     return v
   }
 
+  async function sendTestEmailFn() {
+    if (!testEmail) return
+    setSendingTest(true)
+    setTestResult(null)
+    try {
+      const { data: resp, error } = await supabase.functions.invoke('send-notification-email', {
+        body: {
+          to: testEmail,
+          name: 'Teste',
+          protocol: 'PT-TESTE-0000',
+          neighborhood: 'Centro',
+          service_type: 'Pintura interna (teste)',
+          summary: 'Nome: Teste\nEmail: ' + testEmail + '\nServiço: Pintura interna\nBairro: Centro\n\nEste é um email de teste enviado pelo painel admin.',
+        },
+      })
+      if (error) {
+        setTestResult({ ok: false, msg: `Erro: ${JSON.stringify(error)}` })
+      } else {
+        setTestResult({ ok: true, msg: `Email enviado! Status: ${resp?.client || 'ok'}` })
+      }
+    } catch (err) {
+      setTestResult({ ok: false, msg: `Erro: ${String(err)}` })
+    }
+    setSendingTest(false)
+  }
+
   if (loading) return (
     <div className="p-6 flex items-center justify-center h-64">
       <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
@@ -132,6 +164,7 @@ export function SettingsPage() {
             <div key={group} className="bg-white rounded-2xl border border-gray-100 p-5">
               <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                 {group === 'Contato' && <MessageCircle className="w-4 h-4 text-blue-500" />}
+                {group === 'Email' && <Mail className="w-4 h-4 text-indigo-500" />}
                 {group === 'Financeiro' && <Store className="w-4 h-4 text-green-500" />}
                 {group === 'Funcionalidades' && <Settings className="w-4 h-4 text-brand" />}
                 {group === 'Distribuição de Leads' && <MapPin className="w-4 h-4 text-purple-500" />}
@@ -179,6 +212,29 @@ export function SettingsPage() {
           )
         })}
 
+        {/* Envio de email de teste */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <Send className="w-4 h-4 text-indigo-500" /> Enviar Email de Teste
+          </h2>
+          <p className="text-xs text-gray-500 mb-3">Envie um email de teste para verificar se as configurações do provedor de email estão corretas.</p>
+          <div className="flex gap-2">
+            <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)}
+              placeholder="email@exemplo.com"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-brand" />
+            <button onClick={sendTestEmailFn} disabled={sendingTest || !testEmail}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl cursor-pointer disabled:opacity-50 hover:bg-indigo-700 transition-colors">
+              {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Enviar teste
+            </button>
+          </div>
+          {testResult && (
+            <div className={`mt-3 px-3 py-2 rounded-xl text-xs ${testResult.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              {testResult.msg}
+            </div>
+          )}
+        </div>
+
         {/* Seção de APIs (read-only) */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
@@ -187,8 +243,9 @@ export function SettingsPage() {
           <div className="space-y-3">
             {[
               { name: 'OpenAI (GPT-4o)', key: 'OPENAI_API_KEY', status: 'Configurado via Supabase Secrets' },
+              { name: 'Brevo (Email SMTP)', key: 'BREVO_API_KEY', status: 'Configurado via Supabase Secrets' },
               { name: 'Asaas Payments', key: 'ASAAS_API_KEY', status: 'Configurado via Supabase Secrets' },
-              { name: 'Resend Email', key: 'RESEND_API_KEY', status: 'Configurado via Supabase Secrets' },
+              { name: 'Resend (Fallback)', key: 'RESEND_API_KEY', status: 'Configurado via Supabase Secrets' },
             ].map(integration => (
               <div key={integration.name} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                 <div>

@@ -120,6 +120,7 @@ export function useChat() {
 
   useEffect(() => {
     getSteps().catch(console.error)
+    saveSessionState('init', {}).catch(console.error)
   }, [])
 
   // Gera mensagem de transição via IA: reage à resposta/valor anterior e emenda a próxima pergunta
@@ -557,23 +558,27 @@ export function useChat() {
           supabase.functions.invoke('send-notification-email', {
             body: {
               to: data.email,
-              name: data.name,
+              name: data.name || 'Cliente',
               protocol,
-              neighborhood: data.neighborhood,
-              service_type: data.service_type,
+              neighborhood: data.neighborhood || '',
+              service_type: data.service_type || '',
               summary: summaryText,
               calc_price_min: calc?.estimated_min,
               calc_price_max: calc?.estimated_max,
               area_m2: data.area_m2,
               num_rooms: data.num_rooms,
             },
-          }).then(() => {
-            // Marcar email como enviado
+          }).then(({ data: resp, error: emailErr }) => {
+            if (emailErr) {
+              console.error('[Email] invocation error:', emailErr)
+              return
+            }
+            console.log('[Email] sent:', resp)
             supabase.from('leads')
               .update({ email_confirmation_sent: true })
               .eq('protocol', protocol)
               .then(() => {})
-          }).catch(console.warn)
+          }).catch(err => console.error('[Email] failed:', err))
         }
       }
 

@@ -1,13 +1,42 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { MessageSquare, X, Globe, Smartphone, Filter, ExternalLink, User, Brush } from 'lucide-react'
+import { MessageSquare, X, Globe, Smartphone, Filter, ExternalLink, User, Brush, AlertCircle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatRelativeTime } from '../../lib/utils'
 import type { ConversationSession } from '../../lib/types'
 import { cn } from '../../lib/utils'
 
 interface Message { id: string; direction: string; body: string; channel: string; created_at: string; metadata?: Record<string, unknown> }
+
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Nome', email: 'Email', whatsapp: 'WhatsApp', role: 'Tipo',
+  service_type: 'Serviço', property_type: 'Imóvel', neighborhood: 'Bairro',
+  num_rooms: 'Cômodos', area_m2: 'Área (m²)', wall_condition: 'Paredes',
+  deadline: 'Prazo', material: 'Material', preferred_professional: 'Profissional preferido',
+  estimated_budget: 'Orçamento estimado', current_color: 'Cor atual',
+  final_notes: 'Observações', protocol: 'Protocolo', confirmed: 'Confirmado',
+}
+const HIDDEN_FIELDS = new Set(['_metadata', '_partialProtocol', 'tracking_data', 'custom_fields', 'media_urls'])
+
+function tryFormatJSON(body: string): React.ReactNode | null {
+  if (!body.startsWith('{')) return null
+  try {
+    const obj = JSON.parse(body)
+    const entries = Object.entries(obj).filter(([k]) => !HIDDEN_FIELDS.has(k) && obj[k] != null && obj[k] !== '')
+    if (entries.length === 0) return null
+    return (
+      <div className="space-y-1">
+        {entries.map(([key, val]) => (
+          <div key={key} className="flex gap-2 text-[11px]">
+            <span className="text-gray-400 font-medium shrink-0">{FIELD_LABELS[key] || key}:</span>
+            <span className="text-gray-700 break-words">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</span>
+          </div>
+        ))}
+      </div>
+    )
+  } catch { return null }
+}
 
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
   web: <Globe className="w-3.5 h-3.5 text-blue-500" />,
@@ -21,6 +50,7 @@ const CHANNEL_BADGE: Record<string, string> = {
 }
 
 export function ConversationsPage() {
+  const navigate = useNavigate()
   const [sessions, setSessions] = useState<ConversationSession[]>([])
   const [loading, setLoading] = useState(true)
   const [filterChannel, setFilterChannel] = useState('all')
@@ -28,8 +58,19 @@ export function ConversationsPage() {
   const [selected, setSelected] = useState<ConversationSession | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
+  const [partialCount, setPartialCount] = useState(0)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    loadPartialCount()
+
+    const channel = supabase.channel('conversations-realtime')
+      .on('postgres_changes', { event: '*', schema: 'pintae', table: 'conversation_sessions' },
+        () => { load() })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   async function load() {
     const { data } = await supabase
@@ -39,6 +80,14 @@ export function ConversationsPage() {
       .limit(100)
     setSessions((data || []) as ConversationSession[])
     setLoading(false)
+  }
+
+  async function loadPartialCount() {
+    const { count } = await supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_partial', true)
+    setPartialCount(count || 0)
   }
 
   async function openSession(session: ConversationSession) {
@@ -64,9 +113,18 @@ export function ConversationsPage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Conversas</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{sessions.length} sessão{sessions.length !== 1 ? 'ões' : ''} registrada{sessions.length !== 1 ? 's' : ''}</p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Conversas</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{sessions.length} sessão{sessions.length !== 1 ? 'ões' : ''} registrada{sessions.length !== 1 ? 's' : ''}</p>
+        </div>
+        {partialCount > 0 && (
+          <button onClick={() => navigate('/admin/leads', { state: { showPartial: true } })}
+            className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 font-medium hover:bg-amber-100 transition-colors cursor-pointer">
+            <AlertCircle className="w-4 h-4" />
+            Conversas incompletas ({partialCount})
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-5">
@@ -147,7 +205,7 @@ export function ConversationsPage() {
                       <span className="bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded font-mono">
                         {session.current_state}
                       </span>
-                      <span>{formatRelativeTime(session.updated_at)}</span>
+                      <span>{new Date(session.updated_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ({formatRelativeTime(session.updated_at)})</span>
                     </div>
                   </div>
 
@@ -191,18 +249,28 @@ export function ConversationsPage() {
                 ) : messages.length === 0 ? (
                   <p className="text-center text-gray-400 text-sm py-8">Nenhuma mensagem registrada</p>
                 ) : (
-                  messages.map(msg => (
-                    <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
-                        msg.direction === 'outbound' ? 'bg-brand text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                      }`}>
-                        <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-                        <p className={`text-[10px] mt-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-gray-400'}`}>
-                          {formatRelativeTime(msg.created_at)}
-                        </p>
+                  messages.map(msg => {
+                    const formatted = tryFormatJSON(msg.body)
+                    return (
+                      <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+                          msg.direction === 'outbound' ? 'bg-brand text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                        }`}>
+                          {formatted ? (
+                            <div className="bg-white/90 rounded-lg p-2.5 border border-gray-200/50">
+                              <p className="text-[10px] font-semibold text-brand mb-1.5 uppercase tracking-wide">Dados coletados</p>
+                              {formatted}
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+                          )}
+                          <p className={`text-[10px] mt-1 ${msg.direction === 'outbound' ? 'text-white/60' : 'text-gray-400'}`}>
+                            {new Date(msg.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </motion.div>

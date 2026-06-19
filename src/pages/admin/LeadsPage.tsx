@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'motion/react'
 import {
   Search, Send, Clock, Eye, MessageCircle,
@@ -85,12 +85,13 @@ function stepLabel(key?: string): string {
 
 export function LeadsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [stageFilter, setStageFilter] = useState('all')
   const [sending, setSending] = useState<Lead | null>(null)
-  const [showPartial, setShowPartial] = useState(false)
+  const [showPartial, setShowPartial] = useState(!!(location.state as { showPartial?: boolean })?.showPartial)
   const [partialLeads, setPartialLeads] = useState<Lead[]>([])
   const [partialLoading, setPartialLoading] = useState(false)
   const [partialCount, setPartialCount] = useState(0)

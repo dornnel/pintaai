@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, MicOff, Plus } from 'lucide-react'
+import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, MicOff, Plus, Mail, Loader2, CheckCircle } from 'lucide-react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
 import { TypingIndicator } from './TypingIndicator'
 import { useChat } from '../../hooks/useChat'
 import { useAuth } from '../../lib/auth'
+import { supabase } from '../../lib/supabase'
 
 // File size limits
 const FILE_LIMITS = {
@@ -39,8 +40,32 @@ const SpeechRecognitionAPI =
      (window as unknown as Record<string, unknown>).webkitSpeechRecognition)) as (new () => SpeechRecognitionInstance) | undefined
 
 export function ChatInterface() {
-  const { messages, loading, sendMessage, reset, currentInputType, currentState } = useChat()
+  const { messages, loading, sendMessage, reset, currentInputType, currentState, collectedData } = useChat()
   const { user } = useAuth()
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false)
+  const [magicLinkError, setMagicLinkError] = useState('')
+
+  async function sendMagicLink() {
+    const email = collectedData.email
+    if (!email) return
+    setMagicLinkLoading(true)
+    setMagicLinkError('')
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?onboarding=true`,
+        data: { name: collectedData.name || '', role: 'customer' },
+      },
+    })
+    if (error) {
+      setMagicLinkError('Erro ao enviar link. Tente novamente.')
+      console.error('[MagicLink]', error)
+    } else {
+      setMagicLinkSent(true)
+    }
+    setMagicLinkLoading(false)
+  }
   const bottomRef = useRef<HTMLDivElement>(null)
   const initFired = useRef(false)
   const [searchParams] = useSearchParams()
@@ -272,19 +297,47 @@ export function ChatInterface() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 border-t border-orange-100">
-                    <Link to="/login?mode=register&redirect=/minha-area"
-                      className="flex items-center justify-center gap-1 py-3 bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors">
-                      <LogIn className="w-3 h-3" /> Criar conta
-                    </Link>
-                    <Link to="/login?redirect=/minha-area"
-                      className="flex items-center justify-center gap-1 py-3 text-brand text-xs font-semibold hover:bg-orange-50 transition-colors border-l border-orange-100">
-                      Já tenho conta
-                    </Link>
-                    <button onClick={reset}
-                      className="flex items-center justify-center gap-1 py-3 text-gray-500 text-xs font-medium hover:bg-gray-50 transition-colors border-l border-orange-100 cursor-pointer">
-                      <Plus className="w-3 h-3" /> Novo pedido
-                    </button>
+                  <div className="border-t border-orange-100">
+                    {magicLinkSent ? (
+                      <div className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-green-700 text-xs font-semibold mb-1">
+                          <CheckCircle className="w-3.5 h-3.5" /> Link enviado!
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          Verifique seu email <strong>{collectedData.email}</strong> e clique no link para acessar sua área.
+                        </p>
+                      </div>
+                    ) : collectedData.email ? (
+                      <>
+                        <button onClick={sendMagicLink} disabled={magicLinkLoading}
+                          className="w-full flex items-center justify-center gap-1.5 py-3 bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors cursor-pointer disabled:opacity-60">
+                          {magicLinkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                          Acessar com meu email
+                        </button>
+                        {magicLinkError && <p className="text-[10px] text-red-600 text-center py-1">{magicLinkError}</p>}
+                        <div className="grid grid-cols-2 border-t border-orange-100">
+                          <Link to="/login?redirect=/minha-area"
+                            className="flex items-center justify-center gap-1 py-2.5 text-brand text-xs font-medium hover:bg-orange-50 transition-colors">
+                            <LogIn className="w-3 h-3" /> Já tenho senha
+                          </Link>
+                          <button onClick={reset}
+                            className="flex items-center justify-center gap-1 py-2.5 text-gray-500 text-xs font-medium hover:bg-gray-50 transition-colors border-l border-orange-100 cursor-pointer">
+                            <Plus className="w-3 h-3" /> Nova solicitação
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="grid grid-cols-2">
+                        <Link to="/login?tab=register&redirect=/minha-area"
+                          className="flex items-center justify-center gap-1 py-3 bg-brand text-white text-xs font-semibold hover:bg-brand-dark transition-colors">
+                          <LogIn className="w-3 h-3" /> Criar conta
+                        </Link>
+                        <button onClick={reset}
+                          className="flex items-center justify-center gap-1 py-3 text-gray-500 text-xs font-medium hover:bg-gray-50 transition-colors border-l border-orange-100 cursor-pointer">
+                          <Plus className="w-3 h-3" /> Nova solicitação
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>

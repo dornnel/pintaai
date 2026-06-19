@@ -81,15 +81,23 @@ function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
 
 function AuthCallback() {
   const navigate = useNavigate()
-  const { user, loading, needsOnboarding } = useAuth()
+  const { user, loading, needsOnboarding, completeOnboarding } = useAuth()
+  const isOnboarding = new URLSearchParams(window.location.search).get('onboarding') === 'true'
 
   useEffect(() => {
-    if (!loading) {
-      if (needsOnboarding) navigate('/onboarding', { replace: true })
-      else if (user) navigate(getRoleHome(user.activeRole || user.role), { replace: true })
-      else navigate('/', { replace: true })
+    if (loading) return
+    if (needsOnboarding && isOnboarding) {
+      completeOnboarding('customer').then(() => {
+        navigate('/minha-area', { replace: true })
+      })
+    } else if (needsOnboarding) {
+      navigate('/onboarding', { replace: true })
+    } else if (user) {
+      navigate(getRoleHome(user.activeRole || user.role), { replace: true })
+    } else {
+      navigate('/', { replace: true })
     }
-  }, [user, loading, needsOnboarding, navigate])
+  }, [user, loading, needsOnboarding, navigate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen flex items-center justify-center">
