@@ -18,6 +18,7 @@ interface Notification {
 
 const TYPE_ICONS: Record<string, string> = {
   proposal_sent: '📨',
+  proposal_updated: '🔄',
   proposal_received: '💰',
   lead_new: '🎯',
   system: '⚙️',

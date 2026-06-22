@@ -21,6 +21,8 @@ interface Payload {
   payment_terms: string
   notes: string
   lead_id: string
+  is_update?: boolean
+  previous_price?: number | null
 }
 
 function formatBRL(v: number) {
@@ -71,6 +73,17 @@ Deno.serve(async (req: Request) => {
     const p = await req.json() as Payload
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { db: { schema: 'pintae' } })
 
+    const isUpdate = !!p.is_update
+    const clientTitle = isUpdate ? 'Proposta atualizada! 🔄' : 'Você recebeu uma proposta! 🎉'
+    const clientDesc = isUpdate
+      ? `O pintor <strong>${p.painter_name}</strong> atualizou a proposta para sua solicitação.`
+      : `O pintor <strong>${p.painter_name}</strong> enviou uma proposta para sua solicitação.`
+    const priceChangeHtml = (isUpdate && p.previous_price != null && p.previous_price !== p.total_price)
+      ? `<div style="margin-bottom:12px;padding:10px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">
+           <p style="color:#92400e;font-size:13px;margin:0"><strong>Valor anterior:</strong> <span style="text-decoration:line-through">${formatBRL(p.previous_price)}</span> → <strong>${formatBRL(p.total_price)}</strong></p>
+         </div>`
+      : ''
+
     // ── Email to CLIENT ──
     const clientHtml = `
 <!DOCTYPE html>
@@ -78,15 +91,16 @@ Deno.serve(async (req: Request) => {
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;background:#f9f7f5;margin:0;padding:20px">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-  <div style="background:#E35A1A;padding:24px 32px">
+  <div style="background:${isUpdate ? '#2563eb' : '#E35A1A'};padding:24px 32px">
     <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pintai Floripa</h1>
     <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:14px">O pintor certo para o seu espaço</p>
   </div>
   <div style="padding:28px 32px">
-    <h2 style="color:#111;font-size:18px;margin:0 0 8px">Você recebeu uma proposta! 🎉</h2>
+    <h2 style="color:#111;font-size:18px;margin:0 0 8px">${clientTitle}</h2>
     <p style="color:#555;font-size:15px;margin:0 0 20px">
-      Olá, <strong>${p.client_name}</strong>! O pintor <strong>${p.painter_name}</strong> enviou uma proposta para sua solicitação.
+      Olá, <strong>${p.client_name}</strong>! ${clientDesc}
     </p>
+    ${priceChangeHtml}
 
     <div style="background:#fff8f5;border:1px solid #fdd;border-radius:10px;padding:16px 20px;margin-bottom:16px">
       <p style="color:#E35A1A;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 8px">Protocolo</p>
@@ -129,8 +143,8 @@ Deno.serve(async (req: Request) => {
   <div style="background:#f0f0f0;border-radius:6px;padding:8px 12px;margin-bottom:16px;display:inline-block">
     <span style="color:#666;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">⚙️ Cópia interna — Admin</span>
   </div>
-  <h2 style="color:#111;margin:0 0 4px">Proposta enviada — ${p.protocol}</h2>
-  <p style="color:#666;margin:0 0 20px;font-size:13px">${p.painter_name} enviou proposta de ${formatBRL(p.total_price)}</p>
+  <h2 style="color:#111;margin:0 0 4px">${isUpdate ? 'Proposta atualizada' : 'Proposta enviada'} — ${p.protocol}</h2>
+  <p style="color:#666;margin:0 0 20px;font-size:13px">${p.painter_name} ${isUpdate ? 'atualizou' : 'enviou'} proposta de ${formatBRL(p.total_price)}${isUpdate && p.previous_price != null ? ` (anterior: ${formatBRL(p.previous_price)})` : ''}</p>
 
   <table style="width:100%;border-collapse:collapse;font-size:14px">
     <tr><td style="padding:4px 0;color:#888;width:120px">Cliente</td><td style="color:#111;font-weight:600">${p.client_name}</td></tr>
@@ -149,16 +163,23 @@ Deno.serve(async (req: Request) => {
 </html>`
 
     // ── Create in-platform notification for admin(s) ──
+    const notifTitle = isUpdate
+      ? `${p.painter_name} atualizou proposta`
+      : `${p.painter_name} enviou proposta`
+    const notifBody = isUpdate && p.previous_price != null
+      ? `${formatBRL(p.previous_price)} → ${formatBRL(p.total_price)} · ${p.service_type} · ${p.protocol}`
+      : `${formatBRL(p.total_price)} · ${p.service_type} · ${p.protocol}`
+
     const { data: adminUsers } = await sb.from('users').select('id, email').eq('role', 'admin')
     if (adminUsers?.length) {
       await sb.from('notifications').insert(
         adminUsers.map((a: { id: string }) => ({
           user_id: a.id,
-          type: 'proposal_sent',
-          title: `${p.painter_name} enviou proposta`,
-          body: `${formatBRL(p.total_price)} · ${p.service_type} · ${p.protocol}`,
+          type: isUpdate ? 'proposal_updated' : 'proposal_sent',
+          title: notifTitle,
+          body: notifBody,
           link: `/admin/leads`,
-          metadata: { protocol: p.protocol, painter_name: p.painter_name, total_price: p.total_price },
+          metadata: { protocol: p.protocol, painter_name: p.painter_name, total_price: p.total_price, is_update: isUpdate },
         }))
       )
     }
@@ -168,19 +189,28 @@ Deno.serve(async (req: Request) => {
     if (clientUser) {
       await sb.from('notifications').insert({
         user_id: clientUser.id,
-        type: 'proposal_received',
-        title: `Nova proposta de ${p.painter_name}`,
-        body: `${formatBRL(p.total_price)} para ${p.service_type}`,
+        type: isUpdate ? 'proposal_updated' : 'proposal_received',
+        title: isUpdate ? `Proposta atualizada por ${p.painter_name}` : `Nova proposta de ${p.painter_name}`,
+        body: isUpdate && p.previous_price != null
+          ? `${formatBRL(p.previous_price)} → ${formatBRL(p.total_price)} para ${p.service_type}`
+          : `${formatBRL(p.total_price)} para ${p.service_type}`,
         link: `/minha-area/pedidos`,
-        metadata: { protocol: p.protocol, painter_name: p.painter_name, total_price: p.total_price },
+        metadata: { protocol: p.protocol, painter_name: p.painter_name, total_price: p.total_price, is_update: isUpdate },
       })
     }
 
     // ── Send emails ──
+    const clientSubject = isUpdate
+      ? `Proposta atualizada — ${p.protocol} | Pintai Floripa`
+      : `Nova proposta recebida — ${p.protocol} | Pintai Floripa`
+    const adminSubject = isUpdate
+      ? `⚙️ [ADMIN] Proposta atualizada ${p.protocol} — ${p.painter_name} · ${formatBRL(p.total_price)}`
+      : `⚙️ [ADMIN] Proposta enviada ${p.protocol} — ${p.painter_name} · ${formatBRL(p.total_price)}`
+
     const adminEmails = await getAdminEmails(sb)
     const results = await Promise.allSettled([
-      sendEmail(p.client_email, p.client_name, `Nova proposta recebida — ${p.protocol} | Pintai Floripa`, clientHtml),
-      ...adminEmails.map(addr => sendEmail(addr, 'Admin Pintai', `⚙️ [ADMIN] Proposta enviada ${p.protocol} — ${p.painter_name} · ${formatBRL(p.total_price)}`, adminHtml)),
+      sendEmail(p.client_email, p.client_name, clientSubject, clientHtml),
+      ...adminEmails.map(addr => sendEmail(addr, 'Admin Pintai', adminSubject, adminHtml)),
     ])
 
     return new Response(

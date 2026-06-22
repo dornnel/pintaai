@@ -434,6 +434,8 @@ export function LeadView() {
           payment_terms: quote.payment_terms,
           notes: quote.notes,
           lead_id: lead.id,
+          is_update: !!prevQuote,
+          previous_price: prevQuote?.total_price ?? null,
         },
       }).then(({ error: notifErr }) => {
         if (notifErr) console.error('[NotifyProposal] error:', notifErr)
