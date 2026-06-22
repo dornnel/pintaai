@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
+import { NotificationBell } from '../../components/NotificationBell'
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
@@ -201,9 +202,12 @@ export function AdminLayout() {
                 {adminBadge}
               </span>
             </div>
-            <span className="text-xs text-gray-400 truncate max-w-28 lg:hidden">
-              {user?.name}
-            </span>
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <span className="text-xs text-gray-400 truncate max-w-28 lg:hidden">
+                {user?.name}
+              </span>
+            </div>
           </div>
         </header>
 

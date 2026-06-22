@@ -25,6 +25,9 @@ const BENCHMARK: Record<string, { m2Labor: [number,number]; m2Full: [number,numb
 interface Lead {
   id: string
   protocol: string
+  name: string | null
+  email: string | null
+  phone: string | null
   service_interest: string | null
   neighborhood: string | null
   property_type: string | null
@@ -412,6 +415,30 @@ export function LeadView() {
       })
       setFeedbackToast(`Proposta salva! A IA estimou ${formatCurrency(aiMid)}, você cotou ${formatCurrency(quote.total_price)}.`)
       setTimeout(() => setFeedbackToast(null), 6000)
+    }
+
+    // Notify client + admin via email
+    const lead = interaction.lead
+    if (lead.email) {
+      supabase.functions.invoke('notify-proposal', {
+        body: {
+          client_email: lead.email,
+          client_name: lead.name || 'Cliente',
+          painter_name: user?.name || 'Pintor',
+          protocol: lead.protocol,
+          service_type: lead.service_interest || '',
+          neighborhood: lead.neighborhood || '',
+          total_price: quote.total_price,
+          includes_material: quote.includes_material,
+          duration_days: quote.duration_days,
+          payment_terms: quote.payment_terms,
+          notes: quote.notes,
+          lead_id: lead.id,
+        },
+      }).then(({ error: notifErr }) => {
+        if (notifErr) console.error('[NotifyProposal] error:', notifErr)
+        else console.log('[NotifyProposal] sent')
+      }).catch(err => console.error('[NotifyProposal] failed:', err))
     }
 
     setSubmitting(false)
