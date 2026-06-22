@@ -1,10 +1,37 @@
-// Supports both Brevo (preferred) and Resend as fallback
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
 const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || ''
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const ADMIN_EMAIL = 'andre@agenscia.com'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const FALLBACK_ADMIN_EMAIL = 'andre@agenscia.com'
 const FROM_NAME = 'Pintai Floripa'
 const FROM_EMAIL = 'noreply@agenscia.com'
 const APP_URL = 'https://pintai.agenscia.com'
+
+async function getAdminEmails(): Promise<string[]> {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return [FALLBACK_ADMIN_EMAIL]
+    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { db: { schema: 'pintae' } })
+
+    // 1. Check platform_settings for configured list
+    const { data: setting } = await sb.from('platform_settings').select('value').eq('key', 'admin_notification_emails').maybeSingle()
+    if (setting?.value) {
+      const raw = typeof setting.value === 'string' ? setting.value.replace(/^"|"$/g, '') : String(setting.value)
+      const emails = raw.split(',').map((e: string) => e.trim()).filter((e: string) => e.includes('@'))
+      if (emails.length > 0) return emails
+    }
+
+    // 2. Fallback: all users with role='admin'
+    const { data: admins } = await sb.from('users').select('email').eq('role', 'admin')
+    if (admins && admins.length > 0) {
+      return admins.map((a: { email: string }) => a.email).filter(Boolean)
+    }
+  } catch (err) {
+    console.error('getAdminEmails error:', err)
+  }
+  return [FALLBACK_ADMIN_EMAIL]
+}
 
 interface EmailPayload {
   to: string
@@ -184,13 +211,20 @@ Deno.serve(async (req: Request) => {
 </body>
 </html>`
 
-    const [clientResult, adminResult] = await Promise.allSettled([
+    const adminEmails = await getAdminEmails()
+    const adminSubject = `⚙️ [ADMIN] Nova solicitação ${protocol} — ${name} · ${service_type}`
+
+    const results = await Promise.allSettled([
       sendEmail(to, name, `Solicitação recebida — ${protocol} | Pintai Floripa`, clientHtml),
-      sendEmail(ADMIN_EMAIL, 'Admin Pintai', `⚙️ [ADMIN] Nova solicitação ${protocol} — ${name} · ${service_type}`, adminHtml),
+      ...adminEmails.map(adminAddr => sendEmail(adminAddr, 'Admin Pintai', adminSubject, adminHtml)),
     ])
 
     return new Response(
-      JSON.stringify({ ok: true, client: clientResult.status, admin: adminResult.status }),
+      JSON.stringify({
+        ok: true,
+        client: results[0].status,
+        admin: results.slice(1).map((r, i) => ({ email: adminEmails[i], status: r.status })),
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {
