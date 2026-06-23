@@ -5,6 +5,7 @@ import { Paintbrush, Loader2, CheckCircle, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { cn } from '../lib/utils'
+import { ALLOWED_REGIONS } from '../lib/constants'
 
 const SPECIALTIES_OPTIONS = ['Pintura interna', 'Fachada', 'Textura / massa corrida', 'Impermeabilização', 'Arte / Mural', 'Pós-obra']
 
@@ -20,6 +21,7 @@ export function BecomePainterPage() {
   const [yearsExperience, setYearsExperience] = useState(1)
   const [specialties, setSpecialties] = useState<string[]>([])
   const [neighborhoodIds, setNeighborhoodIds] = useState<string[]>([])
+  const [serviceRadius, setServiceRadius] = useState(10)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -27,7 +29,7 @@ export function BecomePainterPage() {
   const [hasPainterRecord, setHasPainterRecord] = useState<boolean | null>(null)
 
   useEffect(() => {
-    supabase.from('neighborhoods').select('id, name').eq('active', true).order('name')
+    supabase.from('neighborhoods').select('id, name').eq('active', true).in('region', [...ALLOWED_REGIONS]).order('name')
       .then(({ data }) => setNeighborhoods((data as NeighborhoodOption[]) || []))
   }, [])
 
@@ -80,6 +82,7 @@ export function BecomePainterPage() {
       years_experience: yearsExperience,
       specialties,
       neighborhoods_ids: neighborhoodIds,
+      service_radius_km: serviceRadius,
       availability_status: 'available',
       verification_status: 'unverified',
     })
@@ -133,16 +136,22 @@ export function BecomePainterPage() {
                 className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50 resize-none" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Anos de experiência</label>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Anos de exp.</label>
                 <input type="number" min={0} max={50} value={yearsExperience}
                   onChange={e => setYearsExperience(Number(e.target.value))}
                   className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50" />
               </div>
               <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">Raio (km)</label>
+                <input type="number" min={1} max={50} value={serviceRadius}
+                  onChange={e => setServiceRadius(Number(e.target.value))}
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand bg-gray-50" />
+              </div>
+              <div>
                 <label className="text-xs font-medium text-gray-600 mb-1.5 flex items-center gap-1">
-                  <FileText className="w-3 h-3" /> CPF <span className="text-gray-400">(opcional)</span>
+                  <FileText className="w-3 h-3" /> CPF <span className="text-gray-400">(opc.)</span>
                 </label>
                 <input type="text" value={cpf}
                   onChange={e => setCpf(formatCpf(e.target.value))}
@@ -165,7 +174,7 @@ export function BecomePainterPage() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-600 mb-2 block">Bairros de atuação</label>
+              <label className="text-xs font-medium text-gray-600 mb-2 block">Bairros de atuação — Sul da Ilha</label>
               <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
                 {neighborhoods.map(n => (
                   <button key={n.id} type="button" onClick={() => toggleNeighborhood(n.id)}

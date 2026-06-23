@@ -169,6 +169,26 @@ Deno.serve(async (req: Request) => {
   }
 })
 
+function scorePainter(p: {
+  id: string
+  last_lead_received_at: string | null
+  active_leads_count: number
+  pro_plan_status: string
+  last_seen_at: string | null
+  overall_score: number | null
+}): number {
+  const now = Date.now()
+  const hoursSinceLastLead = p.last_lead_received_at
+    ? (now - new Date(p.last_lead_received_at).getTime()) / 3600000
+    : 999
+  const recency = Math.min(hoursSinceLastLead / 24, 1.0) * 0.30
+  const load = Math.max(0, 1 - (p.active_leads_count || 0) / 5) * 0.25
+  const pro = (p.pro_plan_status === 'active' ? 1.0 : 0.0) * 0.20
+  const score = ((p.overall_score || 0) / 5.0) * 0.15
+  const online = (p.last_seen_at && (now - new Date(p.last_seen_at).getTime()) < 5 * 60 * 1000 ? 1.0 : 0.0) * 0.10
+  return recency + load + pro + score + online
+}
+
 async function maybeAutoAssign(
   leadId: string,
   protocol: string,
@@ -178,22 +198,46 @@ async function maybeAutoAssign(
   const { data: settings } = await supabase
     .from('platform_settings')
     .select('key, value')
-    .in('key', ['auto_assign_painters_geo', 'auto_assign_radius_km_default'])
+    .in('key', ['auto_assign_painters_geo', 'auto_assign_radius_km_default', 'max_painters_per_lead'])
 
   const enabled = settings?.find(s => s.key === 'auto_assign_painters_geo')?.value === true
   if (!enabled) return
 
   const defaultRadius = Number(settings?.find(s => s.key === 'auto_assign_radius_km_default')?.value) || 10
+  const maxPainters = Number(settings?.find(s => s.key === 'max_painters_per_lead')?.value) || 3
 
-  const [{ data: painters }, { data: neighborhoods }] = await Promise.all([
-    supabase.from('painters').select('id, neighborhoods_ids, service_radius_km, availability_status'),
+  const [{ data: painters }, { data: neighborhoods }, { data: scores }] = await Promise.all([
+    supabase.from('painters').select('id, neighborhoods_ids, service_radius_km, availability_status, pro_plan_status, last_lead_received_at, active_leads_count, last_seen_at'),
     supabase.from('neighborhoods').select('id, name, latitude, longitude'),
+    supabase.from('painter_scores').select('painter_id, overall_score'),
   ])
 
   const nearby = findNearbyPainters(data.neighborhood, painters || [], neighborhoods || [], defaultRadius)
   if (nearby.length === 0) return
 
-  const painterIds = nearby.map(p => p.id)
+  const scoreMap = new Map((scores || []).map((s: { painter_id: string; overall_score: number }) => [s.painter_id, s.overall_score]))
+
+  const ranked = nearby.map(p => {
+    const full = (painters || []).find((pp: { id: string }) => pp.id === p.id) as {
+      id: string; last_lead_received_at: string | null; active_leads_count: number;
+      pro_plan_status: string; last_seen_at: string | null
+    } | undefined
+    return {
+      id: p.id,
+      score: scorePainter({
+        id: p.id,
+        last_lead_received_at: full?.last_lead_received_at ?? null,
+        active_leads_count: full?.active_leads_count ?? 0,
+        pro_plan_status: full?.pro_plan_status ?? 'none',
+        last_seen_at: full?.last_seen_at ?? null,
+        overall_score: scoreMap.get(p.id) ?? 0,
+      }),
+    }
+  }).sort((a, b) => b.score - a.score).slice(0, maxPainters)
+
+  const painterIds = ranked.map(p => p.id)
+  console.log(`[AutoAssign] ${protocol}: ${nearby.length} nearby → top ${painterIds.length} selected`, ranked.map(r => ({ id: r.id.slice(0, 8), score: r.score.toFixed(3) })))
+
   const priceEstimate = calc
     ? `R$ ${calc.estimated_min.toLocaleString('pt-BR')} – R$ ${calc.estimated_max.toLocaleString('pt-BR')}`
     : 'A calcular'
@@ -222,10 +266,27 @@ async function maybeAutoAssign(
     }, { onConflict: 'lead_id,painter_id' })
   ))
 
+  // Update painter tracking: last_lead_received_at + increment active_leads_count
+  await Promise.all(painterIds.map(painterId =>
+    supabase.from('painters').update({
+      last_lead_received_at: new Date().toISOString(),
+      active_leads_count: ((painters || []).find((pp: { id: string }) => pp.id === painterId) as { active_leads_count?: number } | undefined)?.active_leads_count
+        ? ((painters || []).find((pp: { id: string }) => pp.id === painterId) as { active_leads_count: number }).active_leads_count + 1
+        : 1,
+    }).eq('id', painterId)
+  ))
+
   await supabase.from('leads').update({
     stage: 'proposal_sent',
     stage_updated_at: new Date().toISOString(),
     sent_to_painters_at: new Date().toISOString(),
     painter_ids_notified: painterIds,
   }).eq('id', leadId)
+
+  // Notify painters via email (fire-and-forget)
+  for (const painterId of painterIds) {
+    supabase.functions.invoke('notify-painter', {
+      body: { painter_id: painterId, lead_id: leadId },
+    }).catch(err => console.error('[AutoAssign] notify error:', err))
+  }
 }

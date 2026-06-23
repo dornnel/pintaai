@@ -10,6 +10,8 @@ export const NEIGHBORHOODS = [
   { id: 'carianos', name: 'Carianos', region: 'Sul da Ilha', priority: 2 },
 ] as const
 
+export const ALLOWED_REGIONS = ['Sul da Ilha'] as const
+
 export const PROPERTY_TYPES = [
   { value: 'apartment', label: 'Apartamento' },
   { value: 'house', label: 'Casa' },

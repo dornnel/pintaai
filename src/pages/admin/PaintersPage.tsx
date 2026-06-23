@@ -17,6 +17,7 @@ interface Painter {
   pro_plan_status: string
   registration_source?: string
   service_radius_km?: number
+  last_seen_at?: string | null
   user: { id: string; name: string; phone: string; email: string; status: string; auth_user_id?: string | null }
   score?: { overall_score: number; completed_jobs_count: number }
 }
@@ -318,6 +319,9 @@ export function PaintersPage() {
                     {p.specialties?.slice(0,2).map(s => <span key={s} className="bg-gray-50 px-1.5 py-0.5 rounded">{s}</span>)}
                     <span className={p.availability_status === 'available' ? 'text-green-600 font-medium' : 'text-gray-400'}>
                       {p.availability_status === 'available' ? '● Disponível' : p.availability_status === 'busy' ? '● Ocupado' : '● Pausado'}
+                    </span>
+                    <span className={`text-[10px] ${p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < 5 * 60 * 1000 ? 'text-green-500 font-semibold' : 'text-gray-300'}`}>
+                      {p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < 5 * 60 * 1000 ? '🟢 Online' : '⚪ Offline'}
                     </span>
                   </div>
                 </div>

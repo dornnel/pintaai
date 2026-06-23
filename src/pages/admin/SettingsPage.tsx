@@ -22,6 +22,8 @@ const SETTING_DEFS = [
   { key: 'budget_engine_enabled', label: 'Motor de orçamento IA', description: 'Ativar estimativas automáticas de preço', type: 'boolean', group: 'Funcionalidades' },
   { key: 'auto_assign_painters_geo', label: 'Distribuição automática por geolocalização', description: 'Novos leads são enviados automaticamente aos pintores próximos ao bairro do cliente', type: 'boolean', group: 'Distribuição de Leads' },
   { key: 'auto_assign_radius_km_default', label: 'Raio padrão (km)', description: 'Raio de busca quando o pintor não define um valor próprio', type: 'number', group: 'Distribuição de Leads' },
+  { key: 'max_painters_per_lead', label: 'Max pintores por lead', description: 'Número máximo de pintores selecionados para cada lead (round-robin)', type: 'number', group: 'Distribuição de Leads' },
+  { key: 'pro_early_access_hours', label: 'Acesso antecipado Pro (horas)', description: 'Horas de vantagem para pintores Pro antes de notificar pintores Free (0 = desativado)', type: 'number', group: 'Distribuição de Leads' },
 ]
 
 const GROUPS = ['Contato', 'Email', 'Financeiro', 'Funcionalidades', 'Distribuição de Leads']

@@ -141,6 +141,15 @@ export function PainterLayout() {
   useEffect(() => { load() }, [user])
 
   useEffect(() => {
+    if (!painter?.id) return
+    supabase.from('painters').update({ last_seen_at: new Date().toISOString() }).eq('id', painter.id).then(() => {})
+    const interval = setInterval(() => {
+      supabase.from('painters').update({ last_seen_at: new Date().toISOString() }).eq('id', painter.id).then(() => {})
+    }, 2 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [painter?.id])
+
+  useEffect(() => {
     if (!loading && noPainterRecord) navigate('/seja-pintor', { replace: true })
   }, [loading, noPainterRecord, navigate])
 

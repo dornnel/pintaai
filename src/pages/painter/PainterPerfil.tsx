@@ -59,6 +59,7 @@ export function PainterPerfil() {
   const [basePrice, setBasePrice] = useState(String(painter?.base_price_m2 || ''))
   const [radiusKm, setRadiusKm] = useState(String(painter?.service_radius_km ?? 10))
   const [cpf, setCpf] = useState(user?.cpf || '')
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<string[]>(painter?.neighborhoods_ids || [])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([])
@@ -87,7 +88,7 @@ export function PainterPerfil() {
 
   useEffect(() => {
     supabase.from('neighborhoods').select('id,name,city,region,latitude,longitude,active,launch_priority')
-      .eq('active', true).order('name')
+      .eq('active', true).in('region', ['Sul da Ilha']).order('name')
       .then(({ data }) => setNeighborhoods((data as Neighborhood[]) ?? []))
   }, [])
 
@@ -114,6 +115,7 @@ export function PainterPerfil() {
       bio,
       years_experience: parseInt(years) || 0,
       specialties,
+      neighborhoods_ids: selectedNeighborhoods,
       availability_status: availability,
       base_price_m2: parseFloat(basePrice) || null,
       service_radius_km: parseFloat(radiusKm) || 10,
@@ -249,29 +251,44 @@ export function PainterPerfil() {
             </div>
           </div>
 
-          {/* Area map */}
+          {/* Area map + neighborhoods */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-brand" />
-              <p className="text-xs font-medium text-gray-700">Área de atendimento</p>
+              <p className="text-xs font-medium text-gray-700">Área de atendimento — Sul da Ilha</p>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">Bairros de atuação</label>
+              <div className="flex flex-wrap gap-1.5">
+                {neighborhoods.map(n => {
+                  const active = selectedNeighborhoods.includes(n.id)
+                  return (
+                    <button key={n.id} type="button"
+                      onClick={() => setSelectedNeighborhoods(prev => active ? prev.filter(x => x !== n.id) : [...prev, n.id])}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${active ? 'border-brand bg-orange-50 text-brand font-medium' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      {n.name}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Raio de atendimento (km)</label>
               <input type="number" value={radiusKm} onChange={e => setRadiusKm(e.target.value)}
-                min="1" max="100" step="1"
+                min="1" max="50" step="1"
                 className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-brand" />
             </div>
-            {painter.neighborhoods_ids?.length > 0 ? (
+            {selectedNeighborhoods.length > 0 ? (
               <Suspense fallback={<div className="h-[280px] bg-gray-100 rounded-xl animate-pulse" />}>
                 <PainterAreaMap
                   neighborhoods={neighborhoods}
-                  painterNeighborhoodIds={painter.neighborhoods_ids}
+                  painterNeighborhoodIds={selectedNeighborhoods}
                   radiusKm={parseFloat(radiusKm) || 10}
                 />
               </Suspense>
             ) : (
               <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-4 text-center">
-                Nenhum bairro selecionado. O mapa aparecerá após definir sua área no cadastro.
+                Selecione ao menos um bairro para visualizar o mapa.
               </p>
             )}
           </div>
