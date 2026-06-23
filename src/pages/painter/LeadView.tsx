@@ -5,7 +5,7 @@ import {
   ArrowLeft, MapPin, Home, Calendar, Package2, Ruler,
   ChevronDown, ChevronUp, Send, CheckCircle, Loader2,
   Pencil, Image as ImageIcon, Zap, Star, FileDown, Eye, History, Info,
-  Bot, MessageCircle, User, Paperclip, XCircle, TrendingUp, BarChart2,
+  Bot, MessageCircle, User, Paperclip, XCircle, TrendingUp, BarChart2, Lock,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatCurrency } from '../../lib/utils'
@@ -44,6 +44,9 @@ interface Lead {
   final_notes: string | null
   ai_briefing: string | null
   created_at: string
+  max_proposals: number | null
+  proposals_received_count: number | null
+  proposals_closed: boolean | null
 }
 
 interface Interaction {
@@ -379,6 +382,12 @@ export function LeadView() {
   async function submitProposal(e: React.FormEvent) {
     e.preventDefault()
     if (!interactionId || !interaction) return
+    const lead = interaction.lead
+    if (lead.proposals_closed && !isResending) {
+      setFeedbackToast('Este lead já atingiu o limite de propostas.')
+      setTimeout(() => setFeedbackToast(null), 4000)
+      return
+    }
     setSubmitting(true)
     const quote: SavedQuote = {
       total_price: parseFloat(form.total_price),
@@ -399,6 +408,16 @@ export function LeadView() {
       proposal_sent_at: new Date().toISOString(),
       metadata: { ...interaction.metadata, quote, quote_history } as Record<string, unknown>,
     }).eq('id', interactionId)
+
+    // Increment proposal count (only for new proposals, not re-sends)
+    if (!prevQuote) {
+      const newCount = (lead.proposals_received_count || 0) + 1
+      const maxP = lead.max_proposals || 3
+      await supabase.from('leads').update({
+        proposals_received_count: newCount,
+        proposals_closed: newCount >= maxP,
+      }).eq('id', lead.id)
+    }
 
     // Auto-record divergence vs AI estimate for learning
     const l = interaction.lead
@@ -818,9 +837,20 @@ export function LeadView() {
             <h3 className="font-semibold text-gray-900 text-sm">
               {isSubmitted ? 'Proposta Enviada' : 'Enviar Proposta'}
             </h3>
+            {lead.max_proposals && (
+              <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                {lead.proposals_received_count || 0}/{lead.max_proposals} propostas
+              </span>
+            )}
           </div>
 
-          {!isAdmin && !isSubmitted && !isResending && (
+          {!isAdmin && lead.proposals_closed && !isSubmitted && (
+            <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700">
+              Este lead já atingiu o limite de {lead.max_proposals} propostas. Não é possível enviar novas propostas.
+            </div>
+          )}
+
+          {!isAdmin && !isSubmitted && !isResending && !lead.proposals_closed && (
             <div className="mb-4 px-3 py-2.5 bg-orange-50 border border-orange-100 rounded-xl text-xs text-orange-800">
               💡 Dica: coloque um preço justo. O cliente verá seu perfil e avaliações ao lado desta proposta.
             </div>
@@ -865,6 +895,12 @@ export function LeadView() {
             <div className="py-8 text-center text-sm text-gray-400">
               <Eye className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               O pintor ainda não enviou uma proposta.
+            </div>
+          ) : lead.proposals_closed ? (
+            <div className="py-8 text-center text-sm text-gray-400">
+              <Lock className="w-8 h-8 mx-auto mb-2 text-red-300" />
+              <p className="text-red-600 font-medium">Limite de propostas atingido</p>
+              <p className="text-xs mt-1">Este lead já recebeu {lead.proposals_received_count}/{lead.max_proposals} propostas.</p>
             </div>
           ) : (
             <form onSubmit={submitProposal} className="space-y-4">

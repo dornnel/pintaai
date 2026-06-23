@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
 import {
   Briefcase, Send, CheckCircle, Star, MapPin, ChevronRight,
-  Sparkles, Zap, Shield, CreditCard, TrendingUp,
+  Sparkles, Zap, Shield, CreditCard, TrendingUp, Activity, Clock, Info,
 } from 'lucide-react'
 import { usePainterContext } from './PainterLayout'
 import { formatCurrency } from '../../lib/utils'
@@ -76,6 +76,70 @@ export function PainterDashboard() {
           </Link>
         ))}
       </motion.div>
+
+      {/* Score & Position Transparency */}
+      {score && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}
+          className="bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-4 h-4 text-brand" />
+            <h2 className="font-semibold text-gray-900 text-sm">Sua Posição na Plataforma</h2>
+          </div>
+
+          {/* Score bars */}
+          <div className="space-y-2 mb-4">
+            {[
+              { label: 'Qualidade', value: score.quality_score || 0, color: 'bg-green-500' },
+              { label: 'Pontualidade', value: score.punctuality_score || 0, color: 'bg-blue-500' },
+              { label: 'Tempo de resposta', value: score.response_score || 0, color: 'bg-amber-500' },
+              { label: 'Conversão', value: score.conversion_score || 0, color: 'bg-purple-500' },
+              { label: 'Satisfação', value: score.sentiment_score || 0, color: 'bg-pink-500' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="flex items-center gap-3">
+                <span className="text-xs text-gray-500 w-28 shrink-0">{label}</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${Math.min(value * 20, 100)}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-gray-700 w-8 text-right">{value > 0 ? value.toFixed(1) : '—'}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+              <p className="text-xs text-gray-400">Trabalhos</p>
+              <p className="text-sm font-bold text-gray-900">{score.completed_jobs_count || 0}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+              <p className="text-xs text-gray-400">Avaliações</p>
+              <p className="text-sm font-bold text-gray-900">{score.reviews_count || 0}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-2.5 text-center">
+              <p className="text-xs text-gray-400">Último lead</p>
+              <p className="text-sm font-bold text-gray-900">
+                {painter?.last_lead_received_at
+                  ? `${Math.round((Date.now() - new Date(painter.last_lead_received_at).getTime()) / 3600000)}h`
+                  : '—'}
+              </p>
+            </div>
+          </div>
+
+          {/* How it works */}
+          <details className="group">
+            <summary className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-400 hover:text-gray-600">
+              <Info className="w-3 h-3" /> Como a distribuição funciona
+            </summary>
+            <div className="mt-2 text-[11px] text-gray-500 space-y-1 pl-4.5">
+              <p>• Leads são distribuídos para os <strong>3 pintores mais adequados</strong> na região</p>
+              <p>• A seleção considera: tempo desde o último lead (30%), carga atual (25%), plano Pro (20%), avaliações (15%), e se está online (10%)</p>
+              <p>• Pintores que não recebem leads há mais tempo têm prioridade — o sistema é justo</p>
+              <p>• O plano Pro dá vantagem no score e pode incluir acesso antecipado</p>
+              <p>• Cada lead aceita no máximo 3 propostas — seja rápido!</p>
+            </div>
+          </details>
+        </motion.div>
+      )}
 
       {/* New solicitations alert */}
       {newCount > 0 && (

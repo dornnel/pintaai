@@ -23,7 +23,11 @@ const SETTING_DEFS = [
   { key: 'auto_assign_painters_geo', label: 'Distribuição automática por geolocalização', description: 'Novos leads são enviados automaticamente aos pintores próximos ao bairro do cliente', type: 'boolean', group: 'Distribuição de Leads' },
   { key: 'auto_assign_radius_km_default', label: 'Raio padrão (km)', description: 'Raio de busca quando o pintor não define um valor próprio', type: 'number', group: 'Distribuição de Leads' },
   { key: 'max_painters_per_lead', label: 'Max pintores por lead', description: 'Número máximo de pintores selecionados para cada lead (round-robin)', type: 'number', group: 'Distribuição de Leads' },
+  { key: 'max_proposals_per_lead', label: 'Max propostas por lead', description: 'Número máximo de propostas que um lead pode receber antes de fechar', type: 'number', group: 'Distribuição de Leads' },
   { key: 'pro_early_access_hours', label: 'Acesso antecipado Pro (horas)', description: 'Horas de vantagem para pintores Pro antes de notificar pintores Free (0 = desativado)', type: 'number', group: 'Distribuição de Leads' },
+  { key: 'distribution_mode', label: 'Modo de distribuição', description: 'simultaneous = envia a todos; cascade = um por vez com timeout', type: 'text', group: 'Distribuição de Leads' },
+  { key: 'painter_response_window_hours', label: 'Janela de resposta (horas)', description: 'Tempo para o pintor responder antes de passar para o próximo (modo cascade)', type: 'number', group: 'Distribuição de Leads' },
+  { key: 'admin_copy_proposals_email', label: 'Copiar admin nos emails de proposta', description: 'Enviar cópia das notificações de proposta para os admins', type: 'boolean', group: 'Distribuição de Leads' },
 ]
 
 const GROUPS = ['Contato', 'Email', 'Financeiro', 'Funcionalidades', 'Distribuição de Leads']

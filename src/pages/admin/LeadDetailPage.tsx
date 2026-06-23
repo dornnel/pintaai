@@ -930,6 +930,35 @@ export function LeadDetailPage() {
             )}
           </div>
 
+          {/* Distribution mode */}
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Distribuição</h3>
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Modo</p>
+                <select value={lead.distribution_mode || 'auto'}
+                  onChange={async (e) => {
+                    await supabase.from('leads').update({ distribution_mode: e.target.value }).eq('id', lead.id)
+                    loadAll()
+                  }}
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-brand bg-white cursor-pointer">
+                  <option value="auto">Automático (geo + round-robin)</option>
+                  <option value="admin_managed">Manual (admin seleciona)</option>
+                  <option value="premium">Premium (concierge)</option>
+                </select>
+              </div>
+              {lead.proposals_received_count != null && (
+                <div className="flex items-center justify-between text-xs py-1.5">
+                  <span className="text-gray-500">Propostas recebidas</span>
+                  <span className="font-semibold text-gray-900">{lead.proposals_received_count}/{lead.max_proposals || 3}</span>
+                </div>
+              )}
+              {lead.proposals_closed && (
+                <p className="text-xs text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5 text-center font-medium">Limite de propostas atingido</p>
+              )}
+            </div>
+          </div>
+
           {/* Ações rápidas */}
           <div className="bg-white rounded-2xl border border-gray-100 p-4">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Ações rápidas</h3>

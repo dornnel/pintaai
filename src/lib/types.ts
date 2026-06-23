@@ -65,6 +65,9 @@ export interface Painter {
   notify_by_email: boolean
   notify_by_whatsapp: boolean
   created_at: string
+  last_seen_at?: string
+  last_lead_received_at?: string
+  active_leads_count?: number
   updated_at: string
   user?: User
   score?: PainterScore

@@ -198,13 +198,17 @@ async function maybeAutoAssign(
   const { data: settings } = await supabase
     .from('platform_settings')
     .select('key, value')
-    .in('key', ['auto_assign_painters_geo', 'auto_assign_radius_km_default', 'max_painters_per_lead'])
+    .in('key', ['auto_assign_painters_geo', 'auto_assign_radius_km_default', 'max_painters_per_lead', 'pro_early_access_hours', 'distribution_mode', 'painter_response_window_hours'])
 
-  const enabled = settings?.find(s => s.key === 'auto_assign_painters_geo')?.value === true
+  const getSetting = (key: string) => settings?.find(s => s.key === key)?.value
+  const enabled = getSetting('auto_assign_painters_geo') === true
   if (!enabled) return
 
-  const defaultRadius = Number(settings?.find(s => s.key === 'auto_assign_radius_km_default')?.value) || 10
-  const maxPainters = Number(settings?.find(s => s.key === 'max_painters_per_lead')?.value) || 3
+  const defaultRadius = Number(getSetting('auto_assign_radius_km_default')) || 10
+  const maxPainters = Number(getSetting('max_painters_per_lead')) || 3
+  const proEarlyHours = Number(getSetting('pro_early_access_hours')) || 0
+  const distMode = (typeof getSetting('distribution_mode') === 'string' ? getSetting('distribution_mode') : 'simultaneous') as string
+  const responseWindow = Number(getSetting('painter_response_window_hours')) || 4
 
   const [{ data: painters }, { data: neighborhoods }, { data: scores }] = await Promise.all([
     supabase.from('painters').select('id, neighborhoods_ids, service_radius_km, availability_status, pro_plan_status, last_lead_received_at, active_leads_count, last_seen_at'),
@@ -217,13 +221,14 @@ async function maybeAutoAssign(
 
   const scoreMap = new Map((scores || []).map((s: { painter_id: string; overall_score: number }) => [s.painter_id, s.overall_score]))
 
-  const ranked = nearby.map(p => {
+  const allRanked = nearby.map(p => {
     const full = (painters || []).find((pp: { id: string }) => pp.id === p.id) as {
       id: string; last_lead_received_at: string | null; active_leads_count: number;
       pro_plan_status: string; last_seen_at: string | null
     } | undefined
     return {
       id: p.id,
+      isPro: full?.pro_plan_status === 'active',
       score: scorePainter({
         id: p.id,
         last_lead_received_at: full?.last_lead_received_at ?? null,
@@ -233,9 +238,31 @@ async function maybeAutoAssign(
         overall_score: scoreMap.get(p.id) ?? 0,
       }),
     }
-  }).sort((a, b) => b.score - a.score).slice(0, maxPainters)
+  }).sort((a, b) => b.score - a.score)
 
-  const painterIds = ranked.map(p => p.id)
+  // Pro early access: if configured, only send to Pro painters first
+  let selected = allRanked
+  if (proEarlyHours > 0) {
+    const proOnly = allRanked.filter(p => p.isPro)
+    if (proOnly.length > 0) {
+      selected = proOnly
+      // Mark lead for second-round distribution later
+      await supabase.from('leads').update({
+        pro_access_expires_at: new Date(Date.now() + proEarlyHours * 3600000).toISOString(),
+        distribution_round: 1,
+      }).eq('id', leadId)
+      console.log(`[AutoAssign] Pro early access: ${proEarlyHours}h, ${proOnly.length} Pro painters first`)
+    }
+  }
+
+  // Cascade mode: only send to #1, set response deadline
+  if (distMode === 'cascade') {
+    selected = selected.slice(0, 1)
+  } else {
+    selected = selected.slice(0, maxPainters)
+  }
+
+  const painterIds = selected.map(p => p.id)
   console.log(`[AutoAssign] ${protocol}: ${nearby.length} nearby → top ${painterIds.length} selected`, ranked.map(r => ({ id: r.id.slice(0, 8), score: r.score.toFixed(3) })))
 
   const priceEstimate = calc
@@ -260,11 +287,28 @@ async function maybeAutoAssign(
     })
   ))
 
-  await Promise.all(painterIds.map(painterId =>
+  const deadline = distMode === 'cascade'
+    ? new Date(Date.now() + responseWindow * 3600000).toISOString()
+    : null
+
+  await Promise.all(painterIds.map((painterId, idx) =>
     supabase.from('lead_painter_interactions').upsert({
       lead_id: leadId, painter_id: painterId, status: 'notified', notified_at: new Date().toISOString(),
+      queue_position: idx + 1,
+      response_deadline_at: idx === 0 ? deadline : null,
     }, { onConflict: 'lead_id,painter_id' })
   ))
+
+  // Store full queue for cascade mode (remaining painters wait their turn)
+  if (distMode === 'cascade' && allRanked.length > 1) {
+    const remaining = allRanked.slice(1, maxPainters)
+    await Promise.all(remaining.map((p, idx) =>
+      supabase.from('lead_painter_interactions').upsert({
+        lead_id: leadId, painter_id: p.id, status: 'queued',
+        queue_position: idx + 2,
+      }, { onConflict: 'lead_id,painter_id' })
+    ))
+  }
 
   // Update painter tracking: last_lead_received_at + increment active_leads_count
   await Promise.all(painterIds.map(painterId =>
