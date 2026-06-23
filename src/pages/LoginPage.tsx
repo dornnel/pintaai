@@ -112,87 +112,38 @@ export function LoginPage() {
 
     const trimmedEmail = email.toLowerCase().trim()
 
-    let data: Awaited<ReturnType<typeof supabase.auth.signUp>>['data'] | null = null
-    let lastErr: string | null = null
-
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const result = await supabase.auth.signUp({
-          email: trimmedEmail,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-            data: { name, role: 'customer' },
-          },
-        })
-        if (!result.error) { data = result.data; lastErr = null; break }
-        lastErr = result.error.message || JSON.stringify(result.error) || 'Erro desconhecido'
-        console.error(`[Register] signUp attempt ${attempt + 1}:`, result.error)
-        if (!lastErr.includes('Load failed') && !lastErr.includes('fetch') && !lastErr.includes('timeout')) break
-      } catch (fetchErr) {
-        lastErr = fetchErr instanceof Error ? fetchErr.message : 'Erro de conexão'
-        console.error(`[Register] signUp fetch error attempt ${attempt + 1}:`, fetchErr)
-      }
-      await new Promise(r => setTimeout(r, 1500))
-    }
-
-    if (lastErr) {
-      const msg = lastErr.includes('already registered')
-        ? 'Este email já tem conta. Tente fazer login.'
-        : lastErr.includes('rate')
-        ? 'Muitas tentativas. Aguarde um momento e tente novamente.'
-        : (lastErr.includes('Load failed') || lastErr.includes('fetch') || lastErr.includes('network') || lastErr.includes('timeout') || lastErr === '{}')
-        ? 'O servidor demorou para responder. Use "Continuar com Google" acima — é mais rápido e confiável.'
-        : lastErr.includes('not allowed')
-        ? 'Cadastro temporariamente indisponível. Tente com Google.'
-        : `Erro ao criar conta. Tente com Google acima.`
-      setError(msg)
-      setLoading(false)
-      return
-    }
-
-    if (!data?.user) {
-      setError('Erro ao criar conta. Tente novamente ou use Google.')
-      setLoading(false)
-      return
-    }
-
     try {
-      const { data: existing } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', trimmedEmail)
-        .maybeSingle()
+      const { data: resp, error: fnErr } = await supabase.functions.invoke('register-user', {
+        body: { email: trimmedEmail, password, name, role: 'customer' },
+      })
 
-      if (existing) {
-        await supabase.from('users').update({
-          auth_user_id: data.user.id,
-          name: name || undefined,
-          status: 'pending',
-          terms_accepted_at: new Date().toISOString(),
-        }).eq('id', existing.id)
-      } else {
-        const { error: insertErr } = await supabase.from('users').insert({
-          auth_user_id: data.user.id,
-          role: 'customer',
-          roles: ['customer'],
-          name,
-          email: trimmedEmail,
-          phone: `auto_${data.user.id.slice(0, 8)}`,
-          status: 'pending',
-          terms_accepted_at: new Date().toISOString(),
-        })
-        if (insertErr) console.error('[Register] user insert error:', insertErr)
+      if (fnErr || resp?.error) {
+        const msg = (resp?.error || fnErr?.message || 'Erro ao criar conta')
+        setError(
+          msg.includes('já tem conta') || msg.includes('already')
+            ? 'Este email já tem conta. Tente fazer login.'
+            : msg.includes('rate') ? 'Muitas tentativas. Aguarde e tente novamente.'
+            : msg
+        )
+        setLoading(false)
+        return
       }
-    } catch (dbErr) {
-      console.error('[Register] DB error:', dbErr)
-    }
 
-    if (data.session) {
-      setWaitingRedirect(true)
-    } else {
-      setSuccessMsg('Conta criada! Verifique seu email para confirmar.')
-      setStep('success')
+      // Auto-login with the created credentials
+      const { error: loginErr } = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      })
+
+      if (loginErr) {
+        setSuccessMsg('Conta criada! Faça login para continuar.')
+        setStep('success')
+      } else {
+        setWaitingRedirect(true)
+      }
+    } catch (err) {
+      console.error('[Register] error:', err)
+      setError('Erro ao criar conta. Tente novamente.')
     }
     setLoading(false)
   }
