@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'motion/react'
 import {
   Briefcase, Send, CheckCircle, Star, MapPin, ChevronRight,
-  Sparkles, Zap, Shield, CreditCard, TrendingUp, Activity, Clock, Info,
+  Sparkles, Zap, Shield, CreditCard, TrendingUp, Activity, Info,
 } from 'lucide-react'
 import { usePainterContext } from './PainterLayout'
 import { formatCurrency } from '../../lib/utils'

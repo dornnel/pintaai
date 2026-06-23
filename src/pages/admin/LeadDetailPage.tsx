@@ -31,6 +31,7 @@ interface Lead {
   created_at: string; service_request_id?: string
   area_m2?: number; preferred_professional?: string; current_color?: string; estimated_budget?: string
   calc_price_min?: number; calc_price_max?: number; calc_confidence?: string; calc_explanation?: string
+  distribution_mode?: string; max_proposals?: number; proposals_received_count?: number; proposals_closed?: boolean
 }
 
 interface LeadMessage {

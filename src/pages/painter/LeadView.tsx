@@ -437,7 +437,6 @@ export function LeadView() {
     }
 
     // Notify client + admin via email
-    const lead = interaction.lead
     if (lead.email) {
       supabase.functions.invoke('notify-proposal', {
         body: {
