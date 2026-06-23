@@ -110,14 +110,26 @@ export function LoginPage() {
     })
 
     if (err) {
-      setError(err.message.includes('already registered')
+      console.error('[Register] signUp error:', err)
+      const msg = err.message.includes('already registered')
         ? 'Este email já tem conta. Tente fazer login.'
-        : err.message)
+        : err.message.includes('rate')
+        ? 'Muitas tentativas. Aguarde um momento e tente novamente.'
+        : err.message.includes('not allowed')
+        ? 'Cadastro temporariamente indisponível. Tente com Google.'
+        : `Erro ao criar conta: ${err.message}`
+      setError(msg)
       setLoading(false)
       return
     }
 
-    if (data.user) {
+    if (!data.user) {
+      setError('Erro ao criar conta. Tente novamente ou use Google.')
+      setLoading(false)
+      return
+    }
+
+    try {
       const { data: existing } = await supabase
         .from('users')
         .select('id')
@@ -132,23 +144,27 @@ export function LoginPage() {
           terms_accepted_at: new Date().toISOString(),
         }).eq('id', existing.id)
       } else {
-        await supabase.from('users').insert({
+        const { error: insertErr } = await supabase.from('users').insert({
           auth_user_id: data.user.id,
           role: 'customer',
           roles: ['customer'],
           name,
           email: trimmedEmail,
+          phone: `auto_${data.user.id.slice(0, 8)}`,
           status: 'pending',
           terms_accepted_at: new Date().toISOString(),
         })
+        if (insertErr) console.error('[Register] user insert error:', insertErr)
       }
+    } catch (dbErr) {
+      console.error('[Register] DB error:', dbErr)
+    }
 
-      if (data.session) {
-        setWaitingRedirect(true)
-      } else {
-        setSuccessMsg('Conta criada! Verifique seu email para confirmar.')
-        setStep('success')
-      }
+    if (data.session) {
+      setWaitingRedirect(true)
+    } else {
+      setSuccessMsg('Conta criada! Verifique seu email para confirmar.')
+      setStep('success')
     }
     setLoading(false)
   }
