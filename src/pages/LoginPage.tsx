@@ -139,7 +139,7 @@ export function LoginPage() {
         setSuccessMsg('Conta criada! Faça login para continuar.')
         setStep('success')
       } else {
-        setWaitingRedirect(true)
+        navigate('/onboarding', { replace: true })
       }
     } catch (err) {
       console.error('[Register] error:', err)

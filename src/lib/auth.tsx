@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const roles = data.roles?.length ? data.roles : [data.role]
       setUser({ id: data.id, role: data.role, roles, activeRole: resolveActiveRole(roles, data.role), name: data.name, phone: data.phone, cpf: data.cpf ?? undefined, status: data.status, email: data.email, isSuperAdmin: data.email === SUPERADMIN_EMAIL })
       setLoading(false)
-      setNeedsOnboarding(false)
+      setNeedsOnboarding(data.status === 'pending' && data.role === 'customer' && !data.email?.endsWith('@agenscia.com'))
       return
     }
 

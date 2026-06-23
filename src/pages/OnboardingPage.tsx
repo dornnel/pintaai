@@ -19,15 +19,19 @@ export function OnboardingPage() {
   const [role, setRole] = useState<Role>('customer')
   const [saving, setSaving] = useState(false)
 
-  // Se não precisa de onboarding, redirecionar
-  if (!needsOnboarding && !saving) {
+  // Se não precisa de onboarding e já tem role definido, redirecionar
+  if (!needsOnboarding && !saving && user?.status !== 'pending') {
     return <Navigate to={user ? getRoleHome(user.role) : '/'} replace />
   }
 
   async function handleContinue() {
     setSaving(true)
     await completeOnboarding(role)
-    navigate(getRoleHome(role), { replace: true })
+    if (role === 'painter') {
+      navigate('/seja-pintor', { replace: true })
+    } else {
+      navigate(getRoleHome(role), { replace: true })
+    }
   }
 
   return (
