@@ -81,12 +81,23 @@ export function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase().trim(),
-      password,
-    })
-    if (err) {
-      setError(err.message.includes('Invalid') ? 'Senha incorreta. Tente novamente.' : err.message)
+    let loginErr: string | null = null
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      })
+      if (!err) { loginErr = null; break }
+      loginErr = err.message
+      if (!err.message.includes('Load failed') && !err.message.includes('fetch')) break
+      await new Promise(r => setTimeout(r, 1000))
+    }
+    if (loginErr) {
+      const msg = loginErr.includes('Invalid') ? 'Senha incorreta. Tente novamente.'
+        : (loginErr.includes('Load failed') || loginErr.includes('fetch'))
+        ? 'Erro de conexão. Abra no navegador (Safari/Chrome) ou tente com Google.'
+        : loginErr
+      setError(msg)
       setLoading(false)
       return
     }
@@ -100,30 +111,42 @@ export function LoginPage() {
     setLoading(true); setError('')
 
     const trimmedEmail = email.toLowerCase().trim()
-    const { data, error: err } = await supabase.auth.signUp({
-      email: trimmedEmail,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: { name, role: 'customer' },
-      },
-    })
 
-    if (err) {
-      console.error('[Register] signUp error:', err)
-      const msg = err.message.includes('already registered')
+    let data: Awaited<ReturnType<typeof supabase.auth.signUp>>['data'] | null = null
+    let lastErr: string | null = null
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: { name, role: 'customer' },
+        },
+      })
+      if (!result.error) { data = result.data; lastErr = null; break }
+      lastErr = result.error.message
+      console.error(`[Register] signUp attempt ${attempt + 1}:`, result.error)
+      if (!result.error.message.includes('Load failed') && !result.error.message.includes('fetch')) break
+      await new Promise(r => setTimeout(r, 1000))
+    }
+
+    if (lastErr) {
+      const msg = lastErr.includes('already registered')
         ? 'Este email já tem conta. Tente fazer login.'
-        : err.message.includes('rate')
+        : lastErr.includes('rate')
         ? 'Muitas tentativas. Aguarde um momento e tente novamente.'
-        : err.message.includes('not allowed')
+        : (lastErr.includes('Load failed') || lastErr.includes('fetch') || lastErr.includes('network'))
+        ? 'Erro de conexão. Abra no navegador do celular (Safari/Chrome) em vez do app, ou tente com Google.'
+        : lastErr.includes('not allowed')
         ? 'Cadastro temporariamente indisponível. Tente com Google.'
-        : `Erro ao criar conta: ${err.message}`
+        : `Erro ao criar conta: ${lastErr}`
       setError(msg)
       setLoading(false)
       return
     }
 
-    if (!data.user) {
+    if (!data?.user) {
       setError('Erro ao criar conta. Tente novamente ou use Google.')
       setLoading(false)
       return
