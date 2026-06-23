@@ -116,19 +116,24 @@ export function LoginPage() {
     let lastErr: string | null = null
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: { name, role: 'customer' },
-        },
-      })
-      if (!result.error) { data = result.data; lastErr = null; break }
-      lastErr = result.error.message
-      console.error(`[Register] signUp attempt ${attempt + 1}:`, result.error)
-      if (!result.error.message.includes('Load failed') && !result.error.message.includes('fetch')) break
-      await new Promise(r => setTimeout(r, 1000))
+      try {
+        const result = await supabase.auth.signUp({
+          email: trimmedEmail,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: { name, role: 'customer' },
+          },
+        })
+        if (!result.error) { data = result.data; lastErr = null; break }
+        lastErr = result.error.message || JSON.stringify(result.error) || 'Erro desconhecido'
+        console.error(`[Register] signUp attempt ${attempt + 1}:`, result.error)
+        if (!lastErr.includes('Load failed') && !lastErr.includes('fetch') && !lastErr.includes('timeout')) break
+      } catch (fetchErr) {
+        lastErr = fetchErr instanceof Error ? fetchErr.message : 'Erro de conexão'
+        console.error(`[Register] signUp fetch error attempt ${attempt + 1}:`, fetchErr)
+      }
+      await new Promise(r => setTimeout(r, 1500))
     }
 
     if (lastErr) {
@@ -136,11 +141,11 @@ export function LoginPage() {
         ? 'Este email já tem conta. Tente fazer login.'
         : lastErr.includes('rate')
         ? 'Muitas tentativas. Aguarde um momento e tente novamente.'
-        : (lastErr.includes('Load failed') || lastErr.includes('fetch') || lastErr.includes('network'))
-        ? 'Erro de conexão. Abra no navegador do celular (Safari/Chrome) em vez do app, ou tente com Google.'
+        : (lastErr.includes('Load failed') || lastErr.includes('fetch') || lastErr.includes('network') || lastErr.includes('timeout') || lastErr === '{}')
+        ? 'O servidor demorou para responder. Use "Continuar com Google" acima — é mais rápido e confiável.'
         : lastErr.includes('not allowed')
         ? 'Cadastro temporariamente indisponível. Tente com Google.'
-        : `Erro ao criar conta: ${lastErr}`
+        : `Erro ao criar conta. Tente com Google acima.`
       setError(msg)
       setLoading(false)
       return
