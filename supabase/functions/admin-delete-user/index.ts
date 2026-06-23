@@ -53,17 +53,19 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Get the real auth_user_id from the DB record before deleting
+    const { data: userRecord } = await appClient.from('users').select('auth_user_id').eq('id', appUserId).maybeSingle()
+    const realAuthId = userRecord?.auth_user_id || authUserId
+
     // Delete from pintae.users — FK cascades handle painters, reviews, etc.
     const { error: dbErr } = await appClient.from('users').delete().eq('id', appUserId)
     if (dbErr) throw new Error(`DB delete failed: ${dbErr.message}`)
 
-    // Delete from Supabase Auth if we have a real auth UUID (not pending_*)
-    if (authUserId && !authUserId.startsWith('pending_')) {
-      const { error: authErr } = await authClient.auth.admin.deleteUser(authUserId)
-      if (authErr) {
-        // Non-fatal: user may have already been deleted or never completed Auth signup
-        console.warn('Auth delete warning:', authErr.message)
-      }
+    // Delete from Supabase Auth if we have a valid UUID
+    const isValidUUID = realAuthId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realAuthId)
+    if (isValidUUID) {
+      const { error: authErr } = await authClient.auth.admin.deleteUser(realAuthId)
+      if (authErr) console.warn('Auth delete warning (non-fatal):', authErr.message)
     }
 
     return new Response(JSON.stringify({ ok: true }), {
