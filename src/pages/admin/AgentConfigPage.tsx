@@ -111,10 +111,14 @@ export function AgentConfigPage() {
   }, [activeTab])
 
   async function loadConfig() {
-    const { data } = await supabase.from('agent_configs').select('*').eq('active', true).single()
+    const [{ data }, { data: modeSetting }] = await Promise.all([
+      supabase.from('agent_configs').select('*').eq('active', true).single(),
+      supabase.from('platform_settings').select('value').eq('key', 'agent_conversation_mode').maybeSingle(),
+    ])
     if (data) {
       setConfig({
         ...data,
+        conversation_mode: modeSetting?.value || data.conversation_mode || 'journey',
         tools_enabled: data.tools_enabled || [],
         rag_documents: data.rag_documents || [],
         skills_enabled: data.skills_enabled || [],
@@ -306,7 +310,11 @@ export function AgentConfigPage() {
   async function setMode(mode: string) {
     setShowModeMenu(false)
     if (!config) return
-    await supabase.from('agent_configs').update({ conversation_mode: mode }).eq('id', config.id)
+    // Persist in platform_settings (key-value table guaranteed to exist)
+    await supabase.from('platform_settings').upsert(
+      { key: 'agent_conversation_mode', value: mode, updated_at: new Date().toISOString() },
+      { onConflict: 'key' },
+    )
     setConfig({ ...config, conversation_mode: mode } as AgentConfig & { conversation_mode?: string })
   }
 

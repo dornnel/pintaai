@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
+import { useRef, useState, useEffect, type KeyboardEvent, type ChangeEvent } from 'react'
 import { Send, Paperclip, X, Image } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -14,6 +14,13 @@ export function ChatInput({ onSend, disabled, placeholder = 'Digite uma mensagem
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Re-focus when agent finishes responding (disabled: true → false)
+  useEffect(() => {
+    if (!disabled) {
+      inputRef.current?.focus()
+    }
+  }, [disabled])
 
   function handleSend() {
     const trimmed = text.trim()
@@ -101,6 +108,7 @@ export function ChatInput({ onSend, disabled, placeholder = 'Digite uma mensagem
           onKeyDown={handleKey}
           placeholder={placeholder}
           disabled={disabled}
+          autoFocus
           rows={1}
           className="flex-1 resize-none outline-none text-sm text-gray-800 placeholder:text-gray-400 bg-transparent py-2 max-h-32 leading-relaxed"
           style={{ fieldSizing: 'content' } as React.CSSProperties}
