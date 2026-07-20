@@ -464,8 +464,8 @@ function HeroChat() {
       initial={{ opacity: 0, y: 24, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100"
-      style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.06)', minHeight: 560, width: 320 }}
+      className="flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 w-full"
+      style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.06)', minHeight: 500 }}
     >
       {/* Agent header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 shrink-0">
@@ -661,8 +661,6 @@ function HowPaymentWorks() {
 export function LandingPage() {
   const { user, signOut } = useAuth()
   const heroRef = useRef<HTMLElement>(null)
-  const mouseX = useMotionValue(0)
-  const mouseY = useMotionValue(0)
 
   // Use the AppShell scroll container so parallax tracks the real scroll
   const scrollContainer = useScrollContainer()
@@ -709,13 +707,6 @@ export function LandingPage() {
   // Y parallax: só durante 'animating' usa lockParallaxSpring; todos os outros estados usam heroBgY
   const activeHeroBgY = videoPhase === 'animating' ? lockParallaxSpring : heroBgY
   // ── fim scroll-lock ────────────────────────────────────────────────────────
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = heroRef.current?.getBoundingClientRect()
-    if (!rect) return
-    mouseX.set(e.clientX - rect.left - rect.width / 2)
-    mouseY.set(e.clientY - rect.top - rect.height / 2)
-  }, [mouseX, mouseY])
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
@@ -774,7 +765,7 @@ export function LandingPage() {
       </section>
 
       {/* ── Hero desktop (vídeo + título + floating cards + chat widget) ── */}
-      <section ref={heroRef} onMouseMove={handleMouseMove}
+      <section ref={heroRef}
         className="hidden lg:flex relative min-h-screen items-center pt-14 overflow-hidden bg-white">
         <motion.div className="absolute inset-0" style={{ y: activeHeroBgY }}>
           <DesktopVideoBackground
@@ -797,110 +788,43 @@ export function LandingPage() {
           </motion.div>
         )}
 
-        <div className="relative z-10 max-w-6xl mx-auto px-4 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-              className="inline-flex items-center gap-2 bg-white/70 backdrop-blur-sm border border-white/50 rounded px-3 py-1.5 text-xs text-gray-600 font-semibold mb-8 uppercase tracking-widest">
-              <MapPin className="w-3 h-3 text-brand" />
-              Florianópolis · Sul da Ilha
-            </motion.div>
+        <div className="relative z-10 w-full max-w-2xl mx-auto px-4 py-24 flex flex-col items-center gap-8">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="inline-flex items-center gap-2 bg-white/70 backdrop-blur-sm border border-white/50 rounded px-3 py-1.5 text-xs text-gray-600 font-semibold uppercase tracking-widest">
+            <MapPin className="w-3 h-3 text-brand" />
+            Florianópolis · Sul da Ilha
+          </motion.div>
 
-            <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              className="mb-10"
-              style={{ letterSpacing: '-0.03em', lineHeight: 1.0 }}>
-              {/* "O pintor" leve + "certo" pesado — contraste editorial */}
-              <span className="block" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>
-                <span style={{ fontWeight: 300, color: 'rgba(255,255,255,0.75)' }}>O pintor </span>
-                <span style={{ fontWeight: 800, color: '#fff' }}>certo</span>
-              </span>
-              {/* "para o seu" — linha secundária, menor, mais suave */}
-              <span className="block" style={{ fontSize: 'clamp(1.6rem, 4vw, 3.25rem)', fontWeight: 300, color: 'rgba(255,255,255,0.55)', letterSpacing: '-0.01em', marginTop: '0.15em' }}>
-                para o seu
-              </span>
-              {/* "espaço." — palavra âncora, grande, itálico, gradiente laranja */}
-              <span className="block" style={{
-                fontSize: 'clamp(3rem, 8vw, 6.5rem)',
-                fontWeight: 800,
-                fontStyle: 'italic',
-                marginTop: '0.05em',
-                background: 'linear-gradient(135deg, #FF9A5C 0%, #E35A1A 55%, #C84400 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>
-                espaço.
-              </span>
-            </motion.h1>
+          <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center"
+            style={{ letterSpacing: '-0.03em', lineHeight: 1.0 }}>
+            <span className="block" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>
+              <span style={{ fontWeight: 300, color: 'rgba(255,255,255,0.75)' }}>O pintor </span>
+              <span style={{ fontWeight: 800, color: '#fff' }}>certo</span>
+            </span>
+            <span className="block" style={{ fontSize: 'clamp(1.6rem, 4vw, 3.25rem)', fontWeight: 300, color: 'rgba(255,255,255,0.55)', letterSpacing: '-0.01em', marginTop: '0.15em' }}>
+              para o seu
+            </span>
+            <span className="block" style={{
+              fontSize: 'clamp(3rem, 8vw, 6.5rem)',
+              fontWeight: 800,
+              fontStyle: 'italic',
+              marginTop: '0.05em',
+              background: 'linear-gradient(135deg, #FF9A5C 0%, #E35A1A 55%, #C84400 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
+              espaço.
+            </span>
+          </motion.h1>
 
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }}
-              className="flex flex-col items-start gap-4">
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                <Link to="/chat"
-                  className="flex items-center gap-2 px-7 py-4 text-white font-bold rounded-xl transition-colors text-sm tracking-wide"
-                  style={{ background: '#25D366' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#1dbd5a')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#25D366')}>
-                  Encontrar meu pintor <ArrowRight className="w-4 h-4" />
-                </Link>
-              </motion.div>
-            </motion.div>
-          </div>
-
-          {/* Right: Chat + floating cards — px-16 gives room for outside cards */}
-          <div className="relative flex justify-center lg:justify-end items-center px-16 lg:px-20" style={{ minHeight: 580 }}>
-            <motion.div initial={{ opacity: 0, y: 32, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
-              <HeroChat />
-            </motion.div>
-
-            {/* Floating cards — arrastar para reposicionar */}
-            {/* Top-left: abaixo do header do chat (top-16) para não cobrir o avatar */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.9} factorY={0.6} delay={1.0}
-              className="top-16 -left-6 lg:-left-20 p-3 w-48 z-20">
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-6 h-6 rounded bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">JK</div>
-                <div>
-                  <p className="text-gray-900 text-xs font-semibold leading-none">Juliana K.</p>
-                  <p className="text-gray-400 text-[10px]">Armação</p>
-                </div>
-                <div className="ml-auto flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}</div>
-              </div>
-              <p className="text-gray-500 text-[10px] leading-relaxed">"Sem sensação de estar sendo enganado."</p>
-            </FloatingCard>
-
-            {/* Bottom-left */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={1.1} factorY={0.8} delay={1.2}
-              className="bottom-14 -left-6 lg:-left-20 p-3 w-40 z-20">
-              <div className="flex items-center gap-2">
-                <img src="https://images.unsplash.com/photo-1566753323558-f4e0952af115?w=32&q=70" alt="" className="w-7 h-7 rounded object-cover shrink-0" />
-                <div><p className="text-gray-900 text-xs font-semibold leading-none">Carlos M.</p><p className="text-gray-400 text-[9px]">87 jobs · Campeche</p></div>
-              </div>
-              <div className="flex items-center gap-1 mt-2">
-                <div className="flex gap-px">{[1,2,3,4,5].map(i => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}</div>
-                <span className="text-gray-900 font-bold text-[10px] ml-0.5">4.9</span>
-              </div>
-              <div className="flex items-center gap-1 mt-1"><ShieldCheck className="w-2.5 h-2.5 text-brand" /><span className="text-brand text-[9px] font-bold">Verificado</span></div>
-            </FloatingCard>
-
-            {/* Top-right — abaixo do header */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={-0.8} factorY={1.0} delay={1.4}
-              className="top-16 -right-4 lg:-right-12 p-2.5 w-36 z-20">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-orange-100 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 text-brand" /></div>
-                <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Briefing por IA</p><p className="text-gray-400 text-[9px]">gerado agora</p></div>
-              </div>
-            </FloatingCard>
-
-            {/* Bottom-right */}
-            <FloatingCard mouseX={mouseX} mouseY={mouseY} factorX={0.6} factorY={-0.9} delay={1.6}
-              className="bottom-14 -right-4 lg:-right-12 p-2.5 w-44 z-20">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center shrink-0"><CreditCard className="w-3 h-3 text-emerald-600" /></div>
-                <div><p className="text-gray-900 text-[10px] font-semibold leading-tight">Pagamento seguro</p><p className="text-gray-400 text-[9px]">retido até conclusão</p></div>
-              </div>
-            </FloatingCard>
-          </div>
+          <motion.div initial={{ opacity: 0, y: 32, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full">
+            <HeroChat />
+          </motion.div>
         </div>
         {/* "Como funciona" — centered at section bottom, above white fade */}
         <motion.div
