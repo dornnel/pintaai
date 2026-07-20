@@ -596,8 +596,11 @@ export function useChat() {
       briefingData.confianca_preco = calc.confidence_label === 'média' ? 'media' : calc.confidence_label
     }
     if (data.area_m2) {
-      briefingData.metragem_estimada_m2 = data.area_m2
-      briefingData.confianca_metragem = 'alta'
+      const numericArea = typeof data.area_m2 === 'number' ? data.area_m2 : undefined
+      if (numericArea) {
+        briefingData.metragem_estimada_m2 = numericArea
+        briefingData.confianca_metragem = 'alta'
+      }
     }
 
     setCurrentState('briefing_ready')
