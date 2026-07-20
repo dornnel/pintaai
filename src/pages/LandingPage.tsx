@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
-  MapPin, MessageCircle, Paintbrush, ShieldCheck, ChevronDown, Sparkles, CreditCard,
-  Home, Building2, Droplets, ImagePlus, Video, Layers, Wrench, Palette,
+  MessageCircle, ShieldCheck, ChevronDown, Sparkles, CreditCard,
+  Home, Building2, Droplets, Video, Layers, Wrench, Palette,
   Bot, FileText, UserCheck, BadgeCheck,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
@@ -416,15 +416,6 @@ function SimpleLanding() {
 
 // ─── Hero chat widget (desktop only) ─────────────────────────────────────────
 
-const HERO_CHIPS = [
-  { icon: Home,       label: 'Pintar sala e quartos' },
-  { icon: Building2,  label: 'Fachada externa' },
-  { icon: Paintbrush, label: 'Pintura pós-obra' },
-  { icon: Droplets,   label: 'Parede com mofo' },
-  { icon: Sparkles,   label: 'Mural artístico' },
-  { icon: ImagePlus,  label: 'Enviar fotos' },
-]
-
 function HeroChat() {
   const [input, setInput] = useState('')
 
@@ -440,7 +431,7 @@ function HeroChat() {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className="flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 w-full"
-      style={{ boxShadow: '0 2px 16px rgba(0,0,0,0.06)', minHeight: 500 }}
+      style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.14)' }}
     >
       {/* Agent header */}
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 shrink-0">
@@ -476,27 +467,6 @@ function HeroChat() {
           </p>
         </motion.div>
       </div>
-
-      {/* Service chips grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.85 }}
-        className="flex-1 px-3.5 pb-4 grid grid-cols-2 gap-1.5 content-end"
-      >
-        {HERO_CHIPS.map(({ icon: Icon, label }) => (
-          <motion.button
-            key={label}
-            whileTap={{ scale: 0.96 }}
-            whileHover={{ borderColor: '#E35A1A', color: '#E35A1A' }}
-            onClick={() => handleSend(label)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-gray-100 text-left text-[11px] text-gray-600 font-medium transition-colors cursor-pointer"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-          >
-            <Icon className="text-brand shrink-0" style={{ width: 14, height: 14 }} />
-            <span className="leading-tight">{label}</span>
-          </motion.button>
-        ))}
-      </motion.div>
 
       {/* Input area */}
       <div className="border-t border-gray-100 px-3 pt-2 pb-2.5 shrink-0">
@@ -763,40 +733,16 @@ export function LandingPage() {
           </motion.div>
         )}
 
-        <div className="relative z-10 w-full max-w-2xl mx-auto px-4 py-24 flex flex-col items-center gap-8">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="inline-flex items-center gap-2 bg-white/70 backdrop-blur-sm border border-white/50 rounded px-3 py-1.5 text-xs text-gray-600 font-semibold uppercase tracking-widest">
-            <MapPin className="w-3 h-3 text-brand" />
-            Florianópolis · Sul da Ilha
-          </motion.div>
-
+        <div className="relative z-10 w-full max-w-2xl mx-auto px-6 flex flex-col items-center justify-center gap-8" style={{ minHeight: '100vh' }}>
           <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="text-center"
-            style={{ letterSpacing: '-0.03em', lineHeight: 1.0 }}>
-            <span className="block" style={{ fontSize: 'clamp(2.4rem, 6vw, 5rem)' }}>
-              <span style={{ fontWeight: 300, color: 'rgba(255,255,255,0.75)' }}>O pintor </span>
-              <span style={{ fontWeight: 800, color: '#fff' }}>certo</span>
-            </span>
-            <span className="block" style={{ fontSize: 'clamp(1.6rem, 4vw, 3.25rem)', fontWeight: 300, color: 'rgba(255,255,255,0.55)', letterSpacing: '-0.01em', marginTop: '0.15em' }}>
-              para o seu
-            </span>
-            <span className="block" style={{
-              fontSize: 'clamp(3rem, 8vw, 6.5rem)',
-              fontWeight: 800,
-              fontStyle: 'italic',
-              marginTop: '0.05em',
-              background: 'linear-gradient(135deg, #FF9A5C 0%, #E35A1A 55%, #C84400 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}>
-              espaço.
-            </span>
+            transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="text-center font-bold text-white whitespace-nowrap"
+            style={{ fontSize: 'clamp(1.5rem, 3.2vw, 2.6rem)', letterSpacing: '-0.02em', lineHeight: 1.2, textShadow: '0 2px 20px rgba(0,0,0,0.35)' }}>
+            Encontre pintores confiáveis na sua região
           </motion.h1>
 
-          <motion.div initial={{ opacity: 0, y: 32, scale: 0.94 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ delay: 0.35, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          <motion.div initial={{ opacity: 0, y: 32, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.25, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
             className="w-full">
             <HeroChat />
           </motion.div>
