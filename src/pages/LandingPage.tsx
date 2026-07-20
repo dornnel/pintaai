@@ -134,31 +134,6 @@ function DesktopVideoBackground({
   )
 }
 
-// ─── Floating glass card ──────────────────────────────────────────────────────
-
-function FloatingCard({ children, className = '', mouseX, mouseY, factorX = 1, factorY = 1, delay = 0 }: {
-  children: React.ReactNode; className?: string
-  mouseX: ReturnType<typeof useMotionValue<number>>; mouseY: ReturnType<typeof useMotionValue<number>>
-  factorX?: number; factorY?: number; delay?: number
-}) {
-  const x = useSpring(useTransform(mouseX, [-400, 400], [-12 * factorX, 12 * factorX]), { stiffness: 80, damping: 20 })
-  const y = useSpring(useTransform(mouseY, [-300, 300], [-8 * factorY, 8 * factorY]), { stiffness: 80, damping: 20 })
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.88 }} animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      style={{ x, y, boxShadow: '0 4px 20px rgba(0,0,0,0.10)' }}
-      drag
-      dragMomentum={false}
-      whileDrag={{ scale: 1.06, boxShadow: '0 16px 40px rgba(0,0,0,0.18)', zIndex: 50 }}
-      className={`absolute bg-white border border-gray-100 select-none rounded cursor-grab active:cursor-grabbing ${className}`}
-    >
-      {children}
-    </motion.div>
-  )
-}
-
 // ─── Review marquee ───────────────────────────────────────────────────────────
 
 function ReviewMarquee() {
