@@ -41,7 +41,7 @@ const SpeechRecognitionAPI =
 
 export function ChatInterface() {
   const { messages, loading, sendMessage, reset, currentInputType, currentState, collectedData } = useChat()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [magicLinkLoading, setMagicLinkLoading] = useState(false)
   const [magicLinkError, setMagicLinkError] = useState('')
@@ -119,11 +119,12 @@ export function ChatInterface() {
   const hasSpeechAPI = Boolean(SpeechRecognitionAPI)
 
   useEffect(() => {
+    if (authLoading) return   // wait for auth before init to avoid role_select flash
     if (initFired.current) return
     initFired.current = true
     const q = searchParams.get('q')
-    setTimeout(() => sendMessage(q ? q : '__init__'), 300)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    setTimeout(() => sendMessage(q ? q : '__init__'), 150)
+  }, [authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Só rola para baixo quando há mensagens reais visíveis (não no __init__ vazio)
   useEffect(() => {

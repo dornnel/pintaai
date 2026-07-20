@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
@@ -260,6 +260,7 @@ function MobileVideoBackground() {
 function SimpleLanding() {
   const [input, setInput] = useState('')
   const [focused, setFocused] = useState(false)
+  const navigate = useNavigate()
 
   // ── Typewriter state ──────────────────────────────────────────────────────
   const [cycleIdx, setCycleIdx] = useState(0)
@@ -308,7 +309,7 @@ function SimpleLanding() {
   function handleSend(text?: string) {
     const msg = (text || input).trim()
     if (!msg) return
-    window.location.href = `/chat?q=${encodeURIComponent(msg)}`
+    navigate(`/chat?q=${encodeURIComponent(msg)}`)
   }
 
   const showPlaceholder = !input && !focused
@@ -418,11 +419,12 @@ function SimpleLanding() {
 
 function HeroChat() {
   const [input, setInput] = useState('')
+  const navigate = useNavigate()
 
   function handleSend(text?: string) {
     const msg = (text || input).trim()
     if (!msg) return
-    window.location.href = `/chat?q=${encodeURIComponent(msg)}`
+    navigate(`/chat?q=${encodeURIComponent(msg)}`)
   }
 
   return (
@@ -605,6 +607,7 @@ function HowPaymentWorks() {
 
 export function LandingPage() {
   const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   const heroRef = useRef<HTMLElement>(null)
 
   // Use the AppShell scroll container so parallax tracks the real scroll
@@ -925,7 +928,7 @@ export function LandingPage() {
               <motion.div key={label} variants={fadeUp}
                 whileHover={{ y: -8, boxShadow: `0 20px 48px ${color}20` }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => { window.location.href = `/chat?q=${encodeURIComponent(label)}` }}
+                onClick={() => navigate(`/chat?q=${encodeURIComponent(label)}`)}
                 className="relative bg-white rounded-2xl cursor-pointer group overflow-hidden transition-all"
                 style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.06)' }}>
                 {/* Hover: background color wash */}
