@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { cn, formatRelativeTime } from '../../lib/utils'
 import type { ChatMessage } from '../../lib/types'
@@ -12,6 +13,24 @@ interface Props {
 
 export function MessageBubble({ message, onQuickReply, onQuoteSelect }: Props) {
   const isAgent = message.role === 'agent'
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmed, setConfirmed] = useState(false)
+
+  function toggleOption(reply: string) {
+    if (confirmed) return
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(reply)) next.delete(reply)
+      else next.add(reply)
+      return next
+    })
+  }
+
+  function confirmMultiSelect() {
+    if (selected.size === 0 || confirmed) return
+    setConfirmed(true)
+    onQuickReply?.(Array.from(selected).join(' + '))
+  }
 
   return (
     <div className={cn('flex items-end gap-2 animate-slide-up', !isAgent && 'flex-row-reverse')}>
@@ -59,8 +78,45 @@ export function MessageBubble({ message, onQuickReply, onQuoteSelect }: Props) {
           <QuoteComparison quotes={message.quotes} onSelect={onQuoteSelect} />
         )}
 
-        {/* Quick replies */}
-        {isAgent && message.quickReplies && message.quickReplies.length > 0 && (
+        {/* Multi-select quick replies */}
+        {isAgent && message.multiSelect && message.quickReplies && message.quickReplies.length > 0 && (
+          <div className="flex flex-col gap-2 mt-1">
+            <p className="text-[11px] text-gray-400 px-0.5">Pode selecionar mais de um:</p>
+            <div className="flex flex-wrap gap-2">
+              {message.quickReplies.map((reply) => {
+                const isOn = selected.has(reply)
+                return (
+                  <button
+                    key={reply}
+                    onClick={() => toggleOption(reply)}
+                    disabled={confirmed}
+                    className={cn(
+                      'px-3 py-1.5 text-sm border rounded-full transition-colors cursor-pointer',
+                      isOn
+                        ? 'bg-brand text-white border-brand'
+                        : 'border-brand text-brand hover:bg-brand hover:text-white',
+                      confirmed && 'opacity-60 cursor-default',
+                    )}
+                  >
+                    {reply}
+                  </button>
+                )
+              })}
+            </div>
+            {!confirmed && (
+              <button
+                onClick={confirmMultiSelect}
+                disabled={selected.size === 0}
+                className="self-start px-4 py-1.5 text-sm font-semibold bg-brand text-white rounded-full hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Confirmar {selected.size > 0 ? `(${selected.size})` : ''}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Single-select quick replies */}
+        {isAgent && !message.multiSelect && message.quickReplies && message.quickReplies.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-1">
             {message.quickReplies.map((reply) => (
               <button

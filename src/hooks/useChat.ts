@@ -47,6 +47,8 @@ function generateLocalProtocol(): string {
 
 function matchesQuickReply(step: FlowStep, text: string): boolean {
   if (!step.quick_replies || !text.trim()) return true
+  // Multi-select: joined answers like "Manchas / sujeira + Mofo" always pass
+  if (step.multi_select) return true
   const normalized = text.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim()
   return step.quick_replies.some(qr =>
     normalized.includes(qr.toLowerCase().replace(/[✅✏️🗑️]/g, '').trim().slice(0, 8))
@@ -268,9 +270,11 @@ export function useChat() {
       }
     }
 
+    const hasReplies = resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media'
     agentMessage(
       message,
-      resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media' ? resolvedStep.quick_replies ?? undefined : undefined,
+      hasReplies ? resolvedStep.quick_replies ?? undefined : undefined,
+      hasReplies && resolvedStep.multi_select ? { multiSelect: true } : undefined,
     )
   }
 
@@ -386,9 +390,11 @@ export function useChat() {
       }
     }
 
+    const hasRepliesToo = resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media'
     agentMessage(
       message,
-      resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media' ? resolvedStep.quick_replies ?? undefined : undefined,
+      hasRepliesToo ? resolvedStep.quick_replies ?? undefined : undefined,
+      hasRepliesToo && resolvedStep.multi_select ? { multiSelect: true } : undefined,
     )
   }
 
@@ -506,6 +512,23 @@ export function useChat() {
           await delay(500)
         }
       } catch { /* silencioso — fluxo continua normalmente */ }
+    }
+
+    // Quando property_type é respondido com imóvel que exige visita técnica,
+    // insere um step sintético de preferência de visita antes de continuar.
+    if (step.field_key === 'property_type' && !inCorrection) {
+      const REMOTE_OK = ['Apartamento', 'apartamento', 'apto', 'apart']
+      const isRemoteOk = REMOTE_OK.some(t => String(fieldValue).toLowerCase().includes(t.toLowerCase()))
+      if (!isRemoteOk) {
+        setCurrentState('visit_preference')
+        saveSessionState('visit_preference', newData).catch(console.error)
+        await delay(600)
+        agentMessage(
+          `Para uma **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 🏠\n\nComo prefere prosseguir?`,
+          ['📅 Agendar visita técnica', '💻 Orçamento a distância por agora']
+        )
+        return
+      }
     }
 
     await advanceToState(nextKey, newData, { fromStep: step, fromValue: rawText })
@@ -698,6 +721,28 @@ export function useChat() {
       }
       const options = buildCorrectionOptions(dataRef.current)
       agentMessage('Qual dado você quer corrigir? 👆', options.length > 0 ? options : undefined)
+      return
+    }
+
+    // Preferência de visita técnica (step sintético após property_type para imóveis maiores)
+    if (currentState === 'visit_preference') {
+      const wantsVisit = /visita|agendar|técnica/i.test(text)
+      const visitValue = wantsVisit ? 'Visita técnica agendada' : 'Orçamento a distância'
+      const newData: CollectedData = { ...dataRef.current, site_visit_preference: visitValue }
+      dataRef.current = newData
+      setCollectedData(newData)
+
+      const steps = await getSteps()
+      const propStep = steps.find(s => s.field_key === 'property_type' && s.branch === 'client')
+      const nextKey = propStep
+        ? resolveNext(steps, propStep, String(newData.property_type || ''), newData)
+        : 'generating_briefing'
+
+      if (wantsVisit) {
+        agentMessage('Ótimo! Anotei que prefere visita técnica. 📅 O pintor entrará em contato para agendar após a solicitação ser enviada.')
+        await delay(800)
+      }
+      await advanceToState(nextKey, newData, { fromStep: propStep, fromValue: text })
       return
     }
 

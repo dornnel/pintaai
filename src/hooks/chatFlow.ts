@@ -18,6 +18,7 @@ export interface FlowStep {
   skippable: boolean
   use_ai_transition: boolean
   is_core_field: boolean
+  multi_select: boolean
 }
 
 export interface CollectedData {
@@ -42,6 +43,7 @@ export interface CollectedData {
   painter_neighborhoods?: string
   painter_specialties?: string
   painter_experience?: string
+  site_visit_preference?: string
   media_urls?: string[]
   custom_fields?: Record<string, string>
   _partialProtocol?: string
@@ -167,6 +169,7 @@ export const FIELD_LABELS: Record<string, string> = {
   whatsapp: '📱 WhatsApp',
   neighborhood: '📍 Bairro',
   property_type: '🏠 Imóvel',
+  site_visit_preference: '🏡 Visita técnica',
   service_type: '🎨 Serviço',
   area_m2: '📐 Metragem',
   wall_condition: '🧱 Paredes',

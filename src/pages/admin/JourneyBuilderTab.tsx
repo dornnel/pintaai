@@ -207,6 +207,7 @@ export function JourneyBuilderTab() {
       skippable: false,
       use_ai_transition: false,
       is_core_field: false,
+      multi_select: false,
     })
     setQrText('')
     setIsNew(true)
@@ -485,6 +486,19 @@ export function JourneyBuilderTab() {
                       </div>
                     </div>
                     <p className="text-[10px] text-gray-400">O agente reage brevemente à resposta anterior antes de fazer esta pergunta</p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingStep.multi_select ?? false}
+                    onChange={e => setEditingStep({ ...editingStep, multi_select: e.target.checked })}
+                    className="accent-brand w-4 h-4 mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm text-gray-700">Seleção múltipla</p>
+                    <p className="text-[10px] text-gray-400">Usuário pode marcar mais de uma opção antes de confirmar</p>
                   </div>
                 </label>
               </div>

@@ -254,6 +254,7 @@ export interface ChatMessage {
   role: 'agent' | 'user'
   content: string
   quickReplies?: string[]
+  multiSelect?: boolean
   briefing?: BriefingData
   quotes?: Quote[]
   mediaUrls?: string[]
