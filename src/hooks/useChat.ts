@@ -324,7 +324,7 @@ export function useChat() {
           })
           const extracted = ctxResult?.extracted as Record<string, unknown> | undefined
           if (extracted) {
-            const CORE_FIELDS = ['name', 'service_type', 'area_m2', 'property_type', 'neighborhood', 'wall_condition', 'deadline', 'material', 'whatsapp'] as const
+            const CORE_FIELDS = ['name', 'service_type', 'area_m2', 'property_type', 'property_scope', 'neighborhood', 'surfaces', 'wall_condition', 'extras', 'deadline', 'material', 'whatsapp'] as const
             for (const key of CORE_FIELDS) {
               const val = extracted[key]
               if (val !== undefined && val !== null) {
@@ -514,18 +514,28 @@ export function useChat() {
       } catch { /* silencioso — fluxo continua normalmente */ }
     }
 
-    // Quando property_type é respondido com imóvel que exige visita técnica,
-    // insere um step sintético de preferência de visita antes de continuar.
+    // Casa → step sintético property_scope (interna / externa / ambas)
     if (step.field_key === 'property_type' && !inCorrection) {
-      const REMOTE_OK = ['Apartamento', 'apartamento', 'apto', 'apart']
-      const isRemoteOk = REMOTE_OK.some(t => String(fieldValue).toLowerCase().includes(t.toLowerCase()))
-      if (!isRemoteOk) {
+      const val = String(fieldValue).toLowerCase()
+      if (val.includes('casa')) {
+        setCurrentState('property_scope')
+        saveSessionState('property_scope', newData).catch(console.error)
+        await delay(500)
+        agentMessage(
+          `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`,
+          ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)']
+        )
+        return
+      }
+      // Demais imóveis não-apartamento → pergunta visita técnica
+      const isApt = val.includes('apart') || val.includes('apto')
+      if (!isApt) {
         setCurrentState('visit_preference')
         saveSessionState('visit_preference', newData).catch(console.error)
         await delay(600)
         agentMessage(
-          `Para uma **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 🏠\n\nComo prefere prosseguir?`,
-          ['📅 Agendar visita técnica', '💻 Orçamento a distância por agora']
+          `Para **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 📋\n\nComo prefere prosseguir?`,
+          ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
         )
         return
       }
@@ -721,6 +731,27 @@ export function useChat() {
       }
       const options = buildCorrectionOptions(dataRef.current)
       agentMessage('Qual dado você quer corrigir? 👆', options.length > 0 ? options : undefined)
+      return
+    }
+
+    // Escopo da pintura para Casa (step sintético: interna / externa / ambas)
+    if (currentState === 'property_scope') {
+      const scopeValue = text.includes('externa') && text.includes('interna')
+        ? 'Ambas (interna + externa)'
+        : /externa|fachada|muro/i.test(text)
+          ? 'Apenas externa'
+          : 'Apenas interna'
+      const newData: CollectedData = { ...dataRef.current, property_scope: scopeValue }
+      dataRef.current = newData
+      setCollectedData(newData)
+      saveSessionState('property_scope', newData).catch(console.error)
+
+      const steps = await getSteps()
+      const propStep = steps.find(s => s.field_key === 'property_type' && s.branch === 'client')
+      const nextKey = propStep
+        ? resolveNext(steps, propStep, String(newData.property_type || ''), newData)
+        : 'generating_briefing'
+      await advanceToState(nextKey, newData, { fromStep: propStep, fromValue: text })
       return
     }
 

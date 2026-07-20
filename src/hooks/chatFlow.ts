@@ -28,12 +28,15 @@ export interface CollectedData {
   role?: 'client' | 'painter'
   neighborhood?: string
   property_type?: string
+  property_scope?: string
   service_type?: string
-  area_m2?: number
-  num_rooms?: number
+  surfaces?: string
+  area_m2?: number | string
+  num_rooms?: string
   final_notes?: string
   notes_media_urls?: string[]
   wall_condition?: string
+  extras?: string
   deadline?: string
   material?: string
   preferred_professional?: string
@@ -61,13 +64,13 @@ export interface BudgetCalc {
 export const CHIP_TO_SERVICE: Record<string, string> = {
   'pintar sala e quartos': 'Pintura interna',
   'sala e quartos': 'Pintura interna',
-  'fachada externa': 'Fachada externa',
-  'fachada': 'Fachada externa',
-  'pintura pós-obra': 'Pós-obra',
-  'pós-obra': 'Pós-obra',
-  'pos-obra': 'Pós-obra',
-  'mural artístico': 'Arte / mural',
-  'mural': 'Arte / mural',
+  'fachada externa': 'Fachada / Externa',
+  'fachada': 'Fachada / Externa',
+  'pintura pós-obra': '1ª pintura (imóvel novo)',
+  'pós-obra': '1ª pintura (imóvel novo)',
+  'pos-obra': '1ª pintura (imóvel novo)',
+  'mural artístico': 'Textura / Grafiato',
+  'mural': 'Textura / Grafiato',
   'parede com mofo': 'Pintura interna',
   'enviar fotos': 'Pintura interna',
 }
@@ -113,8 +116,10 @@ export const VALIDATORS: Record<FlowStep['validation_type'], (v: string) => { ok
   area_m2: (v) => {
     const t = v.trim().toLowerCase()
     if (t.includes('não sei') || t.includes('nao sei') || t === 'pular') return { ok: true }
+    // Accept range quick-reply options (e.g. "25–50 m²", "Até 25 m²", "Acima de 125 m²")
+    if (/até|acima|m²|m2|–|-/.test(t)) return { ok: true }
     const n = Number(t.replace(',', '.').replace(/[^\d.]/g, ''))
-    if (!n || n < 1 || n > 2000) return { ok: false, hint: 'Pode me dar um número aproximado em m²? Ex: 45 (entre 1 e 2000)' }
+    if (!n || n < 1 || n > 2000) return { ok: false, hint: 'Escolha uma opção ou digite um número aproximado em m². Ex: 60' }
     return { ok: true }
   },
   min3: (v) => ({ ok: v.trim().length >= 3, hint: 'Pode me dar um pouco mais de detalhe?' }),
@@ -169,10 +174,14 @@ export const FIELD_LABELS: Record<string, string> = {
   whatsapp: '📱 WhatsApp',
   neighborhood: '📍 Bairro',
   property_type: '🏠 Imóvel',
+  property_scope: '🏗️ Área',
   site_visit_preference: '🏡 Visita técnica',
   service_type: '🎨 Serviço',
+  surfaces: '🖼️ Superfícies',
   area_m2: '📐 Metragem',
-  wall_condition: '🧱 Paredes',
+  num_rooms: '🚪 Ambientes',
+  wall_condition: '🧱 Estado das paredes',
+  extras: '⚙️ Extras',
   deadline: '⏱ Prazo',
   material: '🪣 Material',
   preferred_professional: '🤝 Profissional preferido',
@@ -181,12 +190,24 @@ export const FIELD_LABELS: Record<string, string> = {
   final_notes: '📝 Observações',
 }
 
+// Campos sintéticos (não vêm de DB steps) incluídos no resumo de confirmação
+export const SYNTHETIC_SUMMARY_FIELDS: (keyof CollectedData)[] = ['property_scope', 'site_visit_preference']
+
 export function prettifyFieldKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 export function buildSummary(steps: FlowStep[], data: CollectedData): string {
   const lines: string[] = []
+
+  // Synthetic fields first (property_scope goes right after property_type)
+  for (const key of SYNTHETIC_SUMMARY_FIELDS) {
+    const val = (data as unknown as Record<string, unknown>)[key]
+    if (val !== undefined && val !== null && val !== '') {
+      lines.push(`${FIELD_LABELS[key] || prettifyFieldKey(key)}: ${String(val)}`)
+    }
+  }
+
   for (const step of branchSteps(steps, 'client')) {
     if (step.field_key === 'role' || step.field_key === 'confirmed') continue
     const value = getFieldValue(step, data)
@@ -199,7 +220,8 @@ export function buildSummary(steps: FlowStep[], data: CollectedData): string {
     }
 
     const label = FIELD_LABELS[step.field_key] || `📌 ${prettifyFieldKey(step.field_key)}`
-    const displayValue = step.field_key === 'area_m2' ? `${value} m²` : String(value)
+    const isNumericArea = step.field_key === 'area_m2' && typeof value === 'number'
+    const displayValue = isNumericArea ? `${value} m²` : String(value)
     lines.push(`${label}: ${displayValue}`)
   }
   if (data.notes_media_urls?.length) {
@@ -236,6 +258,8 @@ export function computeFieldValue(step: FlowStep, rawText: string): unknown {
   }
 
   if (step.field_key === 'area_m2') {
+    // Accept range quick-replies (e.g. "25–50 m²") — store as string
+    if (/até|acima|–|-/.test(normalized)) return rawText.trim()
     const n = Number(normalized.replace(',', '.').replace(/[^\d.]/g, ''))
     return n > 0 ? n : undefined
   }
