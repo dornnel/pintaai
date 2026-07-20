@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth'
 import {
   type FlowStep, type CollectedData, type BudgetCalc,
   CHIP_TO_SERVICE, KNOWN_NEIGHBORHOODS, SKIP_VALUES, VALIDATORS, EXTRACTABLE_VALIDATIONS,
+  FIELD_LABELS,
   branchSteps, getStep, setFieldValue, renderTemplate, computeFieldValue,
   resolveNext, autoAdvance,
 } from './chatFlow'
@@ -64,6 +65,7 @@ export function useChat() {
   const dataRef = useRef<CollectedData>({})
   const metadataRef = useRef(getBrowserMetadata())
   const prefilledFieldsRef = useRef<Set<string>>(new Set())
+  const correctionModeRef = useRef<boolean>(false)
   const stepsPromiseRef = useRef<Promise<FlowStep[]> | null>(null)
   const loadedStepsRef = useRef<FlowStep[]>([])
 
@@ -198,8 +200,26 @@ export function useChat() {
     }
   }
 
+  function buildCorrectionOptions(data: CollectedData): string[] {
+    return Object.entries(FIELD_LABELS)
+      .filter(([key]) => {
+        if (key === 'role' || key === 'confirmed') return false
+        const val = (data as unknown as Record<string, unknown>)[key]
+        return val !== undefined && val !== null && val !== ''
+      })
+      .map(([, label]) => label)
+      .slice(0, 6)
+  }
+
   // ── Avança para o próximo step (aplica auto-skip e transição via IA) ────────
   async function advanceToState(nextKey: string, data: CollectedData, opts?: { fromStep?: FlowStep; fromValue?: string }) {
+    if (nextKey === 'correction_select') {
+      setCurrentState('correction_select')
+      saveSessionState(nextKey, data).catch(console.error)
+      const options = buildCorrectionOptions(data)
+      agentMessage('Qual dado você quer corrigir? Escolha abaixo 👇', options.length > 0 ? options : undefined)
+      return
+    }
     if (nextKey === 'generating_briefing') {
       setCurrentState('generating_briefing')
       saveSessionState(nextKey, data).catch(console.error)
@@ -282,9 +302,47 @@ export function useChat() {
         data.service_type = matchedChip[1]
         data.role = 'client'
         prefilled.add('service_type')
-        prefilled.add('role')  // chip de serviço pula role_select
+        prefilled.add('role')
         transitionField = 'service_type'
         transitionValue = matchedChip[1]
+      } else if (text.trim().length > 20) {
+        // Mensagem substancial — extrai todos os campos via LLM antes de prosseguir
+        setLoading(true)
+        try {
+          const { data: ctxResult } = await supabase.functions.invoke('agent-chat', {
+            body: {
+              session_id: sessionId.current,
+              message: text,
+              history: [],
+              metadata: metadataRef.current,
+              action: 'extract_initial_context',
+            },
+          })
+          const extracted = ctxResult?.extracted as Record<string, unknown> | undefined
+          if (extracted) {
+            const CORE_FIELDS = ['name', 'service_type', 'area_m2', 'property_type', 'neighborhood', 'wall_condition', 'deadline', 'material', 'whatsapp'] as const
+            for (const key of CORE_FIELDS) {
+              const val = extracted[key]
+              if (val !== undefined && val !== null) {
+                (data as unknown as Record<string, unknown>)[key] = val
+                prefilled.add(key)
+              }
+            }
+            if (extracted.role === 'painter') {
+              data.role = 'painter'; prefilled.add('role')
+            } else if (!data.role) {
+              data.role = 'client'; prefilled.add('role')
+            }
+            transitionField = extracted.service_type ? 'service_type' : null
+            transitionValue = extracted.service_type ? String(extracted.service_type) : text
+          } else {
+            transitionValue = text
+          }
+        } catch {
+          transitionValue = text
+        } finally {
+          setLoading(false)
+        }
       } else {
         transitionValue = text
       }
@@ -420,7 +478,9 @@ export function useChat() {
     dataRef.current = newData
     setCollectedData(newData)
 
-    const nextKey = resolveNext(steps, step, rawText, newData)
+    const inCorrection = correctionModeRef.current
+    correctionModeRef.current = false
+    const nextKey = inCorrection ? 'confirmation' : resolveNext(steps, step, rawText, newData)
 
     if (step.branch === 'client' && step.field_key === 'whatsapp') {
       savePartialLead(newData, nextKey).catch(console.warn)
@@ -619,6 +679,28 @@ export function useChat() {
       return
     }
 
+    // Correção de campo específico: usuário escolhe qual dado quer corrigir
+    if (currentState === 'correction_select') {
+      const steps = await getSteps()
+      const selected = Object.entries(FIELD_LABELS).find(([, label]) =>
+        text.trim() === label || text.includes(label.replace(/^.\s/, ''))
+      )
+      if (selected) {
+        const [fieldKey] = selected
+        const targetStep = branchSteps(steps, 'client').find(s => s.field_key === fieldKey)
+        if (targetStep) {
+          correctionModeRef.current = true
+          setCurrentState(targetStep.step_key)
+          const msg = renderTemplate(targetStep, steps, dataRef.current, authUser?.name)
+          agentMessage(msg, targetStep.step_type === 'quick_reply' ? targetStep.quick_replies ?? undefined : undefined)
+          return
+        }
+      }
+      const options = buildCorrectionOptions(dataRef.current)
+      agentMessage('Qual dado você quer corrigir? 👆', options.length > 0 ? options : undefined)
+      return
+    }
+
     // Terminal state: briefing was already sent — guide to account and don't stall
     if (currentState === 'briefing_ready') {
       setLoading(true)
@@ -683,6 +765,7 @@ export function useChat() {
     metadataRef.current = getBrowserMetadata()
     dataRef.current = {}
     prefilledFieldsRef.current = new Set()
+    correctionModeRef.current = false
     setCollectedData({})
     setMessages([])
     setCurrentState('init')

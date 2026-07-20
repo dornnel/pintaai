@@ -219,6 +219,61 @@ Mantenha as formatações **negrito**, quebras de linha e emojis já presentes n
       )
     }
 
+    // Extração em massa de todos os campos de uma mensagem inicial rica
+    if (action === 'extract_initial_context') {
+      const extractPrompt = `Você é um extrator de dados para uma plataforma de pintura em Florianópolis.
+
+Mensagem do cliente: "${message}"
+
+Extraia TODOS os dados identificáveis. Para campos não encontrados, use null. Retorne SOMENTE JSON válido:
+{
+  "name": "nome da pessoa (somente nome, ex: André) ou null",
+  "service_type": "Pintura interna|Fachada externa|Pós-obra|Arte / mural|Impermeabilização|Textura / massa corrida ou null",
+  "area_m2": número (só o número, sem unidade) ou null,
+  "property_type": "Apartamento|Casa|Kitnet|Loja|Restaurante|Airbnb|Studio|Outro ou null",
+  "neighborhood": "nome do bairro de Florianópolis (Campeche, Rio Tavares, Armação, etc.) ou null",
+  "wall_condition": "Bom estado|Manchas|Descascando|Rachaduras|Mofo|Pós-obra ou null",
+  "deadline": "O mais rápido possível|2 semanas|Próximo mês|Sem pressa ou null",
+  "material": "Incluso no serviço|Vou comprar separado|Pintor que indique ou null",
+  "whatsapp": "número com DDD somente dígitos ou null",
+  "role": "painter (se a pessoa disser que É pintor e quer se cadastrar) ou null"
+}
+
+Exemplos:
+- "kitnet de 40m2" → property_type:"Kitnet", area_m2:40, service_type:"Pintura interna"
+- "vou comprar o material separado" → material:"Vou comprar separado"
+- "devolver imóvel de 60m2 para imobiliária" → area_m2:60, service_type:"Pintura interna"
+- "parede e teto com rachaduras" → service_type:"Pintura interna", wall_condition:"Rachaduras"
+- "oi meu nome é André" → name:"André"
+- "preciso urgente" → deadline:"O mais rápido possível"
+- "quero um pintor" → role:null`
+
+      const resp = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 300,
+        temperature: 0,
+        messages: [{ role: 'user', content: extractPrompt }],
+      })
+
+      const rawExtracted = resp.choices[0].message.content?.trim() || '{}'
+      let extracted: Record<string, unknown> = {}
+      try {
+        const m = rawExtracted.match(/\{[\s\S]*\}/)
+        if (m) extracted = JSON.parse(m[0])
+      } catch { /* return empty */ }
+
+      for (const k of Object.keys(extracted)) {
+        if (extracted[k] === null || extracted[k] === 'null' || extracted[k] === '') {
+          delete extracted[k]
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ extracted }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     // Extração de campo via linguagem natural (gpt-4o-mini, barato)
     if (action === 'extract_field' && collected) {
       const { field, text: inputText } = collected as { field: string; text: string }

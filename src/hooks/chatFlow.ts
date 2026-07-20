@@ -255,10 +255,7 @@ export function resolveNext(steps: FlowStep[], fromStep: FlowStep, answeredValue
   // Regra 2: confirmação final do branch client
   if (fromStep.field_key === 'confirmed') {
     if (answeredValue.includes('Confirmar')) return 'generating_briefing'
-    if (answeredValue.includes('Corrigir')) {
-      const first = branchSteps(steps, 'client').find(s => s.field_key !== 'role')
-      return first ? first.step_key : 'confirmation'
-    }
+    if (answeredValue.includes('Corrigir')) return 'correction_select'
     return 'confirmation' // texto livre → permanece na confirmação
   }
 
