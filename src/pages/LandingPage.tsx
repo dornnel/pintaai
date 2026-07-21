@@ -180,7 +180,7 @@ function ReviewMarquee() {
 
 // ─── Mobile simple landing (Lovable-style) ───────────────────────────────────
 
-const MOBILE_CHIPS = ['Sala', 'Fachada', 'Pós-obra', 'Mural', 'Enviar fotos']
+
 
 // Placeholder animado: "Quero pintar" + propriedade + local em loop
 const PLACEHOLDER_CYCLE = [
