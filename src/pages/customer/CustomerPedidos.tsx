@@ -351,8 +351,8 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
   )
 }
 
-function ReviewModal({ painterId, interactionId, painterName, onClose, onSubmitted }:
-  { painterId: string; interactionId: string; painterName: string; onClose: () => void; onSubmitted: () => void }) {
+function ReviewModal({ painterId, painterName, onClose, onSubmitted }:
+  { painterId: string; painterName: string; onClose: () => void; onSubmitted: () => void }) {
   const { user } = useAuth()
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -636,7 +636,6 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
             {reviewOpen && painter?.id && (
               <ReviewModal
                 painterId={painter.id}
-                interactionId={interaction.id}
                 painterName={painter.user?.name ?? 'o pintor'}
                 onClose={() => setReviewOpen(false)}
                 onSubmitted={() => { setReviewOpen(false); setReviewed(true) }}
