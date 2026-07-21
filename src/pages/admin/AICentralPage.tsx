@@ -92,7 +92,7 @@ export function AICentralPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Central de Inteligência Artificial</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Squad de agentes autônomos que operam a plataforma Pintaê</p>
+          <p className="text-sm text-gray-500 mt-0.5">Squad de agentes autônomos que operam a plataforma Pinte Rápido</p>
         </div>
       </div>
 

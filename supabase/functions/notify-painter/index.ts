@@ -8,7 +8,7 @@ const supabase = createClient(
 
 const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || ''
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const FROM_NAME = 'Pintai Floripa'
+const FROM_NAME = 'Pinte Rápido Floripa'
 const FROM_EMAIL = 'noreply@agenscia.com'
 const APP_URL = 'https://pintai.agenscia.com'
 
@@ -75,7 +75,7 @@ function buildPainterEmail(params: {
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
 
   <div style="background:#E35A1A;padding:24px 32px">
-    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pintai Floripa</h1>
+    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pinte Rápido Floripa</h1>
     <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:14px">Nova oportunidade de trabalho</p>
   </div>
 
@@ -211,7 +211,7 @@ Deno.serve(async (req: Request) => {
       painterId: painter_id,
     })
 
-    const subject = `Nova oportunidade — ${l.protocol} · ${l.service_interest} em ${l.neighborhood} | Pintai Floripa`
+    const subject = `Nova oportunidade — ${l.protocol} · ${l.service_interest} em ${l.neighborhood} | Pinte Rápido Floripa`
     const sent = await sendEmail(painterEmail, painterName, subject, html)
 
     return new Response(

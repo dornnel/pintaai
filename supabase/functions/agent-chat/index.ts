@@ -8,7 +8,7 @@ const supabase = createClient(
   { db: { schema: 'pintae' } },
 )
 
-const SYSTEM_PROMPT = `Você é o Koke, assistente da Pintai Floripa. Humano, direto, simpático — nunca robótico.
+const SYSTEM_PROMPT = `Você é o Koke, assistente da Pinte Rápido Floripa. Humano, direto, simpático — nunca robótico.
 
 Tom: PT-BR natural, curto. **Negrito** só em campos-chave. Máx 2 linhas por mensagem. Emojis com moderação.
 
@@ -139,14 +139,14 @@ Deno.serve(async (req: Request) => {
       if (field.startsWith('validation_')) {
         const realField = field.replace('validation_', '')
         const { value, hint } = context as { value: string; hint: string }
-        questionPrompt = `Você é o Koke, assistente da Pintai Floripa. Tom: amigável, empático, PT-BR natural.
+        questionPrompt = `Você é o Koke, assistente da Pinte Rápido Floripa. Tom: amigável, empático, PT-BR natural.
 
 O usuário tentou preencher o campo "${realField}" com: "${value}"
 Problema: ${hint}
 
 Gere UMA mensagem curta e amigável explicando que esse valor não serve para "${realField}" e pedindo novamente de forma natural. Não seja repetitivo. Máx 1-2 linhas. Sem JSON.`
       } else {
-        questionPrompt = `Você é o Koke, assistente da Pintai Floripa. Tom: amigável, direto, PT-BR natural.
+        questionPrompt = `Você é o Koke, assistente da Pinte Rápido Floripa. Tom: amigável, direto, PT-BR natural.
 
 Dados já coletados: ${JSON.stringify(context)}
 Campo que precisa coletar agora: ${field}
@@ -193,7 +193,7 @@ Mantenha as formatações **negrito**, quebras de linha e emojis já presentes n
         max_tokens: 200,
         temperature: 0.6,
         messages: [
-          { role: 'system', content: 'Você é o Koke, assistente da Pintai Floripa. Tom: natural, simpático, PT-BR. Responda em texto puro, sem JSON, sem markdown de bloco de código.' },
+          { role: 'system', content: 'Você é o Koke, assistente da Pinte Rápido Floripa. Tom: natural, simpático, PT-BR. Responda em texto puro, sem JSON, sem markdown de bloco de código.' },
           { role: 'user', content: transitionPrompt },
         ],
       })
@@ -386,7 +386,7 @@ async function generateBriefing(
   history: { role: string; content: string }[],
   mediaUrls?: string[],
 ): Promise<unknown> {
-  const briefingPrompt = `Você é o agente orçamentista técnico da Pintai Floripa.
+  const briefingPrompt = `Você é o agente orçamentista técnico da Pinte Rápido Floripa.
 
 Dados coletados:
 ${JSON.stringify(collected, null, 2)}

@@ -143,7 +143,7 @@ function ProposalCard({
       {/* CTA */}
       {isAccepted && painter?.user?.phone ? (
         <a
-          href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pintai e gostaria de agendar o serviço.`}
+          href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pinte Rápido e gostaria de agendar o serviço.`}
           target="_blank"
           rel="noopener noreferrer"
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors"
@@ -313,7 +313,7 @@ export function CustomerArea() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-brand">Pintai</Link>
+          <Link to="/" className="text-lg font-bold text-brand">Pinte Rápido</Link>
           <div className="flex items-center gap-3">
             <RoleSwitcher />
             <span className="text-sm text-gray-500 hidden sm:block">{user?.name}</span>

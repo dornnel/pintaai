@@ -219,7 +219,7 @@ export function PainterDashboard() {
             <div>
               <p className="font-bold text-base mb-0.5">Experimente o Plano Pro</p>
               <p className="text-gray-400 text-xs leading-relaxed">
-                Leads ilimitados, PDF de orçamento profissional, perfil em destaque e Selo Verificado Pintaê.
+                Leads ilimitados, PDF de orçamento profissional, perfil em destaque e Selo Verificado Pinte Rápido.
               </p>
             </div>
           </div>

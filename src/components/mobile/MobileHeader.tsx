@@ -35,7 +35,7 @@ export function MobileHeader({ title, subtitle, showBack, showLogo, rightAction,
         )}
 
         {showLogo && (
-          <span className="text-base font-bold text-brand shrink-0">Pintai</span>
+          <span className="text-base font-bold text-brand shrink-0">Pinte Rápido</span>
         )}
 
         {title && (

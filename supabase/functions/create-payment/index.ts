@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
       billingType: payment_method,
       value: grossAmount,
       dueDate,
-      description: `Pintai — Serviço de pintura #${service_request_id.slice(0, 8)}`,
+      description: `Pinte Rápido — Serviço de pintura #${service_request_id.slice(0, 8)}`,
       externalReference: service_request_id,
     }
 

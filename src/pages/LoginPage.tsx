@@ -189,7 +189,7 @@ export function LoginPage() {
             <div className="w-11 h-11 rounded-2xl bg-brand flex items-center justify-center">
               <Paintbrush className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-brand">Pintai</span>
+            <span className="text-xl font-bold text-brand">Pinte Rápido</span>
           </div>
 
           <div className="px-8 py-6">

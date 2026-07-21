@@ -459,7 +459,7 @@ export function PainterPortal() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-brand">Pintai</Link>
+          <Link to="/" className="text-lg font-bold text-brand">Pinte Rápido</Link>
           <div className="flex items-center gap-3">
             <RoleSwitcher />
             {score && score.overall_score > 0 && (

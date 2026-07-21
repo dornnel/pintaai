@@ -15,13 +15,13 @@ export function TermsPage() {
         <div className="prose prose-sm max-w-none space-y-6 text-gray-700">
 
           <section>
-            <h2 className="text-lg font-bold text-gray-900 mb-2">1. Sobre a Pintai</h2>
-            <p>A Pintai é uma plataforma digital de intermediação entre clientes e profissionais de pintura, desenvolvida e operada pela <strong>Pintai Tecnologia Ltda.</strong>, com sede em Florianópolis — SC. A plataforma conecta clientes que buscam serviços de pintura com pintores verificados da região.</p>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">1. Sobre a Pinte Rápido</h2>
+            <p>A Pinte Rápido é uma plataforma digital de intermediação entre clientes e profissionais de pintura, desenvolvida e operada pela <strong>Pinte Rápido Tecnologia Ltda.</strong>, com sede em Florianópolis — SC. A plataforma conecta clientes que buscam serviços de pintura com pintores verificados da região.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">2. Aceitação dos Termos</h2>
-            <p>Ao acessar ou usar a Pintai, você concorda com estes Termos de Uso. Se não concordar, não utilize a plataforma. O uso continuado após alterações nos termos implica aceitação das mudanças.</p>
+            <p>Ao acessar ou usar a Pinte Rápido, você concorda com estes Termos de Uso. Se não concordar, não utilize a plataforma. O uso continuado após alterações nos termos implica aceitação das mudanças.</p>
           </section>
 
           <section>
@@ -36,12 +36,12 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">4. Como Funciona</h2>
-            <p>A Pintai facilita a conexão entre cliente e pintor. O cliente descreve o projeto via chat, recebe uma estimativa de IA (apenas referência interna) e pode receber propostas de pintores verificados. A Pintai <strong>não é parte do contrato de serviço</strong> entre cliente e pintor.</p>
+            <p>A Pinte Rápido facilita a conexão entre cliente e pintor. O cliente descreve o projeto via chat, recebe uma estimativa de IA (apenas referência interna) e pode receber propostas de pintores verificados. A Pinte Rápido <strong>não é parte do contrato de serviço</strong> entre cliente e pintor.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">5. Pagamentos e Taxas</h2>
-            <p>A Pintai opera um sistema de escrow (depósito em garantia) para proteger clientes e pintores. Os valores ficam retidos até a conclusão do serviço. A plataforma cobra uma taxa de intermediação sobre os valores processados, conforme informado no momento da contratação.</p>
+            <p>A Pinte Rápido opera um sistema de escrow (depósito em garantia) para proteger clientes e pintores. Os valores ficam retidos até a conclusão do serviço. A plataforma cobra uma taxa de intermediação sobre os valores processados, conforme informado no momento da contratação.</p>
           </section>
 
           <section>
@@ -57,12 +57,12 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">7. Inteligência Artificial</h2>
-            <p>A Pintai usa IA para gerar estimativas de custo e briefings técnicos. Esses valores são <strong>apenas referência</strong> e não constituem proposta comercial. O preço final é definido pelo pintor com base em visita técnica ao local.</p>
+            <p>A Pinte Rápido usa IA para gerar estimativas de custo e briefings técnicos. Esses valores são <strong>apenas referência</strong> e não constituem proposta comercial. O preço final é definido pelo pintor com base em visita técnica ao local.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">8. Responsabilidades</h2>
-            <p>A Pintai não se responsabiliza por danos decorrentes de serviços realizados por pintores, disputas entre as partes ou indisponibilidade temporária da plataforma. Nos limites da lei, nossa responsabilidade máxima se restringe ao valor da taxa cobrada na transação em questão.</p>
+            <p>A Pinte Rápido não se responsabiliza por danos decorrentes de serviços realizados por pintores, disputas entre as partes ou indisponibilidade temporária da plataforma. Nos limites da lei, nossa responsabilidade máxima se restringe ao valor da taxa cobrada na transação em questão.</p>
           </section>
 
           <section>
@@ -72,7 +72,7 @@ export function TermsPage() {
 
           <section>
             <h2 className="text-lg font-bold text-gray-900 mb-2">10. Alterações</h2>
-            <p>A Pintai pode alterar estes termos a qualquer momento, comunicando os usuários por email ou aviso na plataforma com no mínimo 10 dias de antecedência.</p>
+            <p>A Pinte Rápido pode alterar estes termos a qualquer momento, comunicando os usuários por email ou aviso na plataforma com no mínimo 10 dias de antecedência.</p>
           </section>
 
           <section>

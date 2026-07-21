@@ -351,7 +351,7 @@ export function PainterDetailPage() {
                   <p className="text-sm font-semibold text-gray-900">Plano Pro — Cortesia Admin</p>
                   <p className="text-xs text-gray-500">
                     {painter.pro_plan_status === 'active' && painter.pro_granted_by_admin
-                      ? 'Ativo — sem pagamento (cortesia Pintai)'
+                      ? 'Ativo — sem pagamento (cortesia Pinte Rápido)'
                       : painter.pro_plan_status === 'active'
                       ? 'Ativo via pagamento — não gerenciado aqui'
                       : 'Pintor no plano gratuito'}

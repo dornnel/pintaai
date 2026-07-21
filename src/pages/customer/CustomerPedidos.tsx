@@ -523,7 +523,7 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
         {!isClosed && (
           <div className="space-y-2">
             {isAccepted && painter?.user?.phone && (
-              <a href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pintai e gostaria de agendar o serviço.`}
+              <a href={`https://wa.me/55${painter.user.phone.replace(/\D/g, '')}?text=Olá! Vi sua proposta no Pinte Rápido e gostaria de agendar o serviço.`}
                 target="_blank" rel="noopener noreferrer"
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors">
                 <Phone className="w-3.5 h-3.5" /> WhatsApp do pintor
@@ -781,7 +781,7 @@ function LeadCard({ lead: initialLead }: { lead: CustomerLead }) {
                     {lead.current_color && <><span className="text-gray-400">Cor atual</span><span className="text-gray-700">{lead.current_color}</span></>}
                     {lead.estimated_budget && <><span className="text-gray-400">Orçamento esp.</span><span className="text-gray-700">{lead.estimated_budget}</span></>}
                     {lead.calc_price_min && lead.calc_price_max && (
-                      <><span className="text-gray-400">Estimativa Pintai</span>
+                      <><span className="text-gray-400">Estimativa Pinte Rápido</span>
                       <span className="text-gray-700 font-medium">
                         {formatCurrency(lead.calc_price_min)} – {formatCurrency(lead.calc_price_max)}
                       </span></>

@@ -48,7 +48,7 @@ export function SubscriptionsPage() {
     <div className="p-4 sm:p-6">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">Assinaturas</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Gestão do plano Pintai Pro</p>
+        <p className="text-sm text-gray-500 mt-0.5">Gestão do plano Pinte Rápido Pro</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
@@ -72,7 +72,7 @@ export function SubscriptionsPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <CreditCard className="w-10 h-10 text-gray-200 mx-auto mb-3" />
           <p className="text-gray-400 text-sm">Nenhum assinante ainda.</p>
-          <p className="text-xs text-gray-300 mt-1">As assinaturas do plano Pintai Pro aparecerão aqui.</p>
+          <p className="text-xs text-gray-300 mt-1">As assinaturas do plano Pinte Rápido Pro aparecerão aqui.</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

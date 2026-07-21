@@ -224,7 +224,7 @@ export function PainterLayout() {
         <aside className="hidden lg:flex lg:flex-col w-56 bg-white border-r border-gray-100 shrink-0">
           <div className="h-14 px-4 flex items-center border-b border-gray-100 shrink-0">
             <div className="flex items-center gap-2">
-              <span className="text-base font-bold text-brand">Pintai</span>
+              <span className="text-base font-bold text-brand">Pinte Rápido</span>
               <span className="text-xs bg-gradient-to-r from-[#FF7A30] to-brand text-white px-2 py-0.5 rounded font-medium">
                 Pintor
               </span>
@@ -308,7 +308,7 @@ export function PainterLayout() {
             <div className="h-12 lg:h-14 px-4 flex items-center gap-3"
               style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-sm font-bold text-brand shrink-0">Pintai</span>
+                <span className="text-sm font-bold text-brand shrink-0">Pinte Rápido</span>
                 <span className="text-[11px] bg-gradient-to-r from-[#FF7A30] to-brand text-white px-2 py-0.5 rounded font-semibold shrink-0">
                   Pintor
                 </span>

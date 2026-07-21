@@ -3,7 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-const FROM_NAME = 'Pintai Floripa'
+const FROM_NAME = 'Pinte Rápido Floripa'
 const FROM_EMAIL = 'noreply@agenscia.com'
 const APP_URL = 'https://pintai.agenscia.com'
 const FALLBACK_ADMIN_EMAIL = 'andre@agenscia.com'
@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
 <body style="font-family:system-ui,-apple-system,sans-serif;background:#f9f7f5;margin:0;padding:20px">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
   <div style="background:${isUpdate ? '#2563eb' : '#E35A1A'};padding:24px 32px">
-    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pintai Floripa</h1>
+    <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700">🎨 Pinte Rápido Floripa</h1>
     <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:14px">O pintor certo para o seu espaço</p>
   </div>
   <div style="padding:28px 32px">
@@ -201,8 +201,8 @@ Deno.serve(async (req: Request) => {
 
     // ── Send emails ──
     const clientSubject = isUpdate
-      ? `Proposta atualizada — ${p.protocol} | Pintai Floripa`
-      : `Nova proposta recebida — ${p.protocol} | Pintai Floripa`
+      ? `Proposta atualizada — ${p.protocol} | Pinte Rápido Floripa`
+      : `Nova proposta recebida — ${p.protocol} | Pinte Rápido Floripa`
     const adminSubject = isUpdate
       ? `⚙️ [ADMIN] Proposta atualizada ${p.protocol} — ${p.painter_name} · ${formatBRL(p.total_price)}`
       : `⚙️ [ADMIN] Proposta enviada ${p.protocol} — ${p.painter_name} · ${formatBRL(p.total_price)}`
@@ -210,7 +210,7 @@ Deno.serve(async (req: Request) => {
     const adminEmails = await getAdminEmails(sb)
     const results = await Promise.allSettled([
       sendEmail(p.client_email, p.client_name, clientSubject, clientHtml),
-      ...adminEmails.map(addr => sendEmail(addr, 'Admin Pintai', adminSubject, adminHtml)),
+      ...adminEmails.map(addr => sendEmail(addr, 'Admin Pinte Rápido', adminSubject, adminHtml)),
     ])
 
     return new Response(

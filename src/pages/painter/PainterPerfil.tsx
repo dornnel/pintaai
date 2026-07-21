@@ -313,7 +313,7 @@ export function PainterPerfil() {
             {
               key: 'terms_accepted_at' as const,
               label: 'Termos de Uso',
-              desc: 'Aceito os Termos de Uso da plataforma Pintai Floripa.',
+              desc: 'Aceito os Termos de Uso da plataforma Pinte Rápido Floripa.',
               state: termsAccepted,
               set: setTermsAccepted,
               acceptedAt: painter.terms_accepted_at,
@@ -321,7 +321,7 @@ export function PainterPerfil() {
             {
               key: 'privacy_accepted_at' as const,
               label: 'Política de Privacidade',
-              desc: 'Li e aceito a Política de Privacidade da Pintai Floripa.',
+              desc: 'Li e aceito a Política de Privacidade da Pinte Rápido Floripa.',
               state: privacyAccepted,
               set: setPrivacyAccepted,
               acceptedAt: painter.privacy_accepted_at,

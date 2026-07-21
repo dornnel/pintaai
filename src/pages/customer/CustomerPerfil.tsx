@@ -96,7 +96,7 @@ export function CustomerPerfil() {
     <div className="max-w-2xl mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Meu Perfil</h1>
-        <p className="text-gray-500 text-sm mt-1">Informações da sua conta no Pintai.</p>
+        <p className="text-gray-500 text-sm mt-1">Informações da sua conta no Pinte Rápido.</p>
       </motion.div>
 
       {/* WhatsApp alert */}

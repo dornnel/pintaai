@@ -10,7 +10,7 @@ import { invalidatePlatformSettingsCache } from '../../lib/usePlatformSettings'
 const SETTING_DEFS = [
   { key: 'whatsapp_number', label: 'WhatsApp da plataforma', description: 'Número para contato (sem +)', type: 'text', group: 'Contato' },
   { key: 'admin_email', label: 'E-mail do admin', description: 'Recebe notificações do sistema', type: 'email', group: 'Contato' },
-  { key: 'email_from_name', label: 'Nome do remetente', description: 'Nome exibido nos emails enviados (ex: Pintai Floripa)', type: 'text', group: 'Email' },
+  { key: 'email_from_name', label: 'Nome do remetente', description: 'Nome exibido nos emails enviados (ex: Pinte Rápido Floripa)', type: 'text', group: 'Email' },
   { key: 'email_from_address', label: 'Email do remetente', description: 'Endereço do remetente (deve ser validado no Brevo)', type: 'email', group: 'Email' },
   { key: 'email_reply_to', label: 'Responder para', description: 'Email que receberá respostas dos clientes', type: 'email', group: 'Email' },
   { key: 'admin_notification_emails', label: 'Admins que recebem cópia', description: 'Emails separados por vírgula — recebem cópia interna de cada nova solicitação', type: 'text', group: 'Email' },

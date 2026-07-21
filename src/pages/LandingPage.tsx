@@ -31,22 +31,8 @@ function PintaiLogo({ white = false }: { white?: boolean }) {
         lineHeight: 1,
       }}
     >
-      {/* Full word as one unit */}
-      <span>pint</span>
-      <span style={{ color: '#E35A1A' }}>ai</span>
-      {/* Small orange square accent — like a paint chip */}
-      <span
-        style={{
-          display: 'inline-block',
-          width: 5,
-          height: 5,
-          background: '#E35A1A',
-          borderRadius: 1,
-          marginLeft: 3,
-          marginBottom: 1,
-          flexShrink: 0,
-        }}
-      />
+      <span>pinte </span>
+      <span style={{ color: '#E35A1A' }}>rápido</span>
     </div>
   )
 }
@@ -1068,7 +1054,7 @@ export function LandingPage() {
           </div>
         </div>
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-white/6">
-          <p className="text-xs">© {new Date().getFullYear()} Pintai · Dados protegidos pela LGPD</p>
+          <p className="text-xs">© {new Date().getFullYear()} Pinte Rápido · Dados protegidos pela LGPD</p>
           <a href="mailto:oi@pintai.com.br" className="text-xs hover:text-white transition-colors">oi@pintai.com.br</a>
         </div>
       </footer>

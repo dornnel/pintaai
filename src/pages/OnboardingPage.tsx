@@ -46,7 +46,7 @@ export function OnboardingPage() {
           {/* Avatar Koke */}
           <div className="text-center mb-6">
             <img src="/avatar_koke.jpeg" alt="Koke" className="w-16 h-16 rounded-full object-cover mx-auto mb-3 shadow-md" />
-            <h1 className="text-xl font-bold text-gray-900">Olá! Como você vai usar a Pintai?</h1>
+            <h1 className="text-xl font-bold text-gray-900">Olá! Como você vai usar a Pinte Rápido?</h1>
             <p className="text-sm text-gray-500 mt-1">
               {user?.name ? `${user.name.split(' ')[0]}, escolha` : 'Escolha'} seu perfil principal.
               Você pode adicionar mais depois.

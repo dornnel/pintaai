@@ -1,4 +1,4 @@
-// Motor de Inteligência de Orçamento de Pintura — Pintai
+// Motor de Inteligência de Orçamento de Pintura — Pinte Rápido
 // Cópia das funções puras de src/lib/budgetEngine.ts para uso em edge functions (Deno).
 // Mantenha as duas versões em sincronia ao alterar a lógica de cálculo.
 

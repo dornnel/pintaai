@@ -114,7 +114,7 @@ function InviteUserModal({ onClose, onDone }: { onClose: () => void; onDone: () 
           protocol: 'CONVITE',
           neighborhood: '',
           service_type: '',
-          summary: `Você foi convidado para a plataforma Pintai!\n\nAcesse o link abaixo para criar sua conta:\n${window.location.origin}/login?tab=register\n\nSeu papel: ${role}`,
+          summary: `Você foi convidado para a plataforma Pinte Rápido!\n\nAcesse o link abaixo para criar sua conta:\n${window.location.origin}/login?tab=register\n\nSeu papel: ${role}`,
         },
       })
 

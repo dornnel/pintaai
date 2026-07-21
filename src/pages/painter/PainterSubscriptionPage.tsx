@@ -23,7 +23,7 @@ const PRO_FEATURES = [
   'PDF de orçamento profissional com logo',
   'Visualizador de cores para clientes',
   'Perfil em destaque no marketplace',
-  'Selo "Verificado Pintaê"',
+  'Selo "Verificado Pinte Rápido"',
   'Análise de desempenho (taxa de resposta e conversão)',
   'Suporte prioritário via WhatsApp',
 ]
@@ -34,7 +34,7 @@ export function PainterSubscriptionPage() {
   const isTrial = painter?.pro_plan_status === 'trial'
   const isAdminGranted = painter?.pro_granted_by_admin === true
 
-  const whatsappUrl = `https://wa.me/5548999999999?text=Quero%20assinar%20o%20Plano%20Pro%20Pintai!%20Meu%20email%20de%20cadastro%20%C3%A9%3A%20`
+  const whatsappUrl = `https://wa.me/5548999999999?text=Quero%20assinar%20o%20Plano%20Pro%20Pinte Rápido!%20Meu%20email%20de%20cadastro%20%C3%A9%3A%20`
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -50,8 +50,8 @@ export function PainterSubscriptionPage() {
           className="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex items-center gap-3">
           <Crown className="w-5 h-5 text-purple-600 shrink-0" />
           <div>
-            <p className="font-semibold text-purple-900 text-sm">Plano Pro — Cortesia Pintai</p>
-            <p className="text-xs text-purple-700">Ativado pelo time Pintai. Nenhum pagamento necessário.</p>
+            <p className="font-semibold text-purple-900 text-sm">Plano Pro — Cortesia Pinte Rápido</p>
+            <p className="text-xs text-purple-700">Ativado pelo time Pinte Rápido. Nenhum pagamento necessário.</p>
           </div>
         </motion.div>
       )}

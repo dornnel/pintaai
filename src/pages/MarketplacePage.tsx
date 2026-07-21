@@ -69,7 +69,7 @@ export function MarketplacePage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-brand">Pintai</Link>
+          <Link to="/" className="text-lg font-bold text-brand">Pinte Rápido</Link>
           <div className="flex items-center gap-3">
             <Link to="/chat" className="text-sm text-brand font-medium hidden sm:block">Pedir orçamento</Link>
             <Link to="/login" className="text-sm text-gray-500 hover:text-gray-700">Entrar</Link>

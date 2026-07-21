@@ -506,7 +506,7 @@ export function useChat() {
           const firstName = ((userCheck.name as string) || newData.name || '').split(' ')[0]
           agentMessage(
             userCheck.has_account
-              ? `Reconheci seu e-mail${firstName ? `, ${firstName}` : ''}! 😊 Você já tem uma conta na Pintai — ao final, é só fazer login para acompanhar as propostas diretamente.`
+              ? `Reconheci seu e-mail${firstName ? `, ${firstName}` : ''}! 😊 Você já tem uma conta na Pinte Rápido — ao final, é só fazer login para acompanhar as propostas diretamente.`
               : `Ótimo! Encontrei um cadastro com este e-mail. 😊`
           )
           await delay(500)
