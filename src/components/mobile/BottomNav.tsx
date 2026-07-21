@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { Home, MessageCircle, Paintbrush, ShoppingBag, User } from 'lucide-react'
+import { Home, MessageCircle, Wrench, ShoppingBag, User } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { LucideProps } from 'lucide-react'
 
@@ -14,7 +14,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { to: '/', icon: Home, label: 'Início', end: true },
-  { to: '/calculadora', icon: Paintbrush, label: 'Calcular' },
+  { to: '/ferramentas', icon: Wrench, label: 'Ferramentas' },
   { to: '/chat', icon: MessageCircle, label: 'Chat', primary: true },
   { to: '/marketplace', icon: ShoppingBag, label: 'Loja' },
   { to: '/minha-area', icon: User, label: 'Eu' },

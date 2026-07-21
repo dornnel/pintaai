@@ -5,7 +5,7 @@ import {
   Send, Paperclip, ArrowRight, CheckCircle, Star, Search,
   MessageCircle, ShieldCheck, ChevronDown, Sparkles, CreditCard,
   Home, Building2, Droplets, Video, Layers, Wrench, Palette,
-  Bot, FileText, UserCheck, BadgeCheck,
+  Bot, FileText, UserCheck, BadgeCheck, Crown, Tag, Phone, Users,
 } from 'lucide-react'
 import { WHATSAPP_URL } from '../lib/constants'
 import { useAuth, getRoleHome } from '../lib/auth'
@@ -1009,6 +1009,62 @@ export function LandingPage() {
           <h2 className="text-xl font-extrabold text-gray-900 mb-2">Sou pintor e quero receber pedidos</h2>
           <p className="text-gray-500 text-sm mb-6">Leads qualificados com briefing técnico, metragem e fotos. Menos visita perdida, mais fechamento.</p>
           <PainterCTA user={user} navigate={navigate} />
+        </div>
+      </section>
+
+      {/* ── Clube Pinte Rápido ── */}
+      <section className="py-20 px-4 bg-gradient-to-br from-gray-950 via-indigo-950 to-gray-900 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10"
+            style={{ background: 'radial-gradient(ellipse, #7C3AED 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
+          <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full opacity-8"
+            style={{ background: 'radial-gradient(ellipse, #4F46E5 0%, transparent 70%)', transform: 'translate(-30%, 30%)' }} />
+        </div>
+        <div className="max-w-4xl mx-auto relative">
+          <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-white/10 text-purple-300 text-xs font-bold px-4 py-1.5 rounded-full mb-4 border border-white/10">
+              <Crown className="w-3.5 h-3.5" /> CLUBE PINTE RÁPIDO
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4" style={{ letterSpacing: '-0.02em' }}>
+              Experiência premium,<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-300">do início ao acabamento</span>
+            </h2>
+            <p className="text-gray-400 text-sm max-w-lg mx-auto leading-relaxed">
+              Visualize a pintura com IA, escolha pintores certificados e conte com acompanhamento exclusivo da nossa equipe.
+            </p>
+          </motion.div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {[
+              { icon: Sparkles, title: '10 gerações de IA/mês', desc: 'Prévia realista antes de contratar', color: 'text-purple-400' },
+              { icon: BadgeCheck, title: 'Pintores certificados', desc: 'Parceiros verificados com prioridade', color: 'text-blue-400' },
+              { icon: Tag, title: 'Descontos em materiais', desc: 'Tinta e primer com preço especial', color: 'text-green-400' },
+              { icon: Phone, title: 'Suporte dedicado', desc: 'WhatsApp exclusivo com a equipe', color: 'text-amber-400' },
+            ].map(({ icon: Icon, title, desc, color }) => (
+              <motion.div key={title} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }} transition={{ duration: 0.5 }}
+                className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center hover:bg-white/8 transition-colors">
+                <Icon className={`w-6 h-6 ${color} mx-auto mb-2`} />
+                <p className="text-white font-semibold text-sm mb-1">{title}</p>
+                <p className="text-gray-500 text-xs leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            className="text-center">
+            <div className="inline-flex flex-col sm:flex-row items-center gap-3">
+              <Link to="/clube"
+                className="flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded hover:opacity-90 transition-opacity text-base shadow-xl shadow-indigo-900/40">
+                <Crown className="w-4 h-4" /> Conhecer o Clube — R$49/mês
+              </Link>
+              <Link to="/ferramentas" className="text-gray-500 text-sm hover:text-gray-300 transition-colors">
+                Ver ferramentas gratuitas →
+              </Link>
+            </div>
+            <p className="text-gray-600 text-xs mt-3">10 créditos de IA inclusos · Cancele quando quiser</p>
+          </motion.div>
         </div>
       </section>
 

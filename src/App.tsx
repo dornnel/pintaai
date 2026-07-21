@@ -55,6 +55,8 @@ import { PrivacyPage } from './pages/PrivacyPage'
 import { PaintCalculatorPage } from './pages/PaintCalculatorPage'
 import { PaintersDirectoryPage } from './pages/PaintersDirectoryPage'
 import { BecomePainterPage } from './pages/BecomePainterPage'
+import { FerramentasPage } from './pages/FerramentasPage'
+import { ClubePage } from './pages/ClubePage'
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -137,6 +139,8 @@ function AppRoutes() {
       <Route path="/termos" element={<TermsPage />} />
       <Route path="/privacidade" element={<PrivacyPage />} />
       <Route path="/calculadora" element={<PaintCalculatorPage />} />
+      <Route path="/ferramentas" element={<FerramentasPage />} />
+      <Route path="/clube" element={<ClubePage />} />
       <Route path="/pintores" element={<PaintersDirectoryPage />} />
 
       {/* Customer — nested under CustomerLayout sidebar */}
