@@ -401,6 +401,7 @@ const HERO_PLACEHOLDERS = [
   'quero pintar meu escritório...',
   'parede com mofo e manchas...',
   'textura na sala de estar...',
+  'quero pintar o apartamento pra devolver para imobiliária...',
 ]
 
 function HeroChat() {
