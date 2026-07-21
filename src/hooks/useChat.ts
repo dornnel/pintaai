@@ -63,6 +63,7 @@ export function useChat() {
   const [loading, setLoading] = useState(false)
   const [currentState, setCurrentState] = useState<string>('init')
   const [collectedData, setCollectedData] = useState<CollectedData>({})
+  const [authGateAction, setAuthGateAction] = useState<'idle' | 'google' | 'login'>('idle')
   const sessionId = useRef(getOrCreateSessionId())
   const dataRef = useRef<CollectedData>({})
   const metadataRef = useRef(getBrowserMetadata())
@@ -70,6 +71,8 @@ export function useChat() {
   const correctionModeRef = useRef<boolean>(false)
   const stepsPromiseRef = useRef<Promise<FlowStep[]> | null>(null)
   const loadedStepsRef = useRef<FlowStep[]>([])
+  const wasLoggedInRef = useRef(Boolean(authUser))
+  const currentStateRef = useRef('init')
 
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg])
@@ -126,6 +129,33 @@ export function useChat() {
     getSteps().catch(console.error)
     saveSessionState('init', {}).catch(console.error)
   }, [])
+
+  // Keep currentStateRef in sync so closures can read the latest value
+  useEffect(() => { currentStateRef.current = currentState }, [currentState])
+
+  // Detect login DURING auth_gate (password login — no page redirect)
+  useEffect(() => {
+    const justLoggedIn = !wasLoggedInRef.current && Boolean(authUser)
+    wasLoggedInRef.current = Boolean(authUser)
+    if (!justLoggedIn || currentStateRef.current !== 'auth_gate') return
+
+    const handlePostAuthLogin = async () => {
+      const data: CollectedData = { ...dataRef.current }
+      if (authUser!.name)  { data.name     = authUser!.name;  prefilledFieldsRef.current.add('name')     }
+      if (authUser!.email) { data.email    = authUser!.email; prefilledFieldsRef.current.add('email')    }
+      if (authUser!.phone) { data.whatsapp = authUser!.phone; prefilledFieldsRef.current.add('whatsapp') }
+      dataRef.current = data
+      setCollectedData(data)
+      const firstName = authUser!.name?.split(' ')[0]
+      agentMessage(`Perfeito${firstName ? `, ${firstName}` : ''}! 🎉 Identificamos seu perfil — vou preencher seus dados automaticamente.`)
+      await delay(1200)
+      const steps = await getSteps()
+      const emailStep = branchSteps(steps, 'client').find(s => s.field_key === 'email')
+      // autoAdvance will skip email + whatsapp since they're now prefilled
+      await advanceToState(emailStep?.step_key ?? 'generating_briefing', data)
+    }
+    handlePostAuthLogin().catch(console.error)
+  }, [authUser]) // eslint-disable-line
 
   // Gera mensagem de transição via IA: reage à resposta/valor anterior e emenda a próxima pergunta
   async function callTransition(params: {
@@ -232,10 +262,18 @@ export function useChat() {
       setCurrentState('painter_done')
       saveSessionState(nextKey, data).catch(console.error)
       await saveToDatabase(data, 'painter')
+      const firstName = data.name?.split(' ')[0] || data.name
       agentMessage(
-        `Perfeito, **${data.name}**! 🎉 Coletei suas informações.\n\nAgora clique abaixo para finalizar seu cadastro e começar a receber pedidos nos seus bairros e especialidades.`,
+        `Perfeito${firstName ? `, **${firstName}**` : ''}! 🎉 Coletei suas informações.\n\nClique abaixo para finalizar seu cadastro e começar a receber pedidos nos seus bairros e especialidades.`,
         undefined,
         { cta: { label: '🖌️ Finalizar cadastro de pintor', href: '/seja-pintor' } },
+      )
+      // Pro plan upsell — 2 seconds later
+      await delay(2500)
+      agentMessage(
+        `🚀 **Turbine seus resultados com o Plano Pro**\n\nLeads ilimitados, PDF de orçamento profissional, perfil em destaque e Selo Verificado Pinte Rápido.\n\n**R$97/mês** · 30 dias grátis para começar`,
+        undefined,
+        { cta: { label: '⚡ Ver Plano Pro', href: '/portal/pintor/assinatura' } },
       )
       return
     }
@@ -245,6 +283,18 @@ export function useChat() {
     if (!resolvedStep) {
       const branch = getStep(steps, nextKey)?.branch
       await advanceToState(branch === 'painter' ? 'painter_done' : 'generating_briefing', data)
+      return
+    }
+
+    // Auth gate: intercept email step for unauthenticated users
+    if (resolvedStep.field_key === 'email' && !authUser) {
+      setCurrentState('auth_gate')
+      currentStateRef.current = 'auth_gate'
+      saveSessionState('auth_gate', data).catch(console.error)
+      agentMessage(
+        `${data.name ? `Ótimo, **${data.name.split(' ')[0]}**! ` : ''}Para finalizar e receber as propostas dos pintores, você já tem uma conta na Pinte Rápido?`,
+        ['✅ Já tenho conta', '🔑 Entrar com Google', '✏️ Preencher meus dados agora'],
+      )
       return
     }
 
@@ -292,8 +342,13 @@ export function useChat() {
         data.role = 'painter'
         prefilled.add('role')
       }
-      // Clientes não têm role preenchido automaticamente → role_select step aparece
-      // para que possam opcionalmente se cadastrar como pintores
+    }
+
+    // Early painter intent detection from first message (before LLM extraction)
+    const isPainterIntent = text !== '__init__' && /pintor|cadastr.*pintor|ser pintor|quero pintar profission|me cadast/i.test(text)
+    if (isPainterIntent && !data.role) {
+      data.role = 'painter'
+      prefilled.add('role')
     }
 
     let transitionField: string | null = null
@@ -610,6 +665,14 @@ export function useChat() {
       { briefing: briefingData },
     )
     setLoading(false)
+
+    // Clube upsell — delayed so it doesn't compete with the success message
+    await delay(3500)
+    agentMessage(
+      `💡 **Quer garantir o melhor resultado?**\n\nMembros do **Clube Pinte Rápido** têm:\n• Prévia da pintura com IA antes de contratar\n• Pintores parceiros certificados com prioridade\n• Acompanhamento exclusivo da nossa equipe durante a obra\n\n**R$49/mês** · 10 gerações de IA incluídas`,
+      undefined,
+      { cta: { label: '👑 Conhecer o Clube — R$49/mês', href: '/clube' } },
+    )
   }
 
   async function saveToDatabase(data: CollectedData, role: 'client' | 'painter'): Promise<{ protocol: string; calc: BudgetCalc | null }> {
@@ -780,6 +843,26 @@ export function useChat() {
       return
     }
 
+    // Auth gate: user choosing how to proceed before email/phone
+    if (currentState === 'auth_gate') {
+      if (/google/i.test(text) || text.includes('🔑')) {
+        setAuthGateAction('google')
+        return
+      }
+      if (/tenho conta|já tenho|✅/i.test(text)) {
+        setAuthGateAction('login')
+        agentMessage('Faça login abaixo 👇 Preencheremos tudo automaticamente depois!')
+        return
+      }
+      // "Preencher meus dados" → advance to email step normally
+      setLoading(true)
+      const steps = await getSteps()
+      setLoading(false)
+      const emailStep = branchSteps(steps, 'client').find(s => s.field_key === 'email')
+      if (emailStep) await advanceToState(emailStep.step_key, dataRef.current)
+      return
+    }
+
     // Terminal state: briefing was already sent — guide to account and don't stall
     if (currentState === 'briefing_ready') {
       setLoading(true)
@@ -863,5 +946,7 @@ export function useChat() {
     collectedData,
     currentState,
     currentInputType,
+    authGateAction,
+    clearAuthGateAction: () => setAuthGateAction('idle'),
   }
 }
