@@ -28,6 +28,28 @@ Deno.serve(async (req: Request) => {
 
     if (!payment?.id) return new Response('OK', { headers: cors })
 
+    // ── Subscription renewal / overdue handling ──────────────────────────────
+    if (payment.subscription) {
+      const subId = payment.subscription
+      if (eventType === 'PAYMENT_RECEIVED' || eventType === 'PAYMENT_CONFIRMED') {
+        const nextDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        await supabase.from('user_subscriptions')
+          .update({ status: 'active', next_billing_date: nextDate })
+          .eq('asaas_subscription_id', subId)
+        const { data: sub } = await supabase.from('user_subscriptions')
+          .select('user_id').eq('asaas_subscription_id', subId).maybeSingle()
+        if (sub) await supabase.from('painters').update({ pro_plan_status: 'active' }).eq('user_id', sub.user_id)
+      } else if (eventType === 'PAYMENT_OVERDUE') {
+        await supabase.from('user_subscriptions')
+          .update({ status: 'overdue' })
+          .eq('asaas_subscription_id', subId)
+        const { data: sub } = await supabase.from('user_subscriptions')
+          .select('user_id').eq('asaas_subscription_id', subId).maybeSingle()
+        if (sub) await supabase.from('painters').update({ pro_plan_status: 'none' }).eq('user_id', sub.user_id)
+      }
+      return new Response('OK', { headers: cors })
+    }
+
     // Find transaction by Asaas payment ID
     const { data: transaction } = await supabase
       .from('payment_transactions')

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ArrowLeft, MapPin, Home, Calendar, Package2, Ruler,
@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase'
 import { formatCurrency } from '../../lib/utils'
 import { useAuth } from '../../lib/auth'
 import { BudgetBreakdownModal } from '../../components/BudgetBreakdownModal'
+import { usePainterContext } from './PainterLayout'
 
 const BENCHMARK: Record<string, { m2Labor: [number,number]; m2Full: [number,number]; hourly: [number,number] }> = {
   'Pintura interna':   { m2Labor: [18,32],  m2Full: [45,80],   hourly: [35,55] },
@@ -109,8 +110,10 @@ export function LeadView() {
   const { interactionId } = useParams<{ interactionId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { painter: painterProfile } = usePainterContext()
   // Only treat as admin-readonly when actively operating as admin (activeRole), not when a multi-role user is in painter mode
   const isAdmin = user?.activeRole === 'admin'
+  const isPro = painterProfile?.pro_plan_status === 'active' || painterProfile?.pro_plan_status === 'trial' || painterProfile?.pro_granted_by_admin === true
 
   const [interaction, setInteraction] = useState<Interaction | null>(null)
   const [loading, setLoading] = useState(true)
@@ -900,6 +903,16 @@ export function LeadView() {
               <Lock className="w-8 h-8 mx-auto mb-2 text-red-300" />
               <p className="text-red-600 font-medium">Limite de propostas atingido</p>
               <p className="text-xs mt-1">Este lead já recebeu {lead.proposals_received_count}/{lead.max_proposals} propostas.</p>
+            </div>
+          ) : !isAdmin && !isPro ? (
+            <div className="py-8 text-center">
+              <Lock className="w-8 h-8 mx-auto mb-2 text-amber-300" />
+              <p className="text-sm font-semibold text-gray-800 mb-1">Plano Pro necessário</p>
+              <p className="text-xs text-gray-500 mb-4">Assine o Plano Pro para enviar propostas e acessar leads ilimitados.</p>
+              <Link to="/portal/pintor/assinatura"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-orange-600 transition-colors cursor-pointer">
+                <Zap className="w-4 h-4" /> Ver planos
+              </Link>
             </div>
           ) : (
             <form onSubmit={submitProposal} className="space-y-4">

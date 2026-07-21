@@ -7,8 +7,8 @@ import { formatDate } from '../../lib/utils'
 
 interface ReceivedReview {
   id: string
-  rating: number
-  content: string | null
+  rating_overall: number
+  comment: string | null
   created_at: string
   reviewer_id: string | null
   reviewer_user: { name: string } | null
@@ -34,7 +34,7 @@ export function CustomerAvaliacoes() {
     if (!user?.id) return
     supabase
       .from('reviews')
-      .select('id, rating, content, created_at, reviewer_id, reviewer_user:users!reviewer_id(name)')
+      .select('id, rating_overall, comment, created_at, reviewer_id, reviewer_user:users!reviewer_id(name)')
       .eq('customer_id', user.id)
       .eq('direction', 'painter_to_customer')
       .order('created_at', { ascending: false })
@@ -45,7 +45,7 @@ export function CustomerAvaliacoes() {
   }, [user])
 
   const avg = reviews.length > 0
-    ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+    ? reviews.reduce((s, r) => s + r.rating_overall, 0) / reviews.length
     : 0
 
   return (
@@ -87,7 +87,7 @@ export function CustomerAvaliacoes() {
               className="bg-white rounded-2xl border border-gray-100 p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
-                  <StarRow rating={review.rating} />
+                  <StarRow rating={review.rating_overall} />
                   <p className="text-xs text-gray-400 mt-1">
                     {review.reviewer_user?.name ?? 'Pintor'} · {formatDate(review.created_at)}
                   </p>
@@ -96,8 +96,8 @@ export function CustomerAvaliacoes() {
                   <Star className="w-3.5 h-3.5 text-brand" />
                 </div>
               </div>
-              {review.content && (
-                <p className="text-sm text-gray-700 leading-relaxed">{review.content}</p>
+              {review.comment && (
+                <p className="text-sm text-gray-700 leading-relaxed">{review.comment}</p>
               )}
             </motion.div>
           ))}

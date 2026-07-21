@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ChevronDown, ChevronUp, MapPin, CheckCircle, Clock,
   MessageSquare, User, Phone, Paintbrush, Plus, Pencil,
-  X, Save, Loader2, History, Send, AlertTriangle, Trash2,
+  X, Save, Loader2, History, Send, AlertTriangle, Trash2, Star,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useCustomerContext, type CustomerLead } from './CustomerLayout'
@@ -333,11 +333,100 @@ function TypingDots() {
   )
 }
 
+// ─── Review Modal ─────────────────────────────────────────────────────────────
+
+function StarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [hover, setHover] = useState(0)
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(i => (
+        <button key={i} type="button"
+          onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(0)}
+          onClick={() => onChange(i)}
+          className="cursor-pointer p-0.5">
+          <Star className={`w-7 h-7 transition-colors ${i <= (hover || value) ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-200'}`} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ReviewModal({ painterId, interactionId, painterName, onClose, onSubmitted }:
+  { painterId: string; interactionId: string; painterName: string; onClose: () => void; onSubmitted: () => void }) {
+  const { user } = useAuth()
+  const [rating, setRating] = useState(0)
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (rating === 0) { setError('Escolha uma nota de 1 a 5 estrelas.'); return }
+    setSaving(true)
+    const { error: insertErr } = await supabase.from('reviews').insert({
+      direction: 'customer_to_painter',
+      reviewer_id: user?.id,
+      provider_id: painterId,
+      provider_type: 'painter',
+      rating_overall: rating,
+      comment: comment.trim() || null,
+    })
+    if (insertErr) { setError('Erro ao salvar avaliação. Tente novamente.'); setSaving(false); return }
+    await supabase.rpc('recalculate_painter_scores', { p_painter_id: painterId })
+    onSubmitted()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold text-gray-900">Avaliar {painterName}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-2">Nota geral *</p>
+            <StarPicker value={rating} onChange={setRating} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 mb-1.5 block">Comentário (opcional)</label>
+            <textarea value={comment} onChange={e => setComment(e.target.value)}
+              rows={3} maxLength={500} placeholder="Como foi o serviço?"
+              className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand resize-none" />
+          </div>
+          {error && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{error}</p>}
+          <button type="submit" disabled={saving || rating === 0}
+            className="w-full py-2.5 bg-brand text-white text-sm font-semibold rounded-xl disabled:opacity-50 cursor-pointer hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</> : <><Star className="w-4 h-4" /> Enviar avaliação</>}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onSelect: (id: string) => void }) {
   const painter = interaction.painter
   const quote = interaction.metadata?.quote
   const isAccepted = interaction.status === 'accepted'
   const isClosed = interaction.status === 'declined'
+
+  // Review state
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewed, setReviewed] = useState(false)
+  const { user } = useAuth()
+
+  // Check if already reviewed on mount
+  const checkReviewed = useCallback(async () => {
+    if (!isAccepted || !painter?.id || !user?.id) return
+    const { data } = await supabase.from('reviews')
+      .select('id').eq('direction', 'customer_to_painter')
+      .eq('reviewer_id', user.id).eq('provider_id', painter.id).maybeSingle()
+    if (data) setReviewed(true)
+  }, [isAccepted, painter?.id, user?.id])
+
+  useEffect(() => { checkReviewed() }, [checkReviewed])
 
   // Chat state — ALL hooks must be before any conditional return
   const [chatOpen, setChatOpen] = useState(false)
@@ -528,6 +617,30 @@ function ProposalCard({ interaction, onSelect }: { interaction: Interaction; onS
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors">
                 <Phone className="w-3.5 h-3.5" /> WhatsApp do pintor
               </a>
+            )}
+            {isAccepted && !painter?.user?.phone && (
+              <p className="text-xs text-center text-gray-400 py-1">Pintor ainda não cadastrou WhatsApp — entre em contato via chat abaixo.</p>
+            )}
+            {isAccepted && painter?.id && (
+              reviewed ? (
+                <div className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-amber-50 text-amber-700 text-sm font-medium rounded-xl border border-amber-100">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Avaliação enviada
+                </div>
+              ) : (
+                <button onClick={() => setReviewOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-amber-300 text-amber-700 text-sm font-semibold rounded-xl cursor-pointer hover:bg-amber-50 transition-colors">
+                  <Star className="w-3.5 h-3.5" /> Avaliar pintor
+                </button>
+              )
+            )}
+            {reviewOpen && painter?.id && (
+              <ReviewModal
+                painterId={painter.id}
+                interactionId={interaction.id}
+                painterName={painter.user?.name ?? 'o pintor'}
+                onClose={() => setReviewOpen(false)}
+                onSubmitted={() => { setReviewOpen(false); setReviewed(true) }}
+              />
             )}
             {!isAccepted && (
               <motion.button onClick={() => onSelect(interaction.id)}

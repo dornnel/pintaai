@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense, useRef } from 'react'
 import { motion } from 'motion/react'
 import {
   Pencil, CheckCircle, Loader2, MapPin, FileText, Upload,
-  ShieldCheck, ShieldAlert, ShieldX, Clock, AlertCircle,
+  ShieldCheck, ShieldAlert, ShieldX, Clock, AlertCircle, Trash2,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { usePainterContext } from './PainterLayout'
@@ -74,6 +74,29 @@ export function PainterPerfil() {
   const [notifyEmail, setNotifyEmail] = useState(painter?.notify_by_email ?? true)
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(painter?.notify_by_whatsapp ?? false)
   const [savingNotif, setSavingNotif] = useState(false)
+
+  // Delete account
+  const { signOut } = useAuth()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteInput, setDeleteInput] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  async function handleDeleteAccount() {
+    if (deleteInput !== 'EXCLUIR') return
+    setDeleting(true)
+    setDeleteError('')
+    const { data: { session } } = await supabase.auth.getSession()
+    const { error: fnErr } = await supabase.functions.invoke('delete-account', {
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    })
+    if (fnErr) {
+      setDeleteError('Erro ao excluir conta. Tente novamente ou entre em contato.')
+      setDeleting(false)
+      return
+    }
+    await signOut()
+  }
 
   // KYC
   const [kycUploading, setKycUploading] = useState<Record<string, boolean>>({})
@@ -529,6 +552,60 @@ export function PainterPerfil() {
           )}
         </div>
 
+      </motion.div>
+
+      {/* ── Zona de perigo: excluir conta ── */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        className="mt-4 bg-white rounded-2xl border border-red-100 p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <Trash2 className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Excluir minha conta</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Ação permanente e irreversível. Todos os seus dados serão removidos conforme a LGPD.
+            </p>
+          </div>
+        </div>
+
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 text-sm text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors cursor-pointer font-medium"
+          >
+            Quero excluir minha conta
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-gray-600">
+              Para confirmar, digite <strong className="text-red-600">EXCLUIR</strong> abaixo:
+            </p>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              placeholder="EXCLUIR"
+              autoFocus
+              className="w-full border border-red-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-red-400"
+            />
+            {deleteError && <p className="text-xs text-red-500 bg-red-50 rounded-xl px-3 py-2">{deleteError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteInput !== 'EXCLUIR' || deleting}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-xl font-semibold disabled:opacity-40 cursor-pointer hover:bg-red-700 transition-colors flex items-center gap-1.5"
+              >
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Excluir permanentemente
+              </button>
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); setDeleteError('') }}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   )
