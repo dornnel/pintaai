@@ -330,7 +330,7 @@ function SimpleLanding() {
           <span className="text-white" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>espaço.</span>
         </h1>
         <p className="text-white/85 text-sm mt-2 font-medium" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.25)' }}>
-          Descreva o que precisa pintar.
+          Encontre pintores confiáveis na sua região.
         </p>
       </motion.div>
 
@@ -400,15 +400,6 @@ function SimpleLanding() {
           )}
         </div>
 
-        {/* Chips — sem botão de envio separado */}
-        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-          {MOBILE_CHIPS.map(c => (
-            <button key={c} onClick={() => handleSend(c)}
-              className="shrink-0 text-[11px] px-2.5 py-1 rounded-full bg-gray-900 text-white font-medium whitespace-nowrap cursor-pointer hover:bg-brand transition-colors">
-              {c}
-            </button>
-          ))}
-        </div>
       </motion.div>
 
     </div>
