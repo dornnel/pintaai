@@ -417,9 +417,52 @@ function SimpleLanding() {
 
 // ─── Hero chat widget (desktop only) ─────────────────────────────────────────
 
+const HERO_PLACEHOLDERS = [
+  'quero pintar minha sala e quartos...',
+  'pintura de fachada comercial...',
+  'imóvel novo, 1ª pintura pós-obra...',
+  'quero pintar meu escritório...',
+  'parede com mofo e manchas...',
+  'textura na sala de estar...',
+]
+
 function HeroChat() {
   const [input, setInput] = useState('')
+  const [placeholder, setPlaceholder] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let phraseIdx = 0
+    let charIdx = 0
+    let deleting = false
+    let timeout: ReturnType<typeof setTimeout>
+
+    function tick() {
+      const phrase = HERO_PLACEHOLDERS[phraseIdx]
+      if (!deleting) {
+        charIdx++
+        setPlaceholder(phrase.slice(0, charIdx))
+        if (charIdx === phrase.length) {
+          deleting = true
+          timeout = setTimeout(tick, 1800)
+        } else {
+          timeout = setTimeout(tick, 48)
+        }
+      } else {
+        charIdx--
+        setPlaceholder(phrase.slice(0, charIdx))
+        if (charIdx === 0) {
+          deleting = false
+          phraseIdx = (phraseIdx + 1) % HERO_PLACEHOLDERS.length
+          timeout = setTimeout(tick, 400)
+        } else {
+          timeout = setTimeout(tick, 28)
+        }
+      }
+    }
+    timeout = setTimeout(tick, 900)
+    return () => clearTimeout(timeout)
+  }, [])
 
   function handleSend(text?: string) {
     const msg = (text || input).trim()
@@ -456,16 +499,13 @@ function HeroChat() {
         <motion.div
           initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.6, duration: 0.4 }}
-          className="bg-orange-50 rounded-2xl rounded-tl-sm px-3.5 py-2.5"
+          className="bg-gray-100 rounded-2xl rounded-tl-sm px-3.5 py-2.5"
         >
           <p className="text-[13px] text-gray-800 leading-snug">
             Olá! Eu sou o Koke 👋
           </p>
           <p className="text-[13px] text-gray-700 leading-snug mt-1">
-            Me conte o que você precisa pintar ou envie <strong>FOTOS</strong> do ambiente.
-          </p>
-          <p className="text-[13px] text-gray-600 leading-snug mt-1">
-            Vou te ajudar a encontrar o pintor certo.
+            Me conte o que você precisa pintar ou envie <strong>fotos ou vídeos</strong> do ambiente.
           </p>
         </motion.div>
       </div>
@@ -478,7 +518,7 @@ function HeroChat() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="Ex: quero pintar 2 quartos e a sala"
+            placeholder={placeholder}
             className="flex-1 bg-transparent text-xs text-gray-700 placeholder:text-gray-400 outline-none"
           />
           <motion.button
@@ -600,6 +640,25 @@ function HowPaymentWorks() {
         </motion.p>
       </div>
     </section>
+  )
+}
+
+// ─── Smart CTA para pintores ──────────────────────────────────────────────────
+function PainterCTA({ user, navigate }: { user: ReturnType<typeof useAuth>['user']; navigate: ReturnType<typeof useNavigate> }) {
+  function handleClick() {
+    if (!user) return navigate('/seja-pintor')
+    if (user.role === 'painter') return navigate('/portal/pintor')
+    if (user.role === 'admin') return navigate('/admin')
+    return navigate('/seja-pintor')
+  }
+  const label = user?.role === 'painter' ? 'Ir para meu painel' : 'Cadastrar como pintor'
+  return (
+    <button
+      onClick={handleClick}
+      className="inline-flex items-center gap-2 px-6 py-3 border-2 border-gray-900 text-gray-900 font-bold rounded hover:bg-gray-900 hover:text-white transition-colors cursor-pointer"
+    >
+      {label} <ArrowRight className="w-4 h-4" />
+    </button>
   )
 }
 
@@ -971,10 +1030,7 @@ export function LandingPage() {
           <ShieldCheck className="w-10 h-10 text-brand mx-auto mb-4" />
           <h2 className="text-xl font-extrabold text-gray-900 mb-2">Sou pintor e quero receber pedidos</h2>
           <p className="text-gray-500 text-sm mb-6">Leads qualificados com briefing técnico, metragem e fotos. Menos visita perdida, mais fechamento.</p>
-          <Link to="/login?role=painter"
-            className="inline-flex items-center gap-2 px-6 py-3 border-2 border-gray-900 text-gray-900 font-bold rounded hover:bg-gray-900 hover:text-white transition-colors">
-            Cadastrar como pintor <ArrowRight className="w-4 h-4" />
-          </Link>
+          <PainterCTA user={user} navigate={navigate} />
         </div>
       </section>
 
@@ -1015,7 +1071,7 @@ export function LandingPage() {
             <Link to="/chat" className="hover:text-white transition-colors">Encontrar pintor</Link>
             <Link to="/pintores" className="hover:text-white transition-colors">Pintores</Link>
             <Link to="/calculadora" className="hover:text-white transition-colors">Calculadora</Link>
-            <Link to="/login?role=painter" className="hover:text-white transition-colors">Sou pintor</Link>
+            <button onClick={() => { if (!user) navigate('/seja-pintor'); else if (user.role === 'painter') navigate('/portal/pintor'); else if (user.role === 'admin') navigate('/admin'); else navigate('/seja-pintor') }} className="hover:text-white transition-colors cursor-pointer">Sou pintor</button>
             <Link to="/marketplace" className="hover:text-white transition-colors">Marketplace</Link>
             <Link to="/login" className="hover:text-white transition-colors">Entrar</Link>
           </div>
