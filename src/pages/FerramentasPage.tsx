@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
@@ -206,13 +206,12 @@ export function FerramentasPage() {
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [expandedTool, setExpandedTool] = useState<string | null>('estimativa')
 
-  // Fetch club status
-  useState(() => {
+  useEffect(() => {
     if (!user) { setProfileLoaded(true); return }
     supabase.from('users').select('is_club_member, club_credits')
       .eq('auth_user_id', user.id).maybeSingle()
       .then(({ data }) => { setProfile(data); setProfileLoaded(true) })
-  })
+  }, [user])
 
   const isClub = profile?.is_club_member === true
 

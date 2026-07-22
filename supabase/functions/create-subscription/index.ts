@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
     if (subscription.errors) throw new Error(JSON.stringify(subscription.errors))
 
     // Fetch plan id
-    const { data: plan } = await sb.from('subscription_plans').select('id').eq('slug', 'pintae-pro').maybeSingle()
+    const { data: plan } = await sb.from('subscription_plans').select('id').eq('slug', 'pinte-rapido-pro').maybeSingle()
 
     // Upsert user_subscription row
     await sb.from('user_subscriptions').upsert({

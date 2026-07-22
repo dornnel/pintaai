@@ -26,22 +26,24 @@ Deno.serve(async (req: Request) => {
     const { data: { user: caller } } = await authClient.auth.getUser(authHeader.replace('Bearer ', ''))
     if (!caller) throw new Error('Unauthorized')
 
-    const { data: profile } = await sb.from('users').select('id, role').eq('auth_user_id', caller.id).maybeSingle()
+    const { data: profile } = await sb.from('users').select('id').eq('auth_user_id', caller.id).maybeSingle()
     if (!profile) throw new Error('User not found')
 
+    // Find active club subscription
+    const { data: plan } = await sb.from('subscription_plans').select('id').eq('slug', 'customer-club').maybeSingle()
     const { data: sub } = await sb.from('user_subscriptions')
       .select('id, asaas_subscription_id')
       .eq('user_id', profile.id)
+      .eq('plan_id', plan?.id ?? '')
       .in('status', ['active', 'trial'])
       .maybeSingle()
 
     if (!sub) {
-      return new Response(JSON.stringify({ error: 'Nenhuma assinatura ativa encontrada.' }), {
+      return new Response(JSON.stringify({ error: 'Nenhuma assinatura do Clube encontrada.' }), {
         status: 404, headers: { ...cors, 'Content-Type': 'application/json' },
       })
     }
 
-    // Cancel in Asaas
     if (sub.asaas_subscription_id) {
       await fetch(`${ASAAS_BASE}/subscriptions/${sub.asaas_subscription_id}`, {
         method: 'DELETE',
@@ -49,11 +51,8 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Update local records
     await sb.from('user_subscriptions').update({ status: 'canceled' }).eq('id', sub.id)
-    if (profile.role === 'painter') {
-      await sb.from('painters').update({ pro_plan_status: 'canceled' }).eq('user_id', profile.id)
-    }
+    await sb.from('users').update({ is_club_member: false }).eq('id', profile.id)
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...cors, 'Content-Type': 'application/json' },

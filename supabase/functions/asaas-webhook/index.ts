@@ -31,21 +31,35 @@ Deno.serve(async (req: Request) => {
     // ── Subscription renewal / overdue handling ──────────────────────────────
     if (payment.subscription) {
       const subId = payment.subscription
+      const { data: subRow } = await supabase.from('user_subscriptions')
+        .select('id, user_id, plan_id, subscription_plans!inner(slug)')
+        .eq('asaas_subscription_id', subId).maybeSingle()
+      const planSlug = (subRow as { subscription_plans?: { slug: string } } | null)?.subscription_plans?.slug ?? ''
+      const isClub = planSlug === 'customer-club'
+
       if (eventType === 'PAYMENT_RECEIVED' || eventType === 'PAYMENT_CONFIRMED') {
         const nextDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         await supabase.from('user_subscriptions')
           .update({ status: 'active', next_billing_date: nextDate })
           .eq('asaas_subscription_id', subId)
-        const { data: sub } = await supabase.from('user_subscriptions')
-          .select('user_id').eq('asaas_subscription_id', subId).maybeSingle()
-        if (sub) await supabase.from('painters').update({ pro_plan_status: 'active' }).eq('user_id', sub.user_id)
+        if (subRow) {
+          if (isClub) {
+            await supabase.from('users').update({ is_club_member: true }).eq('id', subRow.user_id)
+          } else {
+            await supabase.from('painters').update({ pro_plan_status: 'active' }).eq('user_id', subRow.user_id)
+          }
+        }
       } else if (eventType === 'PAYMENT_OVERDUE') {
         await supabase.from('user_subscriptions')
           .update({ status: 'overdue' })
           .eq('asaas_subscription_id', subId)
-        const { data: sub } = await supabase.from('user_subscriptions')
-          .select('user_id').eq('asaas_subscription_id', subId).maybeSingle()
-        if (sub) await supabase.from('painters').update({ pro_plan_status: 'none' }).eq('user_id', sub.user_id)
+        if (subRow) {
+          if (isClub) {
+            await supabase.from('users').update({ is_club_member: false }).eq('id', subRow.user_id)
+          } else {
+            await supabase.from('painters').update({ pro_plan_status: 'none' }).eq('user_id', subRow.user_id)
+          }
+        }
       }
       return new Response('OK', { headers: cors })
     }
