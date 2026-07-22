@@ -84,18 +84,26 @@ function RequireSuperAdmin({ children }: { children: React.ReactNode }) {
 function AuthCallback() {
   const navigate = useNavigate()
   const { user, loading, needsOnboarding, completeOnboarding } = useAuth()
-  const isOnboarding = new URLSearchParams(window.location.search).get('onboarding') === 'true'
+  const qs = new URLSearchParams(window.location.search)
+  const isOnboarding = qs.get('onboarding') === 'true'
+  const redirect = qs.get('redirect') || ''
+  const isPainterIntent = redirect === '/seja-pintor' || redirect.startsWith('/seja-pintor')
 
   useEffect(() => {
     if (loading) return
-    if (needsOnboarding && isOnboarding) {
+    if (needsOnboarding && isPainterIntent) {
+      // New user arrived via "Cadastrar como pintor" CTA → auto-onboard as painter
+      completeOnboarding('painter').then(() => {
+        navigate('/seja-pintor', { replace: true })
+      })
+    } else if (needsOnboarding && isOnboarding) {
       completeOnboarding('customer').then(() => {
         navigate('/minha-area', { replace: true })
       })
     } else if (needsOnboarding) {
       navigate('/onboarding', { replace: true })
     } else if (user) {
-      navigate(getRoleHome(user.activeRole || user.role), { replace: true })
+      navigate(redirect || getRoleHome(user.activeRole || user.role), { replace: true })
     } else {
       navigate('/', { replace: true })
     }

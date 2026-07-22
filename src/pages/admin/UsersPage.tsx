@@ -27,6 +27,7 @@ interface UserRecord {
   cookie_consent?: string
   created_at: string
   auth_user_id?: string
+  is_club_member?: boolean
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -283,6 +284,32 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [proStatus, setProStatus] = useState<string | null>(null)
+  const [grantingSub, setGrantingSub] = useState(false)
+
+  useEffect(() => {
+    // Fetch painter pro_plan_status if user has painter role
+    const roles = user.roles?.length ? user.roles : [user.role]
+    if (roles.includes('painter')) {
+      supabase.from('painters').select('pro_plan_status').eq('user_id', user.id).maybeSingle()
+        .then(({ data }) => setProStatus(data?.pro_plan_status ?? 'none'))
+    }
+  }, [user.id, user.role, user.roles])
+
+  async function grantClub(grant: boolean) {
+    setGrantingSub(true)
+    await supabase.from('users').update({ is_club_member: grant }).eq('id', user.id)
+    onUpdated({ ...user, is_club_member: grant })
+    setGrantingSub(false)
+  }
+
+  async function grantPro(grant: boolean) {
+    setGrantingSub(true)
+    const newStatus = grant ? 'active' : 'none'
+    await supabase.from('painters').update({ pro_plan_status: newStatus }).eq('user_id', user.id)
+    setProStatus(newStatus)
+    setGrantingSub(false)
+  }
 
   async function handleDelete() {
     setDeleting(true); setDeleteError('')
@@ -462,6 +489,43 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
                 </button>
               </div>
 
+              {/* ── Grant subscriptions (admin only) ── */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Assinaturas (admin)</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2.5 bg-purple-50 rounded-xl">
+                    <span className="text-xs font-medium text-purple-800">🏆 Clube Pinte Rápido</span>
+                    <button
+                      onClick={() => grantClub(!user.is_club_member)}
+                      disabled={grantingSub}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 ${
+                        user.is_club_member
+                          ? 'bg-purple-600 text-white hover:bg-purple-700'
+                          : 'bg-white border border-purple-300 text-purple-700 hover:bg-purple-100'
+                      }`}
+                    >
+                      {user.is_club_member ? '✓ Ativo' : 'Conceder'}
+                    </button>
+                  </div>
+                  {(user.roles ?? [user.role]).includes('painter') && proStatus !== null && (
+                    <div className="flex items-center justify-between p-2.5 bg-orange-50 rounded-xl">
+                      <span className="text-xs font-medium text-orange-800">⚡ Pintor Pro</span>
+                      <button
+                        onClick={() => grantPro(proStatus !== 'active')}
+                        disabled={grantingSub}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 ${
+                          proStatus === 'active'
+                            ? 'bg-orange-500 text-white hover:bg-orange-600'
+                            : 'bg-white border border-orange-300 text-orange-700 hover:bg-orange-100'
+                        }`}
+                      >
+                        {proStatus === 'active' ? '✓ Ativo' : 'Conceder'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {isSuperAdmin && (
                 <div className="mt-4 pt-4 border-t border-red-100">
                   {!confirmDelete ? (
@@ -559,7 +623,7 @@ export function UsersPage() {
   }
 
   const loadUsers = useCallback(async () => {
-    const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false })
+    const { data } = await supabase.from('users').select('*, is_club_member').order('created_at', { ascending: false })
     setUsers((data as UserRecord[]) || [])
     setLoading(false)
   }, [])

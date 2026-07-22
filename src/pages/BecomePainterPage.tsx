@@ -109,7 +109,7 @@ export function BecomePainterPage() {
   }
 
   if (!user) {
-    return <Navigate to="/login?role=painter&tab=register" replace />
+    return <Navigate to="/login?redirect=%2Fseja-pintor" replace />
   }
 
   if (hasPainterRecord) return null
