@@ -408,7 +408,6 @@ const HERO_PLACEHOLDERS = [
 function HeroChat() {
   const [input, setInput] = useState('')
   const [placeholder, setPlaceholder] = useState('')
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
@@ -447,9 +446,8 @@ function HeroChat() {
 
   function handleSend(text?: string) {
     const msg = (text || input).trim()
-    if (!msg && pendingFiles.length === 0) return
-    if (pendingFiles.length > 0) pendingChatFiles.set(pendingFiles)
-    navigate(msg ? `/chat?q=${encodeURIComponent(msg)}` : '/chat')
+    if (!msg) return
+    navigate(`/chat?q=${encodeURIComponent(msg)}`)
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -503,20 +501,6 @@ function HeroChat() {
 
       {/* Input area */}
       <div className="border-t border-gray-100 px-3 pt-2 pb-2.5 shrink-0">
-        {/* File preview strip */}
-        {pendingFiles.length > 0 && (
-          <div className="flex gap-1.5 mb-2 flex-wrap">
-            {pendingFiles.map((f, i) => (
-              <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
-                {f.type.startsWith('image/') ? (
-                  <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-[9px]">▶</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
         <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-2 py-2">
           {/* File picker — galeria + câmera no mobile */}
           <button
@@ -539,13 +523,13 @@ function HeroChat() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder={pendingFiles.length > 0 ? 'Adicione uma mensagem ou envie...' : placeholder}
+            placeholder={placeholder}
             className="flex-1 bg-transparent text-xs text-gray-700 placeholder:text-gray-400 outline-none"
           />
           <motion.button
             whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
             onClick={() => handleSend()}
-            disabled={!input.trim() && pendingFiles.length === 0}
+            disabled={!input.trim()}
             className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer shrink-0"
           >
             <Send className="w-3 h-3" />
