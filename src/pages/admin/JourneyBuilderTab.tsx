@@ -36,6 +36,14 @@ const STEP_TYPE_CLASS: Record<string, string> = {
   media: 'bg-green-100 text-green-700',
 }
 
+function conditionLabel(key: string | null | undefined, value: string | null | undefined): string {
+  if (!key || !value) return ''
+  const display = value.split(',').map(v =>
+    v.startsWith('!') ? `≠ ${v.slice(1)}` : `= ${v}`
+  ).join(' e ')
+  return `${key} ${display}`
+}
+
 const STEP_TYPE_LABEL: Record<string, string> = {
   text: 'Texto',
   quick_reply: 'Quick Reply',
@@ -114,6 +122,11 @@ function SortableStepRow({
           {!step.editable && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">estrutural</span>
           )}
+          {step.condition_key && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 font-medium" title={`Aparece apenas quando ${conditionLabel(step.condition_key, step.condition_value)}`}>
+              condicional
+            </span>
+          )}
           {step.use_ai_transition && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">IA</span>
           )}
@@ -127,6 +140,11 @@ function SortableStepRow({
         <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">
           {step.question_template.replace(/\n/g, ' ')}
         </p>
+        {step.condition_key && (
+          <p className="text-[10px] text-yellow-600 mt-0.5">
+            ⚡ Aparece quando {conditionLabel(step.condition_key, step.condition_value)}
+          </p>
+        )}
         {step.quick_replies && step.quick_replies.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {step.quick_replies.slice(0, 4).map((qr, qi) => (
@@ -449,6 +467,32 @@ export function JourneyBuilderTab() {
                 >
                   {VALIDATION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+              </div>
+
+              {/* Conditional trigger */}
+              <div className="p-3 border border-yellow-200 rounded-xl bg-yellow-50/50 space-y-3">
+                <p className="text-xs font-medium text-yellow-700">Condição de exibição <span className="font-normal text-yellow-600">(opcional — deixe em branco para sempre exibir)</span></p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-1 block">Campo que dispara</label>
+                    <input
+                      value={editingStep.condition_key ?? ''}
+                      onChange={e => setEditingStep({ ...editingStep, condition_key: e.target.value || null })}
+                      placeholder="ex: property_type"
+                      className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 mb-1 block">Valor(es) que ativam</label>
+                    <input
+                      value={editingStep.condition_value ?? ''}
+                      onChange={e => setEditingStep({ ...editingStep, condition_value: e.target.value || null })}
+                      placeholder="ex: Casa  ou  !Apto,!Casa"
+                      className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-brand"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-yellow-600">Separe múltiplos valores com vírgula. Use <code className="bg-yellow-100 px-0.5 rounded">!</code> para "diferente de". Ex: <code className="bg-yellow-100 px-0.5 rounded">!Apartamento,!Casa</code></p>
               </div>
 
               {/* Checkboxes */}

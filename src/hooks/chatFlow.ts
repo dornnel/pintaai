@@ -19,6 +19,8 @@ export interface FlowStep {
   use_ai_transition: boolean
   is_core_field: boolean
   multi_select: boolean
+  condition_key?: string | null
+  condition_value?: string | null
 }
 
 export interface CollectedData {
@@ -130,7 +132,9 @@ export const EXTRACTABLE_VALIDATIONS = new Set<FlowStep['validation_type']>(['na
 
 // ─── Acesso a steps ───────────────────────────────────────────────────────────
 export function branchSteps(steps: FlowStep[], branch: 'client' | 'painter'): FlowStep[] {
-  return steps.filter(s => s.branch === branch && s.enabled !== false).sort((a, b) => a.order_index - b.order_index)
+  // condition_key steps are synthetic/conditional — excluded from sequential resolution.
+  // They remain in DB for admin visibility but are handled by dedicated state handlers in useChat.
+  return steps.filter(s => s.branch === branch && s.enabled !== false && !s.condition_key).sort((a, b) => a.order_index - b.order_index)
 }
 
 export function getStep(steps: FlowStep[], stepKey: string): FlowStep | undefined {

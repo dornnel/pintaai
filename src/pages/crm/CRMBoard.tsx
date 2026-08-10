@@ -12,7 +12,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, Phone, MessageCircle, MapPin, AlertCircle,
-  User, ArrowLeft, Filter, Globe, Lock, Ruler,
+  User, ArrowLeft, Filter, Globe, Lock, Ruler, Bot, Info,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
@@ -45,13 +45,13 @@ interface Lead {
 }
 
 const STAGES = [
-  { id: 'new', label: 'Novo', color: 'bg-gray-100 border-gray-200', dot: 'bg-gray-400' },
-  { id: 'contacted', label: 'Contatado', color: 'bg-blue-50 border-blue-200', dot: 'bg-blue-500' },
-  { id: 'qualified', label: 'Qualificado', color: 'bg-violet-50 border-violet-200', dot: 'bg-violet-500' },
-  { id: 'proposal_sent', label: 'Proposta Enviada', color: 'bg-yellow-50 border-yellow-200', dot: 'bg-yellow-500' },
-  { id: 'negotiating', label: 'Negociando', color: 'bg-orange-50 border-orange-200', dot: 'bg-orange-400' },
-  { id: 'won', label: 'Ganho ✓', color: 'bg-green-50 border-green-200', dot: 'bg-green-500' },
-  { id: 'lost', label: 'Perdido', color: 'bg-red-50 border-red-200', dot: 'bg-red-400' },
+  { id: 'new',           label: 'Lead Recebido',        color: 'bg-gray-100 border-gray-200',   dot: 'bg-gray-400',   subtitle: 'Gerado pelo Koke' },
+  { id: 'contacted',     label: 'Em Contato',           color: 'bg-blue-50 border-blue-200',    dot: 'bg-blue-500',   subtitle: 'Retorno iniciado' },
+  { id: 'qualified',     label: 'Pintores Notificados', color: 'bg-violet-50 border-violet-200',dot: 'bg-violet-500', subtitle: 'Aguardando propostas' },
+  { id: 'proposal_sent', label: 'Proposta Enviada',     color: 'bg-yellow-50 border-yellow-200',dot: 'bg-yellow-500', subtitle: 'Cliente analisando' },
+  { id: 'negotiating',   label: 'Em Negociação',        color: 'bg-orange-50 border-orange-200',dot: 'bg-orange-400', subtitle: 'Aguardando confirmação' },
+  { id: 'won',           label: 'Contratado ✓',         color: 'bg-green-50 border-green-200',  dot: 'bg-green-500',  subtitle: 'Serviço fechado' },
+  { id: 'lost',          label: 'Perdido',               color: 'bg-red-50 border-red-200',      dot: 'bg-red-400',    subtitle: 'Sem conversão' },
 ]
 
 // Colunas do CRM do pintor — baseadas em lead_painter_interactions.status
@@ -126,6 +126,11 @@ function LeadCard({ lead, isDragging = false, painterView = false }: { lead: Lea
                 🖌️ Pintor
               </span>
             )}
+            {lead.source === 'chat' && !painterView && (
+              <span className="text-[9px] bg-orange-50 text-brand font-medium px-1 py-0.5 rounded leading-none flex items-center gap-0.5">
+                <Bot className="w-2.5 h-2.5" /> Koke
+              </span>
+            )}
             {lead.service_request_id && (
               <span className="text-[9px] bg-green-100 text-green-700 font-medium px-1 py-0.5 rounded leading-none">
                 Pedido ✓
@@ -196,7 +201,7 @@ function LeadCard({ lead, isDragging = false, painterView = false }: { lead: Lea
 // ─── Stage Column ─────────────────────────────────────────────────────────────
 
 function StageColumn({ stage, leads, onAddLead, painterView = false }: {
-  stage: { id: string; label: string; color: string; dot: string }
+  stage: { id: string; label: string; color: string; dot: string; subtitle?: string }
   leads: Lead[]
   onAddLead?: (stageId: string) => void
   painterView?: boolean
@@ -204,12 +209,17 @@ function StageColumn({ stage, leads, onAddLead, painterView = false }: {
   return (
     <div className={cn('rounded-2xl border p-3 min-w-[220px] max-w-[240px] flex-shrink-0', stage.color)}>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className={cn('w-2 h-2 rounded-full', stage.dot)} />
-          <span className="text-xs font-semibold text-gray-700">{stage.label}</span>
-          <span className="text-xs text-gray-400 bg-white rounded-full px-1.5 py-0.5 font-medium">
-            {leads.length}
-          </span>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <div className={cn('w-2 h-2 rounded-full', stage.dot)} />
+            <span className="text-xs font-semibold text-gray-700">{stage.label}</span>
+            <span className="text-xs text-gray-400 bg-white rounded-full px-1.5 py-0.5 font-medium">
+              {leads.length}
+            </span>
+          </div>
+          {stage.subtitle && (
+            <p className="text-[10px] text-gray-400 ml-4">{stage.subtitle}</p>
+          )}
         </div>
         {onAddLead && (
           <button onClick={() => onAddLead(stage.id)}
@@ -480,6 +490,17 @@ export function CRMBoard() {
           )}
         </div>
       </header>
+
+      {/* Automation flow banner */}
+      {!isPainterView && (
+        <div className="mx-4 mt-3 mb-1 flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2">
+          <Bot className="w-4 h-4 text-brand shrink-0" />
+          <p className="text-[11px] text-gray-600 leading-tight">
+            <span className="font-semibold text-brand">Koke cria leads automaticamente</span> — toda conversa completa no chat vira um card em <span className="font-medium">Lead Recebido</span>. Pintores são notificados via plataforma.
+          </p>
+          <Info className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
-import { MessageSquare, X, Globe, Smartphone, Filter, ExternalLink, User, Brush, AlertCircle } from 'lucide-react'
+import { MessageSquare, X, Globe, Smartphone, Filter, ExternalLink, User, Brush, AlertCircle, Bot, ChevronRight } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatRelativeTime } from '../../lib/utils'
 import type { ConversationSession } from '../../lib/types'
@@ -95,10 +95,10 @@ export function ConversationsPage() {
     setLoadingMessages(true)
     const { data } = await supabase
       .from('messages')
-      .select('id, direction, body, channel, created_at')
+      .select('id, direction, body, channel, created_at, metadata')
       .eq('session_id', session.session_id)
       .order('created_at', { ascending: true })
-      .limit(50)
+      .limit(200)
     setMessages((data || []) as Message[])
     setLoadingMessages(false)
   }
@@ -156,7 +156,15 @@ export function ConversationsPage() {
         <div className="space-y-2">
           {filtered.map(session => {
             const collected = (session.collected_data || {}) as Record<string, string>
-            const userName = collected.name || session.user_identifier?.slice(0, 20) || 'Anônimo'
+            // Build a meaningful label even when name is unknown (collected later in journey)
+            const userName = collected.name
+              || (collected.service_type && collected.neighborhood
+                ? `${collected.service_type} · ${collected.neighborhood}`
+                : collected.service_type || collected.neighborhood || null)
+              || (session.user_identifier && !session.user_identifier.startsWith('web_')
+                ? session.user_identifier.slice(0, 24)
+                : null)
+              || 'Anônimo'
             const isPainter = collected.role === 'painter'
             const initial = userName[0]?.toUpperCase() || '?'
             return (
@@ -234,12 +242,30 @@ export function ConversationsPage() {
               transition={{ type: 'spring', damping: 26, stiffness: 300 }}
               className="bg-white h-full w-full sm:max-w-md flex flex-col shadow-2xl"
               onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100 shrink-0">
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">Histórico da conversa</p>
-                  <p className="text-xs text-gray-400">{(selected.collected_data as Record<string,string>)?.name || 'Anônimo'} · {CHANNEL_LABELS[selected.channel]}</p>
+              <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {(selected.collected_data as Record<string,string>)?.name || 'Anônimo'}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {CHANNEL_LABELS[selected.channel]} · {new Date(selected.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <button onClick={() => setSelected(null)} className="text-gray-400 cursor-pointer"><X className="w-4 h-4" /></button>
                 </div>
-                <button onClick={() => setSelected(null)} className="text-gray-400 cursor-pointer"><X className="w-4 h-4" /></button>
+                {/* Automação: como o lead chegou */}
+                <div className="flex items-center gap-1.5 text-[10px] text-gray-500 bg-orange-50 rounded-lg px-2 py-1.5">
+                  <Bot className="w-3 h-3 text-brand shrink-0" />
+                  <span className="text-brand font-medium">Koke</span>
+                  <ChevronRight className="w-2.5 h-2.5 text-gray-300" />
+                  <span>Lead gerado automaticamente</span>
+                  {selected.service_request_id && (
+                    <><ChevronRight className="w-2.5 h-2.5 text-gray-300" /><span className="text-green-600 font-medium">Pedido criado</span></>
+                  )}
+                  {/* current state */}
+                  <span className="ml-auto font-mono bg-white border border-gray-200 px-1 rounded text-gray-500">{selected.current_state}</span>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
                 {loadingMessages ? (

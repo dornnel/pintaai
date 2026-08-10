@@ -61,12 +61,32 @@ export function DashboardPage() {
   const [activities, setActivities] = useState<Activity[]>([])
   const [sentiments, setSentiments] = useState<SentimentCount[]>([])
   const [painterStats, setPainterStats] = useState<PainterStat[]>([])
+  const [chatFunnel, setChatFunnel] = useState<{ state: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { load() }, [])
 
+  // Ordered step labels for chat funnel display (matches agent_flow_steps order)
+  const CHAT_STEP_LABELS: Record<string, string> = {
+    init: 'Início', role_select: 'Papel selecionado',
+    service_type: 'Tipo de serviço', neighborhood: 'Bairro', property_type: 'Tipo de imóvel',
+    property_scope: 'Escopo (Casa)', visit_preference: 'Visita técnica',
+    surfaces: 'Superfícies', num_rooms: 'Ambientes', area_m2: 'Metragem',
+    wall_condition: 'Estado das paredes', extras: 'Extras', deadline: 'Prazo',
+    material: 'Material', final_notes: 'Observações',
+    lead_name: 'Nome', lead_email: 'E-mail', lead_whatsapp: 'WhatsApp',
+    auth_gate: 'Gate de autenticação', confirmation: 'Confirmação',
+    generating_briefing: 'Briefing gerado ✓',
+  }
+  const CHAT_STEP_ORDER = [
+    'init', 'role_select', 'service_type', 'neighborhood', 'property_type',
+    'property_scope', 'visit_preference', 'surfaces', 'num_rooms', 'area_m2',
+    'wall_condition', 'extras', 'deadline', 'material', 'final_notes',
+    'lead_name', 'lead_email', 'lead_whatsapp', 'auth_gate', 'confirmation', 'generating_briefing',
+  ]
+
   async function load() {
-    const [leadsRes, paintersRes, flagsRes, activitiesRes, reviewsRes, interactionsRes] = await Promise.all([
+    const [leadsRes, paintersRes, flagsRes, activitiesRes, reviewsRes, interactionsRes, sessionsRes] = await Promise.all([
       supabase.from('leads')
         .select('id,name,email,phone,protocol,stage,service_interest,neighborhood,created_at,estimated_value,ai_price_min:calc_price_min,ai_price_max:calc_price_max')
         .order('created_at', { ascending: false }),
@@ -75,6 +95,7 @@ export function DashboardPage() {
       supabase.from('crm_activities').select('id,type,title,created_at,lead_id').order('created_at', { ascending: false }).limit(10),
       supabase.from('reviews').select('sentiment_label'),
       supabase.from('lead_painter_interactions').select('painter_id,status'),
+      supabase.from('conversation_sessions').select('current_state,service_request_id').gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
     ])
     setLeads((leadsRes.data || []) as Lead[])
     setActivePainters((paintersRes.data || []).length || 0)
@@ -97,6 +118,18 @@ export function DashboardPage() {
       return { id: p.id, name: p.name, score: p.score ?? null, leads_received: received, proposals_sent: sent }
     })
     setPainterStats(pStats)
+
+    // Chat funnel: count sessions per current_state (last 30 days)
+    const stateMap: Record<string, number> = {}
+    ;(sessionsRes.data || []).forEach((s: { current_state: string }) => {
+      const k = s.current_state || 'init'
+      stateMap[k] = (stateMap[k] || 0) + 1
+    })
+    setChatFunnel(
+      CHAT_STEP_ORDER
+        .filter(s => stateMap[s])
+        .map(s => ({ state: s, count: stateMap[s] }))
+    )
 
     setLoading(false)
   }
@@ -240,6 +273,59 @@ export function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Chat funnel — abandonment by step */}
+      {chatFunnel.length > 0 && (() => {
+        const maxCount = Math.max(...chatFunnel.map(f => f.count), 1)
+        const total = chatFunnel[0]?.count || 1
+        // Top 3 abandonment steps (not the last step)
+        const topAbandonment = [...chatFunnel]
+          .slice(0, -1) // exclude last (already finished)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 3)
+          .map(f => f.state)
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4 text-brand" /> Funil do chat — últimos 30 dias
+              </h2>
+              <span className="text-[10px] text-gray-400">{chatFunnel.reduce((s, f) => s + f.count, 0)} sessões</span>
+            </div>
+            <p className="text-[10px] text-gray-400 mb-4">Onde as conversas estavam quando o usuário parou</p>
+            <div className="space-y-1.5">
+              {chatFunnel.map(({ state, count }) => {
+                const pct = Math.round((count / total) * 100)
+                const isTopAbandonment = topAbandonment.includes(state) && state !== 'generating_briefing'
+                return (
+                  <div key={state} className="flex items-center gap-2">
+                    <span className={`text-[11px] w-36 shrink-0 text-right leading-tight truncate ${isTopAbandonment ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
+                      {CHAT_STEP_LABELS[state] || state}
+                    </span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${isTopAbandonment ? 'bg-orange-400' : state === 'generating_briefing' ? 'bg-green-500' : 'bg-brand/60'}`}
+                        style={{ width: `${Math.max((count / maxCount) * 100, count > 0 ? 3 : 0)}%` }}
+                      />
+                    </div>
+                    <span className={`text-[11px] font-bold w-14 shrink-0 font-variant-numeric ${isTopAbandonment ? 'text-orange-600' : 'text-gray-600'}`}>
+                      {count} <span className="font-normal text-gray-400">({pct}%)</span>
+                    </span>
+                    {isTopAbandonment && <span className="text-[10px] text-orange-500 font-semibold shrink-0">↑ gargalo</span>}
+                  </div>
+                )
+              })}
+            </div>
+            {chatFunnel.find(f => f.state === 'generating_briefing') && (
+              <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-50">
+                Conversão chat → lead: <strong className="text-green-600">
+                  {((chatFunnel.find(f => f.state === 'generating_briefing')!.count / total) * 100).toFixed(1)}%
+                </strong>
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Validação de inconsistências */}
       {inconsistencies.length > 0 && (

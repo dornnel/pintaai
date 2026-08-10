@@ -73,6 +73,9 @@ export function useChat() {
   const loadedStepsRef = useRef<FlowStep[]>([])
   const wasLoggedInRef = useRef(Boolean(authUser))
   const currentStateRef = useRef('init')
+  // Anti-loop: detect if the same state is entered twice without user input in between
+  const lastEnteredStateRef = useRef<string>('')
+  const stateRepeatCountRef = useRef<number>(0)
 
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg])
@@ -132,6 +135,22 @@ export function useChat() {
 
   // Keep currentStateRef in sync so closures can read the latest value
   useEffect(() => { currentStateRef.current = currentState }, [currentState])
+
+  // Session isolation: when user identity changes, start a new session so data from
+  // different users never mixes in the same conversation_sessions record.
+  const authUserIdRef = useRef<string | undefined>(authUser?.id)
+  useEffect(() => {
+    const prevId = authUserIdRef.current
+    const nextId = authUser?.id
+    authUserIdRef.current = nextId
+    // Identity changed (login as different user, or logout then new anonymous session)
+    if (prevId !== nextId && prevId !== undefined) {
+      const newId = generateSessionId()
+      localStorage.setItem(SESSION_KEY, newId)
+      sessionId.current = newId
+      stepsPromiseRef.current = null // force reload steps for new session
+    }
+  }, [authUser?.id]) // eslint-disable-line
 
   // Detect login DURING auth_gate (password login — no page redirect)
   useEffect(() => {
@@ -296,6 +315,23 @@ export function useChat() {
         ['✅ Já tenho conta', '🔑 Entrar com Google', '✏️ Preencher meus dados agora'],
       )
       return
+    }
+
+    // Anti-loop: if the same step is entered twice consecutively, bail out to the next one
+    if (resolvedStep.step_key === lastEnteredStateRef.current) {
+      stateRepeatCountRef.current += 1
+      if (stateRepeatCountRef.current >= 2) {
+        console.warn('[Koke] loop detectado em', resolvedStep.step_key, '→ avançando')
+        stateRepeatCountRef.current = 0
+        lastEnteredStateRef.current = ''
+        const bailList = branchSteps(steps, resolvedStep.branch as 'client' | 'painter')
+        const bailIdx = bailList.findIndex(s => s.step_key === resolvedStep.step_key)
+        const bailNext = bailList[bailIdx + 1]
+        if (bailNext) { await advanceToState(bailNext.step_key, data, opts); return }
+      }
+    } else {
+      stateRepeatCountRef.current = 0
+      lastEnteredStateRef.current = resolvedStep.step_key
     }
 
     setCurrentState(resolvedStep.step_key)
@@ -576,9 +612,10 @@ export function useChat() {
         setCurrentState('property_scope')
         saveSessionState('property_scope', newData).catch(console.error)
         await delay(500)
+        const scopeDbStep = steps.find(s => s.step_key === 'property_scope')
         agentMessage(
-          `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`,
-          ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)']
+          scopeDbStep?.question_template || `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`,
+          scopeDbStep?.quick_replies || ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)']
         )
         return
       }
@@ -588,9 +625,12 @@ export function useChat() {
         setCurrentState('visit_preference')
         saveSessionState('visit_preference', newData).catch(console.error)
         await delay(600)
+        const visitDbStep = steps.find(s => s.step_key === 'visit_preference')
         agentMessage(
-          `Para **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 📋\n\nComo prefere prosseguir?`,
-          ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
+          visitDbStep
+            ? visitDbStep.question_template.replace('{{property_type}}', String(fieldValue))
+            : `Para **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 📋\n\nComo prefere prosseguir?`,
+          visitDbStep?.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
         )
         return
       }
@@ -813,6 +853,22 @@ export function useChat() {
       saveSessionState('property_scope', newData).catch(console.error)
 
       const steps = await getSteps()
+
+      // After property_scope, always ask about visit preference (house = large job)
+      const visitDbStep = steps.find(s => s.step_key === 'visit_preference')
+      if (visitDbStep && !newData.site_visit_preference) {
+        setCurrentState('visit_preference')
+        lastEnteredStateRef.current = 'visit_preference'
+        stateRepeatCountRef.current = 0
+        saveSessionState('visit_preference', newData).catch(console.error)
+        await delay(400)
+        agentMessage(
+          visitDbStep.question_template.replace('{{property_type}}', String(newData.property_type || 'casa')),
+          visitDbStep.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
+        )
+        return
+      }
+
       const propStep = steps.find(s => s.field_key === 'property_type' && s.branch === 'client')
       const nextKey = propStep
         ? resolveNext(steps, propStep, String(newData.property_type || ''), newData)
