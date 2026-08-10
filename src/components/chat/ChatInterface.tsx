@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, MicOff, Plus, Mail, Loader2, CheckCircle } from 'lucide-react'
+import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, MicOff, Plus, Mail, Loader2, CheckCircle, Camera, StopCircle, AudioLines } from 'lucide-react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
@@ -12,8 +12,34 @@ import { pendingChatFiles } from '../../lib/chatPendingFiles'
 // File size limits
 const FILE_LIMITS = {
   image: 10 * 1024 * 1024,    // 10 MB
-  video: 50 * 1024 * 1024,    // 50 MB
+  video: 30 * 1024 * 1024,    // 30 MB
+  audio: 10 * 1024 * 1024,    // 10 MB
   document: 5 * 1024 * 1024,  // 5 MB
+}
+const VIDEO_MAX_SECONDS = 60
+
+function formatRecordTime(secs: number) {
+  const m = Math.floor(secs / 60).toString().padStart(2, '0')
+  const s = (secs % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+}
+
+function checkVideoDuration(file: File): Promise<{ ok: boolean; duration: number }> {
+  return new Promise((resolve) => {
+    const el = document.createElement('video')
+    el.preload = 'metadata'
+    const url = URL.createObjectURL(file)
+    el.onloadedmetadata = () => { URL.revokeObjectURL(url); resolve({ ok: el.duration <= VIDEO_MAX_SECONDS, duration: Math.round(el.duration) }) }
+    el.onerror = () => { URL.revokeObjectURL(url); resolve({ ok: false, duration: 0 }) }
+    el.src = url
+  })
+}
+
+function getSupportedMimeType(kind: 'video' | 'audio'): string {
+  const candidates = kind === 'video'
+    ? ['video/webm;codecs=vp9,opus', 'video/webm', 'video/mp4']
+    : ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+  return candidates.find(t => { try { return MediaRecorder.isTypeSupported(t) } catch { return false } }) || ''
 }
 
 const SUGGESTIONS = [
@@ -179,6 +205,17 @@ export function ChatInterface() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const hasSpeechAPI = Boolean(SpeechRecognitionAPI)
 
+  // MediaRecorder — gravar vídeo ou áudio direto no chat
+  type RecordMode = 'idle' | 'video' | 'audio'
+  const [recordMode, setRecordMode] = useState<RecordMode>('idle')
+  const [showRecordMenu, setShowRecordMenu] = useState(false)
+  const [recordSecs, setRecordSecs] = useState(0)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const streamRef = useRef<MediaStream | null>(null)
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null)
+  const recordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   useEffect(() => {
     if (authLoading) return   // wait for auth before init to avoid role_select flash
     if (initFired.current) return
@@ -212,29 +249,35 @@ export function ChatInterface() {
     }
   }
 
-  function handleFiles(e: ChangeEvent<HTMLInputElement>) {
+  async function handleFiles(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files || [])
     const valid: File[] = []
     const rejected: string[] = []
 
     for (const f of picked) {
-      const limit = f.type.startsWith('video/')
-        ? FILE_LIMITS.video
-        : f.type.startsWith('image/')
-        ? FILE_LIMITS.image
-        : FILE_LIMITS.document
+      const isVideo = f.type.startsWith('video/')
+      const isAudio = f.type.startsWith('audio/')
+      const limit = isVideo ? FILE_LIMITS.video : isAudio ? FILE_LIMITS.audio : f.type.startsWith('image/') ? FILE_LIMITS.image : FILE_LIMITS.document
 
       if (f.size > limit) {
-        rejected.push(f.name)
-      } else {
-        valid.push(f)
+        rejected.push(`${f.name} (muito grande)`)
+        continue
       }
+
+      if (isVideo) {
+        const { ok, duration } = await checkVideoDuration(f)
+        if (!ok) {
+          rejected.push(`${f.name} (${duration}s — máx ${VIDEO_MAX_SECONDS}s)`)
+          continue
+        }
+      }
+
+      valid.push(f)
     }
 
     if (rejected.length > 0) {
-      const limitLabel = rejected.length === 1 ? 'Arquivo muito grande' : 'Arquivos muito grandes'
-      setSizeError(`${limitLabel}: ${rejected.join(', ')} (imagens ≤10MB, vídeos ≤50MB, docs ≤5MB)`)
-      setTimeout(() => setSizeError(''), 5000)
+      setSizeError(`Arquivo rejeitado: ${rejected.join('; ')} — imagens ≤10MB, vídeos ≤30MB e ≤60s, áudio ≤10MB`)
+      setTimeout(() => setSizeError(''), 6000)
     }
 
     setFiles((prev) => [...prev, ...valid].slice(0, 5))
@@ -250,6 +293,57 @@ export function ChatInterface() {
     setDragging(false)
     const dropped = Array.from(e.dataTransfer.files)
     setFiles((prev) => [...prev, ...dropped].slice(0, 5))
+  }
+
+  // ── MediaRecorder: gravar vídeo ou áudio ────────────────────────────────────
+  async function startRecording(kind: 'video' | 'audio') {
+    setShowRecordMenu(false)
+    try {
+      const constraints = kind === 'video'
+        ? { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true }
+        : { audio: true }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      // Attach camera preview
+      if (kind === 'video' && videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream
+        videoPreviewRef.current.play().catch(() => {})
+      }
+      const mimeType = getSupportedMimeType(kind)
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      chunksRef.current = []
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = () => {
+        const ext = kind === 'video' ? 'webm' : 'webm'
+        const type = mimeType || (kind === 'video' ? 'video/webm' : 'audio/webm')
+        const blob = new Blob(chunksRef.current, { type })
+        const file = new File([blob], `gravacao-${Date.now()}.${ext}`, { type })
+        setFiles(prev => [...prev, file].slice(0, 5))
+        stream.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      mr.start(200)
+      mediaRecorderRef.current = mr
+      setRecordMode(kind)
+      setRecordSecs(0)
+      let secs = 0
+      recordIntervalRef.current = setInterval(() => {
+        secs++
+        setRecordSecs(secs)
+        if (secs >= VIDEO_MAX_SECONDS) stopRecording()
+      }, 1000)
+    } catch {
+      setSizeError('Não foi possível acessar câmera/microfone. Verifique as permissões.')
+      setTimeout(() => setSizeError(''), 4000)
+    }
+  }
+
+  function stopRecording() {
+    if (recordIntervalRef.current) { clearInterval(recordIntervalRef.current); recordIntervalRef.current = null }
+    mediaRecorderRef.current?.stop()
+    mediaRecorderRef.current = null
+    setRecordMode('idle')
+    setRecordSecs(0)
   }
 
   function toggleVoice() {
@@ -625,7 +719,7 @@ export function ChatInterface() {
             className="flex items-center gap-2 text-xs text-brand bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-2"
           >
             <Video className="w-3.5 h-3.5 shrink-0" />
-            <span>Envie fotos ou vídeo de até 1 minuto. Arraste ou use o clipe.</span>
+            <span>Envie fotos ou vídeo de até 60s / 30MB, ou grave agora com 📷.</span>
           </motion.div>
         )}
 
@@ -649,9 +743,15 @@ export function ChatInterface() {
               <div key={i} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
                 {f.type.startsWith('image/') ? (
                   <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                ) : f.type.startsWith('audio/') ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-0.5">
+                    <AudioLines className="w-5 h-5 text-brand" />
+                    <span className="text-[9px] text-gray-500 font-medium">Áudio</span>
+                  </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-0.5">
                     <Video className="w-5 h-5 text-gray-400" />
+                    <span className="text-[9px] text-gray-500 font-medium">Vídeo</span>
                   </div>
                 )}
                 <button
@@ -665,8 +765,30 @@ export function ChatInterface() {
           </div>
         )}
 
+        {/* Áudio recording bar */}
+        <AnimatePresence>
+          {recordMode === 'audio' && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-3 py-2.5 mb-2"
+            >
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span className="font-mono text-sm text-red-600 font-semibold">{formatRecordTime(recordSecs)}</span>
+              <div className="flex-1 h-1 bg-red-200 rounded-full overflow-hidden">
+                <div className="h-full bg-red-500 transition-all" style={{ width: `${(recordSecs / VIDEO_MAX_SECONDS) * 100}%` }} />
+              </div>
+              <span className="text-xs text-gray-400">/{formatRecordTime(VIDEO_MAX_SECONDS)}</span>
+              <button onClick={stopRecording}
+                className="flex items-center gap-1 text-xs text-red-600 font-semibold hover:text-red-800 cursor-pointer shrink-0">
+                <StopCircle className="w-4 h-4" /> Parar
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Input box */}
         <div className={`flex items-end gap-2 border rounded-2xl bg-white transition-colors ${dragging ? 'border-brand bg-orange-50' : 'border-gray-200'}`}>
+          {/* Paperclip — galeria */}
           <button
             onClick={() => fileRef.current?.click()}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
@@ -677,12 +799,45 @@ export function ChatInterface() {
           <input
             ref={fileRef}
             type="file"
-            accept="image/*,video/*,application/pdf,.doc,.docx,.txt"
+            accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.txt"
             multiple
             className="hidden"
             onChange={handleFiles}
           />
 
+          {/* Camera — gravar vídeo ou áudio */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowRecordMenu(v => !v)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors cursor-pointer"
+              title="Gravar vídeo ou áudio"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <AnimatePresence>
+              {showRecordMenu && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute bottom-10 left-0 bg-white border border-gray-200 rounded-xl shadow-lg p-1 z-20 w-44"
+                >
+                  <button
+                    onClick={() => startRecording('video')}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-orange-50 hover:text-brand transition-colors cursor-pointer"
+                  >
+                    <Video className="w-4 h-4" /> Gravar vídeo
+                  </button>
+                  <button
+                    onClick={() => startRecording('audio')}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-orange-50 hover:text-brand transition-colors cursor-pointer"
+                  >
+                    <Mic className="w-4 h-4" /> Gravar áudio
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Voice-to-text (SpeechRecognition) */}
           {hasSpeechAPI && (
             <button
               onClick={toggleVoice}
@@ -691,7 +846,7 @@ export function ChatInterface() {
                   ? 'text-red-500 bg-red-50 animate-pulse'
                   : 'text-gray-400 hover:text-brand hover:bg-orange-50'
               }`}
-              title={isRecording ? 'Parar gravação' : 'Enviar mensagem por voz'}
+              title={isRecording ? 'Parar ditado' : 'Ditado por voz (texto)'}
             >
               {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
@@ -721,6 +876,44 @@ export function ChatInterface() {
           🛡️ Grátis · LGPD
         </p>
       </div>
+
+      {/* ── Overlay de gravação de vídeo ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {recordMode === 'video' && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black flex flex-col"
+          >
+            {/* Camera preview */}
+            <video
+              ref={videoPreviewRef}
+              autoPlay
+              muted
+              playsInline
+              className="flex-1 w-full object-cover"
+            />
+
+            {/* Controls bar */}
+            <div className="shrink-0 bg-black/90 px-6 py-5 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-white font-mono font-semibold text-lg">{formatRecordTime(recordSecs)}</span>
+                <span className="text-gray-400 text-sm">/ {formatRecordTime(VIDEO_MAX_SECONDS)}</span>
+              </div>
+              {/* Progress bar */}
+              <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-full bg-red-500 transition-all" style={{ width: `${(recordSecs / VIDEO_MAX_SECONDS) * 100}%` }} />
+              </div>
+              <button
+                onClick={stopRecording}
+                className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-100 cursor-pointer shrink-0"
+              >
+                <StopCircle className="w-4 h-4 text-red-500" /> Parar e enviar
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

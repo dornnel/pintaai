@@ -307,13 +307,56 @@ Exemplos:
       )
     }
 
-    // Build user content
-    let userContent = message === '__init__' ? 'Olá, acessei a plataforma.' : message
+    // Build user content — vision for images, Whisper for audio, text description for video
+    const textBase = message === '__init__' ? 'Olá, acessei a plataforma.' : message
+
+    type ContentPart =
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string; detail: 'auto' } }
+
+    const isImageUrl = (u: string) => /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(u)
+    const isAudioUrl = (u: string) => /\.(mp3|wav|ogg|m4a|webm|aac)(\?|$)/i.test(u)
+    const isVideoUrl = (u: string) => /\.(mp4|mov|avi|webm|mkv)(\?|$)/i.test(u) && !isAudioUrl(u)
+
+    // Transcribe audio files via Whisper before sending to the chat model
+    let audioTranscriptions = ''
     if (media_urls && media_urls.length > 0) {
-      userContent += `\n[Usuário enviou ${media_urls.length} imagem(ns): ${media_urls.join(', ')}]`
+      const audioUrls = media_urls.filter(isAudioUrl)
+      for (const audioUrl of audioUrls) {
+        try {
+          const audioResp = await fetch(audioUrl)
+          const audioBlob = await audioResp.blob()
+          const formData = new FormData()
+          formData.append('file', audioBlob, 'audio.webm')
+          formData.append('model', 'whisper-1')
+          formData.append('language', 'pt')
+          const whisperResp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${Deno.env.get('OPENAI_API_KEY')}` },
+            body: formData,
+          })
+          if (whisperResp.ok) {
+            const wData = await whisperResp.json() as { text?: string }
+            if (wData.text) audioTranscriptions += `\n[Áudio transcrito: "${wData.text}"]`
+          }
+        } catch { /* ignore transcription failures, still process as text */ }
+      }
     }
 
-    // Call GPT-4o
+    // Assemble multimodal content
+    const imageUrls = (media_urls || []).filter(isImageUrl)
+    const videoUrls = (media_urls || []).filter(isVideoUrl)
+
+    let textContent = textBase
+    if (audioTranscriptions) textContent += audioTranscriptions
+    if (videoUrls.length > 0) textContent += `\n[Usuário enviou ${videoUrls.length} vídeo(s) do ambiente — analise o contexto da conversa para continuar.]`
+
+    const userContentParts: ContentPart[] = [{ type: 'text', text: textContent }]
+    for (const url of imageUrls) {
+      userContentParts.push({ type: 'image_url', image_url: { url, detail: 'auto' } })
+    }
+
+    // Call GPT-4o (with vision when images are present)
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       max_tokens: 1024,
@@ -324,7 +367,7 @@ Exemplos:
           role: (h.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
           content: h.content,
         })),
-        { role: 'user', content: userContent },
+        { role: 'user', content: imageUrls.length > 0 ? (userContentParts as Parameters<typeof openai.chat.completions.create>[0]['messages'][number]['content']) : textContent },
       ],
     })
 
