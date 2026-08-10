@@ -7,6 +7,7 @@ import { TypingIndicator } from './TypingIndicator'
 import { useChat } from '../../hooks/useChat'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
+import { pendingChatFiles } from '../../lib/chatPendingFiles'
 
 // File size limits
 const FILE_LIMITS = {
@@ -182,6 +183,9 @@ export function ChatInterface() {
     if (authLoading) return   // wait for auth before init to avoid role_select flash
     if (initFired.current) return
     initFired.current = true
+    // Pick up files staged on the landing page (hero chat file picker)
+    const staged = pendingChatFiles.take()
+    if (staged.length > 0) setFiles(staged)
     const q = searchParams.get('q')
     setTimeout(() => sendMessage(q ? q : '__init__'), 150)
   }, [authLoading]) // eslint-disable-line react-hooks/exhaustive-deps

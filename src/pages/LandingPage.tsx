@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, type ChangeEvent } from 'react'
+import { pendingChatFiles } from '../lib/chatPendingFiles'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion, type Variants, useMotionValue, useSpring, useTransform, useScroll } from 'motion/react'
 import {
@@ -407,6 +408,8 @@ const HERO_PLACEHOLDERS = [
 function HeroChat() {
   const [input, setInput] = useState('')
   const [placeholder, setPlaceholder] = useState('')
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const fileRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -444,8 +447,18 @@ function HeroChat() {
 
   function handleSend(text?: string) {
     const msg = (text || input).trim()
-    if (!msg) return
-    navigate(`/chat?q=${encodeURIComponent(msg)}`)
+    if (!msg && pendingFiles.length === 0) return
+    if (pendingFiles.length > 0) pendingChatFiles.set(pendingFiles)
+    navigate(msg ? `/chat?q=${encodeURIComponent(msg)}` : '/chat')
+  }
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || []).filter(
+      f => f.type.startsWith('image/') || f.type.startsWith('video/')
+    ).slice(0, 5)
+    if (picked.length === 0) return
+    pendingChatFiles.set(picked)
+    navigate('/chat')
   }
 
   return (
@@ -490,19 +503,49 @@ function HeroChat() {
 
       {/* Input area */}
       <div className="border-t border-gray-100 px-3 pt-2 pb-2.5 shrink-0">
-        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-          <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        {/* File preview strip */}
+        {pendingFiles.length > 0 && (
+          <div className="flex gap-1.5 mb-2 flex-wrap">
+            {pendingFiles.map((f, i) => (
+              <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 shrink-0">
+                {f.type.startsWith('image/') ? (
+                  <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-[9px]">▶</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-2 py-2">
+          {/* File picker — galeria + câmera no mobile */}
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-brand hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
+            title="Enviar foto ou vídeo"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+          />
           <input
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder={placeholder}
+            placeholder={pendingFiles.length > 0 ? 'Adicione uma mensagem ou envie...' : placeholder}
             className="flex-1 bg-transparent text-xs text-gray-700 placeholder:text-gray-400 outline-none"
           />
           <motion.button
             whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
             onClick={() => handleSend()}
-            disabled={!input.trim()}
+            disabled={!input.trim() && pendingFiles.length === 0}
             className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white disabled:opacity-30 cursor-pointer shrink-0"
           >
             <Send className="w-3 h-3" />
