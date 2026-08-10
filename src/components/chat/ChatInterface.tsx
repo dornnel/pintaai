@@ -205,8 +205,8 @@ export function ChatInterface() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const hasSpeechAPI = Boolean(SpeechRecognitionAPI)
 
-  // MediaRecorder — gravar vídeo ou áudio direto no chat
-  type RecordMode = 'idle' | 'video' | 'audio'
+  // MediaRecorder — gravar vídeo, áudio ou tirar foto direto no chat
+  type RecordMode = 'idle' | 'video' | 'audio' | 'photo'
   const [recordMode, setRecordMode] = useState<RecordMode>('idle')
   const [showRecordMenu, setShowRecordMenu] = useState(false)
   const [recordSecs, setRecordSecs] = useState(0)
@@ -293,6 +293,42 @@ export function ChatInterface() {
     setDragging(false)
     const dropped = Array.from(e.dataTransfer.files)
     setFiles((prev) => [...prev, ...dropped].slice(0, 5))
+  }
+
+  // ── Câmera: tirar foto(s) ───────────────────────────────────────────────────
+  async function startPhoto() {
+    setShowRecordMenu(false)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      })
+      streamRef.current = stream
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream
+        videoPreviewRef.current.play().catch(() => {})
+      }
+      setRecordMode('photo')
+    } catch {
+      setSizeError('Não foi possível acessar a câmera. Verifique as permissões.')
+      setTimeout(() => setSizeError(''), 4000)
+    }
+  }
+
+  function capturePhoto() {
+    const video = videoPreviewRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
+    canvas.getContext('2d')?.drawImage(video, 0, 0)
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const file = new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      setFiles(prev => {
+        if (prev.length >= 5) return prev
+        return [...prev, file]
+      })
+    }, 'image/jpeg', 0.92)
   }
 
   // ── MediaRecorder: gravar vídeo ou áudio ────────────────────────────────────
@@ -842,6 +878,12 @@ export function ChatInterface() {
                   className="absolute bottom-10 left-0 bg-white border border-gray-200 rounded-xl shadow-lg p-1 z-20 w-44"
                 >
                   <button
+                    onClick={startPhoto}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-orange-50 hover:text-brand transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" /> Tirar foto
+                  </button>
+                  <button
                     onClick={() => startRecording('video')}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-orange-50 hover:text-brand transition-colors cursor-pointer"
                   >
@@ -882,6 +924,69 @@ export function ChatInterface() {
           🛡️ Grátis · LGPD
         </p>
       </div>
+
+      {/* ── Overlay de câmera: tirar foto(s) ─────────────────────────────────── */}
+      <AnimatePresence>
+        {recordMode === 'photo' && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black flex flex-col"
+          >
+            <video
+              ref={videoPreviewRef}
+              autoPlay
+              muted
+              playsInline
+              className="flex-1 w-full object-cover"
+            />
+
+            {/* Thumbnails strip (fotos tiradas) */}
+            {files.filter(f => f.type === 'image/jpeg' && f.name.startsWith('foto-')).length > 0 && (
+              <div className="absolute top-4 left-0 right-0 flex gap-2 justify-center px-4">
+                {files.filter(f => f.name.startsWith('foto-')).map((f, i) => (
+                  <div key={i} className="w-12 h-12 rounded-lg overflow-hidden border-2 border-white shadow-lg shrink-0">
+                    <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="shrink-0 bg-black/90 px-6 py-5 flex items-center justify-between">
+              <button
+                onClick={cancelRecording}
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 cursor-pointer"
+                title="Cancelar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Shutter */}
+              <button
+                onClick={capturePhoto}
+                disabled={files.length >= 5}
+                className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center bg-white/10 hover:bg-white/30 disabled:opacity-40 cursor-pointer transition-colors"
+                title={files.length >= 5 ? 'Limite de 5 fotos atingido' : 'Tirar foto'}
+              >
+                <div className="w-12 h-12 rounded-full bg-white" />
+              </button>
+
+              {/* Usar fotos */}
+              <button
+                onClick={() => {
+                  streamRef.current?.getTracks().forEach(t => t.stop())
+                  streamRef.current = null
+                  setRecordMode('idle')
+                }}
+                disabled={files.filter(f => f.name.startsWith('foto-')).length === 0}
+                className="px-4 py-2 bg-brand text-white rounded-xl text-sm font-semibold disabled:opacity-40 cursor-pointer hover:bg-brand-dark"
+              >
+                Usar {files.filter(f => f.name.startsWith('foto-')).length > 0 ? `(${files.filter(f => f.name.startsWith('foto-')).length})` : ''}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Overlay de gravação de vídeo ──────────────────────────────────────── */}
       <AnimatePresence>
