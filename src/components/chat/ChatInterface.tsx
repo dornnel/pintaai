@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
-import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, MicOff, Plus, Mail, Loader2, CheckCircle, Camera, StopCircle, AudioLines } from 'lucide-react'
+import { RotateCcw, Send, Paperclip, X, Video, AlertCircle, ArrowRight, LogIn, Mic, Plus, Mail, Loader2, CheckCircle, Camera, StopCircle, AudioLines } from 'lucide-react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { MessageBubble } from './MessageBubble'
@@ -50,21 +50,6 @@ const SUGGESTIONS = [
 ]
 
 // Declaração de tipo para Web Speech API
-type SpeechRecognitionInstance = EventTarget & {
-  lang: string
-  interimResults: boolean
-  continuous: boolean
-  start(): void
-  stop(): void
-  onresult: ((e: { results: { transcript: string }[][] }) => void) | null
-  onend: (() => void) | null
-  onerror: (() => void) | null
-}
-
-const SpeechRecognitionAPI =
-  (typeof window !== 'undefined' &&
-    ((window as unknown as Record<string, unknown>).SpeechRecognition ||
-     (window as unknown as Record<string, unknown>).webkitSpeechRecognition)) as (new () => SpeechRecognitionInstance) | undefined
 
 export function ChatInterface() {
   const { messages, loading, sendMessage, reset, currentInputType, currentState, collectedData, authGateAction, clearAuthGateAction } = useChat()
@@ -201,9 +186,6 @@ export function ChatInterface() {
   const [dragging, setDragging] = useState(false)
   const [sizeError, setSizeError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
-  const [isRecording, setIsRecording] = useState(false)
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-  const hasSpeechAPI = Boolean(SpeechRecognitionAPI)
 
   // MediaRecorder — gravar vídeo, áudio ou tirar foto direto no chat
   type RecordMode = 'idle' | 'video' | 'audio' | 'photo'
@@ -399,27 +381,6 @@ export function ChatInterface() {
     setRecordSecs(0)
   }
 
-  function toggleVoice() {
-    if (!SpeechRecognitionAPI) return
-    if (isRecording) {
-      recognitionRef.current?.stop()
-      setIsRecording(false)
-      return
-    }
-    const sr = new SpeechRecognitionAPI()
-    sr.lang = 'pt-BR'
-    sr.interimResults = true
-    sr.continuous = false
-    sr.onresult = (e) => {
-      const transcript = e.results[e.results.length - 1][0].transcript
-      setText(transcript)
-    }
-    sr.onend = () => setIsRecording(false)
-    sr.onerror = () => setIsRecording(false)
-    recognitionRef.current = sr
-    sr.start()
-    setIsRecording(true)
-  }
 
   const isMediaStep = currentInputType === 'media'
   const visibleMessages = messages.filter((m) => m.content !== '__init__')
