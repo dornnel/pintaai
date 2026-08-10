@@ -299,8 +299,9 @@ export function ChatInterface() {
   async function startRecording(kind: 'video' | 'audio') {
     setShowRecordMenu(false)
     try {
+      // facingMode ideal (advisory) — prefers back camera on mobile, falls back on desktop
       const constraints = kind === 'video'
-        ? { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true }
+        ? { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true }
         : { audio: true }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       streamRef.current = stream
