@@ -347,6 +347,22 @@ export function ChatInterface() {
     setRecordSecs(0)
   }
 
+  function cancelRecording() {
+    if (recordIntervalRef.current) { clearInterval(recordIntervalRef.current); recordIntervalRef.current = null }
+    // Stop without saving — clear chunks first
+    chunksRef.current = []
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.ondataavailable = null
+      mediaRecorderRef.current.onstop = null
+      try { mediaRecorderRef.current.stop() } catch { /* ignore */ }
+      mediaRecorderRef.current = null
+    }
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setRecordMode('idle')
+    setRecordSecs(0)
+  }
+
   function toggleVoice() {
     if (!SpeechRecognitionAPI) return
     if (isRecording) {
@@ -781,7 +797,11 @@ export function ChatInterface() {
               <span className="text-xs text-gray-400">/{formatRecordTime(VIDEO_MAX_SECONDS)}</span>
               <button onClick={stopRecording}
                 className="flex items-center gap-1 text-xs text-red-600 font-semibold hover:text-red-800 cursor-pointer shrink-0">
-                <StopCircle className="w-4 h-4" /> Parar
+                <StopCircle className="w-4 h-4" /> Enviar
+              </button>
+              <button onClick={cancelRecording}
+                className="w-6 h-6 flex items-center justify-center rounded-lg bg-gray-200 text-gray-500 hover:bg-gray-300 cursor-pointer shrink-0">
+                <X className="w-3.5 h-3.5" />
               </button>
             </motion.div>
           )}
@@ -838,21 +858,6 @@ export function ChatInterface() {
             </AnimatePresence>
           </div>
 
-          {/* Voice-to-text (SpeechRecognition) */}
-          {hasSpeechAPI && (
-            <button
-              onClick={toggleVoice}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors shrink-0 cursor-pointer ${
-                isRecording
-                  ? 'text-red-500 bg-red-50 animate-pulse'
-                  : 'text-gray-400 hover:text-brand hover:bg-orange-50'
-              }`}
-              title={isRecording ? 'Parar ditado' : 'Ditado por voz (texto)'}
-            >
-              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            </button>
-          )}
-
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -895,11 +900,18 @@ export function ChatInterface() {
             />
 
             {/* Controls bar */}
-            <div className="shrink-0 bg-black/90 px-6 py-5 flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-white font-mono font-semibold text-lg">{formatRecordTime(recordSecs)}</span>
-                <span className="text-gray-400 text-sm">/ {formatRecordTime(VIDEO_MAX_SECONDS)}</span>
+            <div className="shrink-0 bg-black/90 px-4 py-4 flex items-center gap-3">
+              <button
+                onClick={cancelRecording}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors cursor-pointer shrink-0"
+                title="Cancelar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-white font-mono font-semibold">{formatRecordTime(recordSecs)}</span>
+                <span className="text-gray-500 text-xs">/ {formatRecordTime(VIDEO_MAX_SECONDS)}</span>
               </div>
               {/* Progress bar */}
               <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
@@ -907,7 +919,7 @@ export function ChatInterface() {
               </div>
               <button
                 onClick={stopRecording}
-                className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-100 cursor-pointer shrink-0"
+                className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl font-semibold text-sm hover:bg-gray-100 cursor-pointer shrink-0"
               >
                 <StopCircle className="w-4 h-4 text-red-500" /> Parar e enviar
               </button>
