@@ -207,16 +207,12 @@ Deno.serve(async (req: Request) => {
 
     const { message, quickReplies } = await getAgentReply(sessionId, resolvedText)
 
-    // Store quick replies for next round (so user can type "1", "2", etc.)
+    // Store quick replies for next round — merge into existing collected_data (never overwrite)
     if (quickReplies) {
-      await supabase.from('conversation_sessions')
-        .upsert({ session_id: sessionId, updated_at: new Date().toISOString() })
-        .select()
-        .maybeSingle()
-      // Store as metadata via supabase update (best effort)
-      await supabase.from('conversation_sessions')
-        .update({ collected_data: { last_quick_replies: quickReplies } })
-        .eq('session_id', sessionId)
+      await supabase.rpc('merge_session_collected_data', {
+        p_session_id: sessionId,
+        p_patch: { last_quick_replies: quickReplies },
+      })
     }
 
     await sendReply(from, message, quickReplies)

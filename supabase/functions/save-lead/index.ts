@@ -92,12 +92,16 @@ Deno.serve(async (req: Request) => {
 
     // Final save — calcula estimativa real (se area_m2 ou num_rooms informado)
     let calc = null
-    if ((data.area_m2 && data.area_m2 > 0) || (data.num_rooms && data.num_rooms > 0)) {
-      const [{ data: pricing }, { data: complexity }] = await Promise.all([
-        supabase.from('budget_pricing_rules').select('*').eq('active', true),
-        supabase.from('budget_complexity_rules').select('*').eq('active', true),
-      ])
-      calc = calculatePaintingBudget(buildBudgetInput(data), pricing || [], complexity || [])
+    try {
+      if ((data.area_m2 && data.area_m2 > 0) || (data.num_rooms && data.num_rooms > 0)) {
+        const [{ data: pricing }, { data: complexity }] = await Promise.all([
+          supabase.from('budget_pricing_rules').select('*').eq('active', true),
+          supabase.from('budget_complexity_rules').select('*').eq('active', true),
+        ])
+        calc = calculatePaintingBudget(buildBudgetInput(data), pricing || [], complexity || [])
+      }
+    } catch (calcErr) {
+      console.error('Budget calculation failed (non-blocking):', calcErr)
     }
 
     const { data: leadRow, error } = await supabase.from('leads').upsert({
@@ -263,7 +267,7 @@ async function maybeAutoAssign(
   }
 
   const painterIds = selected.map(p => p.id)
-  console.log(`[AutoAssign] ${protocol}: ${nearby.length} nearby → top ${painterIds.length} selected`, ranked.map(r => ({ id: r.id.slice(0, 8), score: r.score.toFixed(3) })))
+  console.log(`[AutoAssign] ${protocol}: ${nearby.length} nearby → top ${painterIds.length} selected`, allRanked.map(r => ({ id: r.id.slice(0, 8), score: r.score.toFixed(3) })))
 
   const priceEstimate = calc
     ? `R$ ${calc.estimated_min.toLocaleString('pt-BR')} – R$ ${calc.estimated_max.toLocaleString('pt-BR')}`
@@ -310,14 +314,12 @@ async function maybeAutoAssign(
     ))
   }
 
-  // Update painter tracking: last_lead_received_at + increment active_leads_count
+  // Update painter tracking: last_lead_received_at + atomic increment active_leads_count
   await Promise.all(painterIds.map(painterId =>
-    supabase.from('painters').update({
-      last_lead_received_at: new Date().toISOString(),
-      active_leads_count: ((painters || []).find((pp: { id: string }) => pp.id === painterId) as { active_leads_count?: number } | undefined)?.active_leads_count
-        ? ((painters || []).find((pp: { id: string }) => pp.id === painterId) as { active_leads_count: number }).active_leads_count + 1
-        : 1,
-    }).eq('id', painterId)
+    supabase.rpc('increment_painter_lead_count', {
+      painter_id: painterId,
+      received_at: new Date().toISOString(),
+    })
   ))
 
   await supabase.from('leads').update({

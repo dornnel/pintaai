@@ -111,8 +111,24 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Generic AI assistant mode — painter/admin context-aware chat
+    // Generic AI assistant mode — painter/admin context-aware chat (requires auth)
     if (action === 'assistant' || (body as Record<string, unknown>).adminMode === true) {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const { data: { user }, error: authError } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      )
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
       const customMessages = (body as Record<string, unknown>).messages as { role: string; content: string }[] | undefined
       if (customMessages && customMessages.length > 0) {
         const resp = await openai.chat.completions.create({
@@ -398,13 +414,13 @@ Exemplos:
       session_id,
       channel: 'web',
       direction: 'inbound',
-      body: userContent,
+      body: textContent,
       ai_intent: parsed.action || 'chat',
       metadata: { parsed_response: parsed.message, browser: metadata || {} },
     }).then(() => {}).catch(console.error)
 
     // Moderation (async, non-blocking)
-    moderateMessage(session_id, userContent).catch(console.error)
+    moderateMessage(session_id, textContent).catch(console.error)
 
     return new Response(
       JSON.stringify({
@@ -464,6 +480,7 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
   const resp = await openai.chat.completions.create({
     model: 'gpt-4o',
     max_tokens: 1024,
+    temperature: 0,
     messages: [{ role: 'user', content: briefingPrompt }],
   })
 
@@ -475,31 +492,21 @@ Gere um briefing técnico completo. Responda APENAS com JSON válido:
 async function moderateMessage(sessionId: string, message: string): Promise<void> {
   if (message === '__init__' || message.length < 5) return
 
-  const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    max_tokens: 256,
-    messages: [{
-      role: 'user',
-      content: `Analise esta mensagem de uma plataforma de serviços. Responda APENAS com JSON:
-Mensagem: "${message}"
-{"has_flag": false, "flag_type": null, "severity": null, "explanation": ""}
-Tipos: "offensive" | "bypass_attempt" | "ethics_violation" | "spam"
-Severidades: "low" | "medium" | "high"`,
-    }],
-  })
+  // Use free OpenAI Moderation endpoint instead of gpt-4o-mini
+  const mod = await openai.moderations.create({ input: message })
+  const result = mod.results[0]
+  if (!result.flagged) return
 
-  const text = resp.choices[0].message.content || ''
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return
-
-  const result = JSON.parse(match[0])
-  if (!result.has_flag) return
+  const flagType = Object.entries(result.categories)
+    .find(([, v]) => v)?.[0] || 'offensive'
+  const score = Math.max(...Object.values(result.category_scores))
+  const severity = score > 0.9 ? 'high' : score > 0.6 ? 'medium' : 'low'
 
   await supabase.from('moderation_flags').insert({
     message_id: `session_${sessionId}_${Date.now()}`,
-    flag_type: result.flag_type,
-    severity: result.severity,
-    ai_explanation: result.explanation,
+    flag_type: flagType,
+    severity,
+    ai_explanation: `Flagged by OpenAI Moderation API (score: ${score.toFixed(3)})`,
     status: 'pending',
   })
 }
