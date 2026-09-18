@@ -11,16 +11,53 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const { email, password, name, role } = await req.json()
-    if (!email || !password) {
-      return new Response(JSON.stringify({ error: 'Email e senha obrigatórios' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const { email, password, name, role, checkOnly } = await req.json()
+    if (!email) {
+      return new Response(JSON.stringify({ error: 'Email obrigatório' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
+
+    // ── checkOnly: verify if email exists + which providers are linked ──
+    if (checkOnly) {
+      const sbPintae = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { db: { schema: 'pintae' } })
+      const { data: userData } = await sbPintae.from('users')
+        .select('id, name, auth_user_id')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle()
+
+      if (!userData) {
+        return new Response(JSON.stringify({ exists: false }), {
+          status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      let providers: string[] = []
+      if (userData.auth_user_id) {
+        const { data: authUser } = await sb.auth.admin.getUserById(userData.auth_user_id)
+        if (authUser?.user?.identities) {
+          providers = (authUser.user.identities as { provider: string }[]).map(i => i.provider)
+        }
+      }
+
+      return new Response(JSON.stringify({
+        exists: true,
+        name: userData.name,
+        providers,
+        hasPasswordLogin: providers.includes('email'),
+        hasGoogleLogin: providers.includes('google'),
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    if (!password) {
+      return new Response(JSON.stringify({ error: 'Senha obrigatória' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // Create auth user with auto-confirm (bypasses SMTP)
     const { data: authData, error: authErr } = await sb.auth.admin.createUser({

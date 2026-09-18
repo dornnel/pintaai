@@ -290,6 +290,9 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
   const [proStatus, setProStatus] = useState<string | null>(null)
   const [grantingSub, setGrantingSub] = useState(false)
   const [togglingSuper, setTogglingSuper] = useState(false)
+  const [userProviders, setUserProviders] = useState<string[] | null>(null)
+  const [sendingPasswordLink, setSendingPasswordLink] = useState(false)
+  const [passwordLinkSent, setPasswordLinkSent] = useState(false)
 
   useEffect(() => {
     // Fetch painter pro_plan_status if user has painter role
@@ -298,7 +301,25 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
       supabase.from('painters').select('pro_plan_status').eq('user_id', user.id).maybeSingle()
         .then(({ data }) => setProStatus(data?.pro_plan_status ?? 'none'))
     }
-  }, [user.id, user.role, user.roles])
+    // Fetch auth providers for this user
+    if (user.auth_user_id) {
+      supabase.functions.invoke('register-user', {
+        body: { email: user.email, checkOnly: true },
+      }).then(({ data }) => {
+        if (data?.exists) setUserProviders(data.providers || [])
+        else setUserProviders([])
+      })
+    }
+  }, [user.id, user.role, user.roles, user.email, user.auth_user_id])
+
+  async function sendPasswordSetupLink() {
+    setSendingPasswordLink(true)
+    await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    })
+    setPasswordLinkSent(true)
+    setSendingPasswordLink(false)
+  }
 
   async function grantClub(grant: boolean) {
     setGrantingSub(true)
@@ -400,6 +421,17 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
                   <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', STATUS_COLORS[user.status] || 'bg-gray-100 text-gray-600')}>
                     {STATUS_LABELS[user.status] || user.status}
                   </span>
+                  {userProviders?.includes('google') && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
+                      <svg width="10" height="10" viewBox="0 0 24 24" className="shrink-0"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                      Google
+                    </span>
+                  )}
+                  {userProviders?.includes('email') && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex items-center gap-1">
+                      <Mail className="w-2.5 h-2.5" /> Email
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -499,6 +531,16 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
                   className="flex items-center justify-center gap-1.5 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-xl text-xs font-semibold cursor-pointer hover:bg-gray-100 transition-colors col-span-2">
                   <Edit2 className="w-3.5 h-3.5" /> Editar dados
                 </button>
+                {/* Only show for Google-only users (no email/password login) */}
+                {userProviders !== null && userProviders.includes('google') && !userProviders.includes('email') && (
+                  <button
+                    onClick={sendPasswordSetupLink}
+                    disabled={sendingPasswordLink || passwordLinkSent}
+                    className="col-span-2 flex items-center justify-center gap-1.5 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold cursor-pointer hover:bg-blue-100 transition-colors disabled:opacity-60">
+                    {sendingPasswordLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    {passwordLinkSent ? '✓ Link enviado para o email' : 'Enviar link para criar senha'}
+                  </button>
+                )}
               </div>
 
               {/* ── Grant subscriptions (admin only) ── */}
