@@ -243,6 +243,20 @@ export function renderTemplate(step: FlowStep, steps: FlowStep[], data: Collecte
   return interpolate(template, data, userName)
 }
 
+// Deriva property_scope a partir do service_type já informado, para não repetir
+// uma pergunta cuja resposta o usuário já deu (ex.: "quero pintar a fachada").
+export function inferPropertyScope(data: CollectedData): string | undefined {
+  if (data.property_scope) return String(data.property_scope)
+  const svc = `${data.service_type ?? ''} ${data.surfaces ?? ''}`.toLowerCase()
+  if (!svc.trim()) return undefined
+  const external = /fachada|extern|muro|telhad/.test(svc)
+  const internal = /interna|interior/.test(svc)
+  if (external && internal) return 'Ambas (interna + externa)'
+  if (external) return 'Apenas externa'
+  if (internal) return 'Apenas interna'
+  return undefined
+}
+
 // ─── Valor computado a partir da resposta crua do usuário ────────────────────
 export function computeFieldValue(step: FlowStep, rawText: string): unknown {
   const normalized = rawText.trim().toLowerCase()
@@ -309,7 +323,10 @@ export function autoAdvance(steps: FlowStep[], fromKey: string, data: CollectedD
   while (step && guard < 30) {
     guard++
     if (step.field_key === 'confirmed') return step
-    if (step.is_core_field && prefilledFields.has(step.field_key)) {
+    // Nunca repetir uma pergunta cuja resposta já foi coletada — seja por extração
+    // da mensagem inicial (prefilledFields) ou por informação dada espontaneamente
+    // no meio da conversa.
+    if (step.is_core_field || prefilledFields.has(step.field_key)) {
       const value = getFieldValue(step, data)
       if (value !== undefined && value !== null && value !== '') {
         const nextKey = resolveNext(steps, step, String(value), data)

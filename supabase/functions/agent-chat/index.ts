@@ -246,7 +246,7 @@ Extraia TODOS os dados identificáveis. Para campos não encontrados, use null. 
   "service_type": "Pintura interna|Fachada / Externa|Repintura – mesma cor|Repintura – nova cor|Textura / Grafiato|1ª pintura (imóvel novo) ou null",
   "area_m2": número OU string de faixa ("25–50 m²") ou null,
   "property_type": "Apartamento|Casa|Sala / Escritório|Loja / Comércio|Outro ou null",
-  "property_scope": "Apenas interna|Apenas externa|Ambas (interna + externa) ou null (só para Casa)",
+  "property_scope": "Apenas interna|Apenas externa|Ambas (interna + externa) ou null",
   "neighborhood": "nome do bairro (Campeche, Rio Tavares, Armação, Morro das Pedras, Pântano do Sul, etc.) ou null",
   "surfaces": "Paredes|Teto|Portas|Janelas|Rodapés (pode ser combinação com ' + ') ou null",
   "wall_condition": "Bom estado|Manchas / sujeira|Descascando|Rachaduras|Mofo|Pós-obra / novo (pode ser combinação com ' + ') ou null",
@@ -257,7 +257,22 @@ Extraia TODOS os dados identificáveis. Para campos não encontrados, use null. 
   "role": "painter (se a pessoa disser que É pintor e quer se cadastrar) ou null"
 }
 
+Sinônimos obrigatórios para property_type:
+- "residência", "residencia", "minha casa", "imóvel residencial" → "Casa"
+- "prédio", "edificio", "edifício", "condomínio", "condominio" → "Prédio / Edifício"
+- "kitnet", "studio", "flat", "apt", "apto", "apartamento" → "Apartamento"
+- "escritório", "sala comercial", "sala" → "Sala / Escritório"
+- "loja", "comércio", "comercio" → "Loja / Comércio"
+
+Sempre que o cliente indicar onde será a pintura, preencha property_scope (para qualquer tipo de imóvel):
+- "pintura externa", "fachada", "muros", "parte de fora" → "Apenas externa"
+- "pintura interna", "por dentro", "quartos/sala" → "Apenas interna"
+- "por dentro e por fora", "tudo" → "Ambas (interna + externa)"
+
 Exemplos:
+- "quero pintar minha residência" → property_type:"Casa"
+- "pintura externa da minha casa" → property_type:"Casa", property_scope:"Apenas externa", service_type:"Fachada / Externa"
+- "residencia de 3 quartos" → property_type:"Casa"
 - "kitnet de 40m2, paredes e teto" → property_type:"Apartamento", area_m2:40, surfaces:"Paredes + Teto"
 - "casa no Campeche, pintura interna, 3 quartos" → property_type:"Casa", property_scope:"Apenas interna", neighborhood:"Campeche"
 - "vou comprar o material separado" → material:"Vou comprar separado"

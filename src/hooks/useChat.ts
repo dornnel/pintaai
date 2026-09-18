@@ -9,7 +9,7 @@ import {
   CHIP_TO_SERVICE, KNOWN_NEIGHBORHOODS, SKIP_VALUES, VALIDATORS, EXTRACTABLE_VALIDATIONS,
   FIELD_LABELS,
   branchSteps, getStep, setFieldValue, renderTemplate, computeFieldValue,
-  resolveNext, autoAdvance, buildSummary,
+  resolveNext, autoAdvance, buildSummary, inferPropertyScope,
 } from './chatFlow'
 
 const SESSION_KEY = 'pintae_session_id'
@@ -468,11 +468,19 @@ export function useChat() {
       const isCasa = pv.includes('casa') || pv.includes('residência') || pv.includes('residencia')
       const isApt = pv.includes('apart') || pv.includes('apto')
 
+      const inferredScope = inferPropertyScope(data)
+      if (inferredScope && !data.property_scope) {
+        data.property_scope = inferredScope
+        prefilled.add('property_scope')
+        dataRef.current = data
+        setCollectedData(data)
+      }
+
       if (isCasa && !data.property_scope) {
         setCurrentState('property_scope')
         saveSessionState('property_scope', data).catch(console.error)
         const scopeStep = steps.find(s => s.step_key === 'property_scope')
-        let msg = scopeStep?.question_template.replace(/\\n/g, '\n') || `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`
+        let msg = scopeStep ? renderTemplate(scopeStep, steps, data, authUser?.name) : `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`
         if (transitionValue !== null) {
           setLoading(true)
           try { msg = await callTransition({ previous_field: transitionField, previous_value: transitionValue, next_question: msg, collected_data: data, user_name: authUser?.name }) }
@@ -482,12 +490,13 @@ export function useChat() {
         agentMessage(msg, scopeStep?.quick_replies || ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)'])
         return
       }
-      if (!isApt) {
+      const hasExternal = /extern|ambas/i.test(String(data.property_scope ?? ''))
+      if (!isApt || hasExternal) {
         setCurrentState('visit_preference')
         saveSessionState('visit_preference', data).catch(console.error)
         const visitStep = steps.find(s => s.step_key === 'visit_preference')
         let msg = visitStep
-          ? visitStep.question_template.replace(/\\n/g, '\n').replace('{{property_type}}', String(data.property_type))
+          ? renderTemplate(visitStep, steps, data, authUser?.name)
           : `Para um orçamento mais preciso, prefere agendar uma **visita técnica** rápida ou receber uma estimativa **a distância**? 📋`
         if (transitionValue !== null) {
           setLoading(true)
@@ -663,27 +672,37 @@ export function useChat() {
     // Casa → step sintético property_scope (interna / externa / ambas)
     if (step.field_key === 'property_type' && !inCorrection) {
       const val = String(fieldValue).toLowerCase()
-      if (val.includes('casa')) {
+
+      const inferredScope = inferPropertyScope(newData)
+      if (inferredScope && !newData.property_scope) {
+        newData = { ...newData, property_scope: inferredScope }
+        dataRef.current = newData
+        setCollectedData(newData)
+      }
+
+      const isCasa = val.includes('casa') || val.includes('residênc') || val.includes('residenc')
+      if (isCasa && !newData.property_scope) {
         setCurrentState('property_scope')
         saveSessionState('property_scope', newData).catch(console.error)
         await delay(500)
         const scopeDbStep = steps.find(s => s.step_key === 'property_scope')
         agentMessage(
-          scopeDbStep?.question_template || `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`,
+          scopeDbStep ? renderTemplate(scopeDbStep, steps, newData, authUser?.name) : `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`,
           scopeDbStep?.quick_replies || ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)']
         )
         return
       }
-      // Demais imóveis não-apartamento → pergunta visita técnica
+
       const isApt = val.includes('apart') || val.includes('apto')
-      if (!isApt) {
+      const hasExternal = /extern|ambas/i.test(String(newData.property_scope ?? ''))
+      if ((!isApt || hasExternal) && !newData.site_visit_preference) {
         setCurrentState('visit_preference')
         saveSessionState('visit_preference', newData).catch(console.error)
         await delay(600)
         const visitDbStep = steps.find(s => s.step_key === 'visit_preference')
         agentMessage(
           visitDbStep
-            ? visitDbStep.question_template.replace('{{property_type}}', String(fieldValue))
+            ? renderTemplate(visitDbStep, steps, newData, authUser?.name)
             : `Para **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 📋\n\nComo prefere prosseguir?`,
           visitDbStep?.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
         )
@@ -918,7 +937,7 @@ export function useChat() {
         saveSessionState('visit_preference', newData).catch(console.error)
         await delay(400)
         agentMessage(
-          visitDbStep.question_template.replace('{{property_type}}', String(newData.property_type || 'casa')),
+          renderTemplate(visitDbStep, steps, newData, authUser?.name),
           visitDbStep.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
         )
         return
