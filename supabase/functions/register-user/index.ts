@@ -35,13 +35,13 @@ Deno.serve(async (req: Request) => {
         ? 'Este email já tem conta. Faça login.'
         : authErr.message || 'Erro ao criar conta'
       return new Response(JSON.stringify({ error: msg }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     if (!authData.user) {
       return new Response(JSON.stringify({ error: 'Erro ao criar usuário' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
@@ -81,8 +81,8 @@ Deno.serve(async (req: Request) => {
     })
   } catch (err) {
     console.error('register-user error:', err)
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ error: 'Erro interno. Tente novamente.' }), {
+      status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
 })
