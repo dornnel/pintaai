@@ -28,9 +28,11 @@ interface UserRecord {
   created_at: string
   auth_user_id?: string
   is_club_member?: boolean
+  is_super_admin?: boolean
 }
 
 const ROLE_COLORS: Record<string, string> = {
+  super_admin: 'bg-violet-600 text-white',
   admin: 'bg-purple-100 text-purple-700',
   customer: 'bg-blue-100 text-blue-700',
   painter: 'bg-orange-100 text-orange-700',
@@ -39,6 +41,7 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin',
   admin: 'Admin',
   customer: 'Cliente',
   painter: 'Pintor',
@@ -286,6 +289,7 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
   const [deleteError, setDeleteError] = useState('')
   const [proStatus, setProStatus] = useState<string | null>(null)
   const [grantingSub, setGrantingSub] = useState(false)
+  const [togglingSuper, setTogglingSuper] = useState(false)
 
   useEffect(() => {
     // Fetch painter pro_plan_status if user has painter role
@@ -301,6 +305,14 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
     await supabase.from('users').update({ is_club_member: grant }).eq('id', user.id)
     onUpdated({ ...user, is_club_member: grant })
     setGrantingSub(false)
+  }
+
+  async function toggleSuperAdmin() {
+    setTogglingSuper(true)
+    const next = !user.is_super_admin
+    await supabase.from('users').update({ is_super_admin: next }).eq('id', user.id)
+    onUpdated({ ...user, is_super_admin: next })
+    setTogglingSuper(false)
   }
 
   async function grantPro(grant: boolean) {
@@ -526,6 +538,29 @@ function UserDetailDrawer({ user, onClose, onUpdated, onDeleted, isSuperAdmin, a
                 </div>
               </div>
 
+              {isSuperAdmin && user.role === 'admin' && (
+                <div className="mt-4 pt-4 border-t border-violet-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-violet-700">Super Admin</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Acesso total: fluxo do chat, migrações, permissões</p>
+                    </div>
+                    <button
+                      onClick={toggleSuperAdmin}
+                      disabled={togglingSuper}
+                      className={cn(
+                        'relative w-10 h-5 rounded-full transition-colors cursor-pointer disabled:opacity-50',
+                        user.is_super_admin ? 'bg-violet-600' : 'bg-gray-200',
+                      )}>
+                      <span className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all',
+                        user.is_super_admin ? 'left-5' : 'left-0.5',
+                      )} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {isSuperAdmin && (
                 <div className="mt-4 pt-4 border-t border-red-100">
                   {!confirmDelete ? (
@@ -623,7 +658,7 @@ export function UsersPage() {
   }
 
   const loadUsers = useCallback(async () => {
-    const { data } = await supabase.from('users').select('*, is_club_member').order('created_at', { ascending: false })
+    const { data } = await supabase.from('users').select('*, is_club_member, is_super_admin').order('created_at', { ascending: false })
     setUsers((data as UserRecord[]) || [])
     setLoading(false)
   }, [])
@@ -757,19 +792,26 @@ export function UsersPage() {
                       const hasPending = !!pendingChanges[user.id]
                       return (
                         <div className="flex flex-col gap-1.5">
-                          <select
-                            value={eff.role}
-                            onChange={e => changePrimaryRole(user.id, e.target.value)}
-                            className={cn(
-                              'text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer w-fit',
-                              hasPending ? 'ring-2 ring-brand/40 ' : '',
-                              ROLE_COLORS[eff.role] || 'bg-gray-100 text-gray-600',
-                            )}>
-                            <option value="customer">Cliente</option>
-                            <option value="painter">Pintor</option>
-                            <option value="partner">Parceiro</option>
-                            <option value="admin">Admin</option>
-                          </select>
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={eff.role}
+                              onChange={e => changePrimaryRole(user.id, e.target.value)}
+                              className={cn(
+                                'text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer w-fit',
+                                hasPending ? 'ring-2 ring-brand/40 ' : '',
+                                ROLE_COLORS[eff.role] || 'bg-gray-100 text-gray-600',
+                              )}>
+                              <option value="customer">Cliente</option>
+                              <option value="painter">Pintor</option>
+                              <option value="partner">Parceiro</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            {user.is_super_admin && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-600 text-white shrink-0">
+                                ⚡ Super
+                              </span>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-1">
                             {(['admin', 'customer', 'painter', 'partner'] as const)
                               .filter(r => r !== eff.role)

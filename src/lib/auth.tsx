@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { supabase } from './supabase'
 import type { User as DBUser } from './types'
 
-const SUPERADMIN_EMAIL = 'andre@agenscia.com'
 const ACTIVE_ROLE_KEY = 'pintae_active_role'
 
 interface AuthUser {
@@ -34,7 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {}, completeOnboarding: async () => {}, switchRole: () => {}, addRole: async () => {}, updateProfile: async () => {},
 })
 
-const ADMIN_EMAILS = [SUPERADMIN_EMAIL, 'admin@pintae.com.br', 'admin@pintai.com.br']
+const ADMIN_EMAILS = ['andre@agenscia.com', 'admin@pintae.com.br', 'admin@pintai.com.br']
 
 function resolveActiveRole(roles: string[], defaultRole: DBUser['role']): DBUser['role'] {
   const stored = localStorage.getItem(ACTIVE_ROLE_KEY)
@@ -64,13 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(authUser: { id: string; email?: string }) {
     const { data } = await supabase
       .from('users')
-      .select('id, role, roles, name, phone, cpf, status, email')
+      .select('id, role, roles, name, phone, cpf, status, email, is_super_admin')
       .eq('auth_user_id', authUser.id)
       .single()
 
     if (data) {
       const roles = data.roles?.length ? data.roles : [data.role]
-      setUser({ id: data.id, role: data.role, roles, activeRole: resolveActiveRole(roles, data.role), name: data.name, phone: data.phone, cpf: data.cpf ?? undefined, status: data.status, email: data.email, isSuperAdmin: data.email === SUPERADMIN_EMAIL })
+      setUser({ id: data.id, role: data.role, roles, activeRole: resolveActiveRole(roles, data.role), name: data.name, phone: data.phone, cpf: data.cpf ?? undefined, status: data.status, email: data.email, isSuperAdmin: data.is_super_admin === true })
       setLoading(false)
       setNeedsOnboarding(data.status === 'pending' && data.role === 'customer' && !data.email?.endsWith('@agenscia.com'))
       return
@@ -82,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Use limit(1) + order to handle duplicate emails gracefully (most recent active wins)
     const { data: byEmailRows } = await supabase
       .from('users')
-      .select('id, role, roles, name, phone, cpf, status, email')
+      .select('id, role, roles, name, phone, cpf, status, email, is_super_admin')
       .eq('email', email)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -92,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (byEmail) {
       await supabase.from('users').update({ auth_user_id: authUser.id, status: 'active' }).eq('id', byEmail.id)
       const roles = byEmail.roles?.length ? byEmail.roles : [byEmail.role]
-      setUser({ id: byEmail.id, role: byEmail.role, roles, activeRole: resolveActiveRole(roles, byEmail.role), name: byEmail.name, phone: byEmail.phone, cpf: byEmail.cpf ?? undefined, status: 'active', email: byEmail.email, isSuperAdmin: byEmail.email === SUPERADMIN_EMAIL })
+      setUser({ id: byEmail.id, role: byEmail.role, roles, activeRole: resolveActiveRole(roles, byEmail.role), name: byEmail.name, phone: byEmail.phone, cpf: byEmail.cpf ?? undefined, status: 'active', email: byEmail.email, isSuperAdmin: byEmail.is_super_admin === true })
       setLoading(false)
       setNeedsOnboarding(false)
       return
@@ -114,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && newUser) {
       const roles = newUser.roles?.length ? newUser.roles : [newUser.role]
-      setUser({ id: newUser.id, role: newUser.role, roles, activeRole: resolveActiveRole(roles, newUser.role), name: newUser.name, phone: newUser.phone, status: newUser.status, email: newUser.email, isSuperAdmin: newUser.email === SUPERADMIN_EMAIL })
+      setUser({ id: newUser.id, role: newUser.role, roles, activeRole: resolveActiveRole(roles, newUser.role), name: newUser.name, phone: newUser.phone, status: newUser.status, email: newUser.email, isSuperAdmin: false })
 
       if (isAdmin) {
         await supabase.from('admin_permissions').upsert({
