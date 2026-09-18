@@ -9,7 +9,7 @@ import {
   CHIP_TO_SERVICE, KNOWN_NEIGHBORHOODS, SKIP_VALUES, VALIDATORS, EXTRACTABLE_VALIDATIONS,
   FIELD_LABELS,
   branchSteps, getStep, setFieldValue, renderTemplate, computeFieldValue,
-  resolveNext, autoAdvance,
+  resolveNext, autoAdvance, buildSummary,
 } from './chatFlow'
 
 const SESSION_KEY = 'pintae_session_id'
@@ -297,6 +297,19 @@ export function useChat() {
       return
     }
 
+    if (nextKey === 'show_summary') {
+      setCurrentState('show_summary')
+      currentStateRef.current = 'show_summary'
+      saveSessionState('show_summary', data).catch(console.error)
+      const steps = await getSteps()
+      const summary = buildSummary(steps, data)
+      agentMessage(
+        `📋 **Resumo da sua solicitação**\n\n${summary}\n\nTudo certo? Ao confirmar, vou pedir seus dados de contato para enviar o pedido aos pintores.`,
+        ['✅ Está certo, continuar', '✏️ Corrigir algum dado'],
+      )
+      return
+    }
+
     const steps = await getSteps()
     const resolvedStep = autoAdvance(steps, nextKey, data, prefilledFieldsRef.current)
     if (!resolvedStep) {
@@ -560,7 +573,9 @@ export function useChat() {
       agentMessage('Ok, vou prosseguir.')
     }
 
-    const nextKey = resolveNext(steps, step, text, newData)
+    let nextKey = resolveNext(steps, step, text, newData)
+    // After final_notes (last service question), show full summary before requesting contact info
+    if (step.field_key === 'final_notes') nextKey = 'show_summary'
     await delay(600)
     await advanceToState(nextKey, newData, { fromStep: step, fromValue: text })
   }
@@ -950,12 +965,35 @@ export function useChat() {
         agentMessage('Faça login abaixo 👇 Preencheremos tudo automaticamente depois!')
         return
       }
-      // "Preencher meus dados" → advance to email step normally
+      // "Preencher meus dados" → collect name first, then email + whatsapp
       setLoading(true)
       const steps = await getSteps()
       setLoading(false)
-      const emailStep = branchSteps(steps, 'client').find(s => s.field_key === 'email')
-      if (emailStep) await advanceToState(emailStep.step_key, dataRef.current)
+      const nameStep = branchSteps(steps, 'client').find(s => s.field_key === 'name')
+      if (nameStep) await advanceToState(nameStep.step_key, dataRef.current)
+      return
+    }
+
+    // Summary shown before contact info — user confirms or corrects
+    if (currentState === 'show_summary') {
+      if (/corrigi|corrigir|✏️/i.test(text)) {
+        await advanceToState('correction_select', dataRef.current)
+        return
+      }
+      // Confirmed → show auth gate for non-logged users, else proceed to contact steps
+      if (!authUser) {
+        setCurrentState('auth_gate')
+        currentStateRef.current = 'auth_gate'
+        saveSessionState('auth_gate', dataRef.current).catch(console.error)
+        agentMessage(
+          'Para enviar seu pedido para os pintores, você precisa de uma conta. Como prefere continuar?',
+          ['✅ Já tenho conta', '🔑 Entrar com Google', '✏️ Criar conta e preencher dados'],
+        )
+      } else {
+        const stepsForSummary = await getSteps()
+        const nameStep = branchSteps(stepsForSummary, 'client').find(s => s.field_key === 'name')
+        await advanceToState(nameStep?.step_key ?? 'lead_name', dataRef.current)
+      }
       return
     }
 
