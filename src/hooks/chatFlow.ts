@@ -235,7 +235,8 @@ export function buildSummary(steps: FlowStep[], data: CollectedData): string {
 }
 
 export function renderTemplate(step: FlowStep, steps: FlowStep[], data: CollectedData, userName?: string): string {
-  let template = step.question_template
+  // Convert literal \n sequences (stored escaped in DB) to real newlines
+  let template = step.question_template.replace(/\\n/g, '\n')
   if (template.includes('{{summary}}')) {
     template = template.replace('{{summary}}', buildSummary(steps, data))
   }

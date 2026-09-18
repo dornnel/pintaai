@@ -447,6 +447,46 @@ export function useChat() {
     setCollectedData(data)
     prefilledFieldsRef.current = prefilled
 
+    // When property_type was extracted from the opening message, the autoAdvance
+    // loop skips its step (prefilled) and never fires the synthetic steps.
+    // Inject them here before the normal flow continues.
+    if (prefilled.has('property_type') && data.property_type && !data.site_visit_preference) {
+      const pv = String(data.property_type).toLowerCase()
+      const isCasa = pv.includes('casa') || pv.includes('residência') || pv.includes('residencia')
+      const isApt = pv.includes('apart') || pv.includes('apto')
+
+      if (isCasa && !data.property_scope) {
+        setCurrentState('property_scope')
+        saveSessionState('property_scope', data).catch(console.error)
+        const scopeStep = steps.find(s => s.step_key === 'property_scope')
+        let msg = scopeStep?.question_template.replace(/\\n/g, '\n') || `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`
+        if (transitionValue !== null) {
+          setLoading(true)
+          try { msg = await callTransition({ previous_field: transitionField, previous_value: transitionValue, next_question: msg, collected_data: data, user_name: authUser?.name }) }
+          catch { msg = `Entendido! ${msg}` }
+          finally { setLoading(false) }
+        }
+        agentMessage(msg, scopeStep?.quick_replies || ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)'])
+        return
+      }
+      if (!isApt) {
+        setCurrentState('visit_preference')
+        saveSessionState('visit_preference', data).catch(console.error)
+        const visitStep = steps.find(s => s.step_key === 'visit_preference')
+        let msg = visitStep
+          ? visitStep.question_template.replace(/\\n/g, '\n').replace('{{property_type}}', String(data.property_type))
+          : `Para um orçamento mais preciso, prefere agendar uma **visita técnica** rápida ou receber uma estimativa **a distância**? 📋`
+        if (transitionValue !== null) {
+          setLoading(true)
+          try { msg = await callTransition({ previous_field: transitionField, previous_value: transitionValue, next_question: msg, collected_data: data, user_name: authUser?.name }) }
+          catch { msg = `Entendido! ${msg}` }
+          finally { setLoading(false) }
+        }
+        agentMessage(msg, visitStep?.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora'])
+        return
+      }
+    }
+
     const firstKey = branchSteps(steps, 'client')[0]?.step_key ?? 'role_select'
     const resolvedStep = autoAdvance(steps, firstKey, data, prefilled)
     if (!resolvedStep) {
