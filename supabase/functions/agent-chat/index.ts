@@ -1,5 +1,8 @@
 import OpenAI from 'npm:openai@4'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import {
+  type FlowStepRow, buildChecklist, missingRequired, inferPropertyScope, isFilled,
+} from '../_shared/flowRules.ts'
 
 const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY')! })
 const supabase = createClient(
@@ -70,6 +73,29 @@ interface RequestBody {
   next_question?: string
   collected_data?: Record<string, unknown>
   user_name?: string
+  channel?: 'web' | 'whatsapp'
+  whatsapp_number?: string
+}
+
+const OUT_OF_SCOPE_REPLY = 'Cuidamos apenas de pintura de imóveis — casas, apartamentos, prédios, salas e lojas. 😊 Posso te ajudar com isso? Me conta o que você quer pintar aí.'
+
+const DEFAULT_DISCOVERY_PROMPT = `Você é o Koke, assistente da Pinte Rápido Floripa no chat web e WhatsApp.
+Tom: prático, simpático, local e objetivo. Frases curtas. Nunca pareça um formulário.
+Nunca prometa preço final ou faixa de preço — apenas um pintor avalia isso depois.`
+
+async function loadActiveAgentConfig(sb: ReturnType<typeof createClient>) {
+  const { data } = await sb.from('agent_configs').select('*').eq('active', true).limit(1).maybeSingle()
+  return data as { system_prompt?: string; model?: string; max_tokens?: number; temperature?: number } | null
+}
+
+async function loadFlowSteps(sb: ReturnType<typeof createClient>): Promise<FlowStepRow[]> {
+  const { data } = await sb.from('agent_flow_steps').select('*').eq('active', true).eq('enabled', true).order('order_index')
+  return (data || []) as FlowStepRow[]
+}
+
+function enumFromQuickReplies(steps: FlowStepRow[], fieldKey: string): string[] | undefined {
+  const step = steps.find(s => s.field_key === fieldKey && s.branch === 'client')
+  return step?.quick_replies && step.quick_replies.length > 0 ? step.quick_replies : undefined
 }
 
 Deno.serve(async (req: Request) => {
@@ -82,17 +108,19 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = (await req.json()) as RequestBody
-    const { session_id, message, history, media_urls, metadata, action, collected, previous_field, previous_value, next_question, collected_data, user_name } = body
+    const { session_id, message, history, media_urls, metadata, action, collected, previous_field, previous_value, next_question, collected_data, user_name, channel } = body
 
-    // Persist conversation session (async, fire-and-forget)
-    supabase.from('conversation_sessions').upsert({
-      session_id,
-      user_identifier: session_id,
-      channel: 'web',
+    // Garante que a sessão existe e registra metadata — usa merge (nunca overwrite)
+    // para não apagar collected_data já persistido por uma chamada concorrente.
+    supabase.rpc('merge_session_collected_data', {
+      p_session_id: session_id,
+      p_patch: { _metadata: metadata || {} },
+    }).then(() => {}).catch(console.error)
+    supabase.from('conversation_sessions').update({
+      channel: channel || 'web',
       current_state: 'active',
-      collected_data: { _metadata: metadata || {} },
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'session_id' }).then(() => {}).catch(console.error)
+    }).eq('session_id', session_id).then(() => {}).catch(console.error)
 
     // Verifica se o email já está cadastrado na plataforma
     if (action === 'check_email') {
@@ -334,6 +362,204 @@ Exemplos:
       const extracted = resp.choices[0].message.content?.trim() || 'null'
       return new Response(
         JSON.stringify({ extracted: extracted === 'null' ? null : extracted }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    // ── Motor conversacional único (web + WhatsApp) ──────────────────────────────
+    // Substitui a máquina de estados rígida da fase de "descoberta" (o que a
+    // pessoa quer pintar) por uma conversa livre com extração estruturada.
+    // A garantia de captação total dos campos da regra de negócio NÃO depende
+    // do bom senso do modelo: um checklist determinístico (buildChecklist, a
+    // partir de agent_flow_steps) decide sozinho quando a etapa está completa.
+    if (action === 'chat_turn') {
+      const [config, steps, sessionRow] = await Promise.all([
+        loadActiveAgentConfig(supabase),
+        loadFlowSteps(supabase),
+        supabase.from('conversation_sessions').select('collected_data').eq('session_id', session_id).maybeSingle(),
+      ])
+
+      const existingData = ((sessionRow.data?.collected_data as Record<string, unknown>) || {})
+      let data: Record<string, unknown> = { ...existingData }
+      // dados vindos do cliente (ex.: nome já logado) têm prioridade sobre a sessão persistida
+      if (collected_data) data = { ...data, ...collected_data }
+
+      const turnHistory = (data._history as { role: string; content: string }[] | undefined) || []
+      const userText = message === '__init__' ? '' : message.trim()
+
+      let outOfScope = false
+      let roleDetected: string | undefined
+
+      // Passo 1 — extração estruturada (só roda se houver texto novo do usuário)
+      if (userText) {
+        const knownSummary = Object.entries(data)
+          .filter(([k, v]) => !k.startsWith('_') && isFilled(v))
+          .map(([k, v]) => `${k}=${v}`).join(', ') || 'nenhum ainda'
+
+        const extractTools = [
+          {
+            type: 'function',
+            function: {
+              name: 'update_lead_data',
+              description: 'Registra dados sobre o pedido de pintura que a mensagem revelou. Inclua SOMENTE campos mencionados agora — nunca repita nem invente valores já conhecidos.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  service_type: enumFromQuickReplies(steps, 'service_type')
+                    ? { type: 'string', enum: enumFromQuickReplies(steps, 'service_type') }
+                    : { type: 'string' },
+                  property_type: enumFromQuickReplies(steps, 'property_type')
+                    ? { type: 'string', enum: enumFromQuickReplies(steps, 'property_type') }
+                    : { type: 'string' },
+                  property_scope: { type: 'string', enum: ['Apenas interna', 'Apenas externa', 'Ambas (interna + externa)'] },
+                  neighborhood: { type: 'string', description: 'Bairro de Florianópolis mencionado' },
+                  surfaces: { type: 'string' },
+                  wall_condition: { type: 'string' },
+                  extras: { type: 'string' },
+                  deadline: enumFromQuickReplies(steps, 'deadline')
+                    ? { type: 'string', enum: enumFromQuickReplies(steps, 'deadline') }
+                    : { type: 'string' },
+                  material: enumFromQuickReplies(steps, 'material')
+                    ? { type: 'string', enum: enumFromQuickReplies(steps, 'material') }
+                    : { type: 'string' },
+                  site_visit_preference: { type: 'string', enum: ['Visita técnica agendada', 'Orçamento a distância'] },
+                  area_m2: { type: 'number' },
+                  num_rooms: { type: 'string' },
+                  role: { type: 'string', enum: ['painter'], description: 'Só preencha se a pessoa disser que é pintor/prestador querendo se cadastrar' },
+                },
+              },
+            },
+          },
+          {
+            type: 'function',
+            function: {
+              name: 'flag_out_of_scope',
+              description: 'Chame em vez de update_lead_data quando o pedido NÃO é sobre pintura de imóvel — ex.: carro, moto, barco, móveis, eletrônicos — ou é abusivo/impróprio.',
+              parameters: {
+                type: 'object',
+                properties: { reason: { type: 'string' } },
+                required: ['reason'],
+              },
+            },
+          },
+        ]
+
+        const extractResp = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          temperature: 0,
+          max_tokens: 300,
+          tools: extractTools,
+          tool_choice: 'auto',
+          messages: [
+            {
+              role: 'system',
+              content: 'Você extrai dados estruturados de pedidos de pintura residencial/comercial em Florianópolis. Só chame uma função; nunca responda em texto livre.',
+            },
+            {
+              role: 'user',
+              content: `Dados já conhecidos: ${knownSummary}\n\nMensagem do usuário agora: "${userText}"`,
+            },
+          ],
+        })
+
+        const toolCalls = extractResp.choices[0].message.tool_calls || []
+        const outOfScopeCall = toolCalls.find(c => c.function.name === 'flag_out_of_scope')
+        const updateCall = toolCalls.find(c => c.function.name === 'update_lead_data')
+
+        if (outOfScopeCall) {
+          outOfScope = true
+        } else if (updateCall) {
+          try {
+            const parsedArgs = JSON.parse(updateCall.function.arguments) as Record<string, unknown>
+            for (const [k, v] of Object.entries(parsedArgs)) {
+              if (v === null || v === undefined || v === '') continue
+              if (k === 'role') { roleDetected = String(v); continue }
+              data[k] = v
+            }
+          } catch { /* ignora extração malformada, segue sem novos campos */ }
+        }
+      }
+
+      if (media_urls && media_urls.length > 0) {
+        const existingMedia = Array.isArray(data.media_urls) ? data.media_urls as string[] : []
+        data.media_urls = [...existingMedia, ...media_urls]
+      }
+
+      // Rede de segurança determinística: deriva escopo do service_type quando possível
+      const inferredScope = inferPropertyScope(data)
+      if (inferredScope && !isFilled(data.property_scope)) data.property_scope = inferredScope
+
+      turnHistory.push({ role: 'user', content: userText || '[início da conversa]' })
+
+      let replyText: string
+      let readyForSummary = false
+
+      if (roleDetected === 'painter') {
+        replyText = 'Você quer receber pedidos de clientes! 🎨 Deixa eu te cadastrar como pintor parceiro.'
+      } else if (outOfScope) {
+        replyText = OUT_OF_SCOPE_REPLY
+      } else {
+        const checklist = buildChecklist(steps, data)
+        const missing = missingRequired(checklist)
+
+        if (missing.length === 0) {
+          replyText = 'Perfeito! 🎉 Já tenho tudo que preciso. Deixa eu confirmar os detalhes com você:'
+          readyForSummary = true
+        } else {
+          const filledLines = checklist.filter(i => i.filled).map(i => `- ${i.label}: ${i.value}`).join('\n') || '(nada ainda)'
+          const missingLines = missing.map((i, idx) => `${idx + 1}. ${i.label}${i.options ? ` (opções: ${i.options.join(', ')})` : ''}`).join('\n')
+
+          const respondSystemPrompt = `${config?.system_prompt || DEFAULT_DISCOVERY_PROMPT}
+
+REGRAS INEGOCIÁVEIS DO MOTOR (sempre valem, independente do texto acima):
+- Você SÓ atende pintura de imóveis (casas, apartamentos, prédios, salas, lojas). Nunca aceite nem avance pedidos fora disso.
+- NUNCA pergunte de novo sobre um campo já preenchido na lista "Já sei" abaixo.
+- Faça UMA pergunta por vez, sempre sobre o PRIMEIRO item da lista "Ainda falta".
+- Converse naturalmente — reaja brevemente ao que a pessoa acabou de dizer antes de perguntar o próximo item. Não pareça um formulário.
+- Se ainda não pediu fotos/vídeo do local nesta conversa, aproveite um momento oportuno para pedir gentilmente (não é obrigatório, pode ser pulado).
+- Nunca prometa preço final ou faixa de preço.
+- Máximo 2 frases por mensagem.
+
+Já sei:
+${filledLines}
+
+Ainda falta (pergunte sobre o item 1):
+${missingLines}`
+
+          const respondResp = await openai.chat.completions.create({
+            model: config?.model || 'gpt-4o',
+            max_tokens: config?.max_tokens || 300,
+            temperature: config?.temperature ?? 0.7,
+            messages: [
+              { role: 'system', content: respondSystemPrompt },
+              ...turnHistory.slice(-12).map(h => ({
+                role: (h.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+                content: h.content,
+              })),
+            ],
+          })
+          replyText = respondResp.choices[0].message.content?.trim() || missingLines
+        }
+      }
+
+      turnHistory.push({ role: 'assistant', content: replyText })
+      data._history = turnHistory.slice(-16)
+
+      await supabase.rpc('merge_session_collected_data', { p_session_id: session_id, p_patch: data })
+      supabase.from('messages').insert({
+        session_id, channel: channel || 'web', direction: 'inbound', body: userText || '[init]',
+        ai_intent: outOfScope ? 'out_of_scope' : 'chat_turn', metadata: { reply: replyText },
+      }).then(() => {}).catch(console.error)
+      if (userText) moderateMessage(session_id, userText).catch(console.error)
+
+      return new Response(
+        JSON.stringify({
+          message: replyText,
+          collected_data: data,
+          ready_for_summary: readyForSummary,
+          out_of_scope: outOfScope,
+          role: roleDetected,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }

@@ -89,28 +89,56 @@ async function parseMessage(req: Request): Promise<ParsedMessage | null> {
   return { from, text, sessionId: `whatsapp_${from.replace(/\D/g, '')}` }
 }
 
-// ─── Call agent-chat and extract just the message text ─────────────────────────
+// ─── Call agent-chat's unified conversational engine (same brain as the web chat) ──
 
-async function getAgentReply(sessionId: string, userMessage: string): Promise<{ message: string; quickReplies: string[] | null }> {
+interface ChatTurnResult {
+  message: string
+  collected_data: Record<string, unknown>
+  ready_for_summary: boolean
+  out_of_scope: boolean
+  role?: string
+}
+
+async function callChatTurn(sessionId: string, userMessage: string): Promise<ChatTurnResult> {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/agent-chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
-    body: JSON.stringify({ session_id: sessionId, message: userMessage }),
+    body: JSON.stringify({ session_id: sessionId, message: userMessage, action: 'chat_turn', channel: 'whatsapp' }),
   })
 
   if (!res.ok) {
     const err = await res.text()
     console.error('agent-chat error:', err)
-    return { message: 'Desculpe, tive um problema. Pode repetir?', quickReplies: null }
+    return { message: 'Desculpe, tive um problema. Pode repetir? 🙏', collected_data: {}, ready_for_summary: false, out_of_scope: false }
   }
 
-  const data = await res.json() as Record<string, unknown>
-  const message = (data.message as string) || ''
-  const quickReplies = (data.quick_replies as string[] | null) || null
-  return { message, quickReplies }
+  return await res.json() as ChatTurnResult
+}
+
+async function extractName(sessionId: string, text: string): Promise<string | null> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/agent-chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ session_id: sessionId, message: '', history: [], action: 'extract_field', collected: { field: 'name', text } }),
+  })
+  if (!res.ok) return null
+  const data = await res.json() as { extracted: string | null }
+  return data.extracted
+}
+
+async function finalizeLead(sessionId: string, phone: string, data: Record<string, unknown>): Promise<{ protocol?: string }> {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/save-lead`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+    body: JSON.stringify({ partial: false, role: 'client', data: { ...data, whatsapp: phone } }),
+  })
+  if (!res.ok) return {}
+  const result = await res.json() as { protocol?: string }
+  await supabase.rpc('merge_session_collected_data', { p_session_id: sessionId, p_patch: { _phase: 'done', protocol: result.protocol } })
+  return result
 }
 
 // ─── Send reply via gateway ────────────────────────────────────────────────────
@@ -187,35 +215,57 @@ Deno.serve(async (req: Request) => {
     const { from, text, sessionId } = parsed
     console.log(`[whatsapp-webhook] ${sessionId}: ${text.substring(0, 80)}`)
 
-    // Resolve quick replies by number (user may type "1" instead of full text)
+    const { data: session } = await supabase
+      .from('conversation_sessions')
+      .select('collected_data')
+      .eq('session_id', sessionId)
+      .maybeSingle()
+    const sessionData = (session?.collected_data as Record<string, unknown>) || {}
+
+    // Já finalizado nesta sessão — não reabre o fluxo, só agradece
+    if (sessionData._phase === 'done') {
+      await sendReply(from, 'Seu pedido já foi registrado — um pintor da região vai te chamar em breve! Para um novo pedido, é só me chamar de novo mais tarde. 🎨', null)
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Estávamos esperando o nome para fechar o pedido — esta mensagem é a resposta
+    if (sessionData._phase === 'awaiting_name') {
+      const name = (await extractName(sessionId, text)) || text.trim()
+      const dataForLead = { ...sessionData, name }
+      const result = await finalizeLead(sessionId, from, dataForLead)
+      await sendReply(
+        from,
+        `Perfeito, ${name}! 🎉 Seu pedido foi registrado${result.protocol ? ` (protocolo ${result.protocol})` : ''}. Um pintor da região vai avaliar e te enviar uma proposta em breve!`,
+        null,
+      )
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Resolve quick replies by number (usuário pode digitar "1" em vez do texto completo)
     let resolvedText = text
     const numMatch = text.trim().match(/^(\d+)$/)
     if (numMatch) {
-      const { data: session } = await supabase
-        .from('conversation_sessions')
-        .select('collected_data')
-        .eq('session_id', sessionId)
-        .single()
-      const lastReplies = (session?.collected_data as Record<string, unknown>)?.last_quick_replies as string[] | undefined
+      const lastReplies = sessionData.last_quick_replies as string[] | undefined
       if (lastReplies) {
         const idx = parseInt(numMatch[1]) - 1
-        if (idx >= 0 && idx < lastReplies.length) {
-          resolvedText = lastReplies[idx]
-        }
+        if (idx >= 0 && idx < lastReplies.length) resolvedText = lastReplies[idx]
       }
     }
 
-    const { message, quickReplies } = await getAgentReply(sessionId, resolvedText)
+    const turn = await callChatTurn(sessionId, resolvedText)
+    let replyMessage = turn.message
 
-    // Store quick replies for next round — merge into existing collected_data (never overwrite)
-    if (quickReplies) {
-      await supabase.rpc('merge_session_collected_data', {
-        p_session_id: sessionId,
-        p_patch: { last_quick_replies: quickReplies },
-      })
+    if (turn.ready_for_summary) {
+      if (turn.collected_data.name) {
+        const result = await finalizeLead(sessionId, from, turn.collected_data)
+        replyMessage = `${replyMessage}\n\nPerfeito, ${turn.collected_data.name}! 🎉 Seu pedido foi registrado${result.protocol ? ` (protocolo ${result.protocol})` : ''}. Um pintor da região vai te enviar uma proposta em breve!`
+      } else {
+        await supabase.rpc('merge_session_collected_data', { p_session_id: sessionId, p_patch: { _phase: 'awaiting_name' } })
+        replyMessage = `${replyMessage}\n\nAntes de eu enviar para os pintores, qual é o seu nome? 😊`
+      }
     }
 
-    await sendReply(from, message, quickReplies)
+    await sendReply(from, replyMessage, null)
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

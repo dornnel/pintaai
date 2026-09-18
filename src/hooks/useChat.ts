@@ -6,10 +6,10 @@ import { captureTracking } from '../lib/tracking'
 import { useAuth } from '../lib/auth'
 import {
   type FlowStep, type CollectedData, type BudgetCalc,
-  CHIP_TO_SERVICE, KNOWN_NEIGHBORHOODS, SKIP_VALUES, VALIDATORS, EXTRACTABLE_VALIDATIONS,
+  KNOWN_NEIGHBORHOODS, SKIP_VALUES, VALIDATORS, EXTRACTABLE_VALIDATIONS,
   FIELD_LABELS,
   branchSteps, getStep, setFieldValue, renderTemplate, computeFieldValue,
-  resolveNext, autoAdvance, buildSummary, inferPropertyScope,
+  resolveNext, autoAdvance, buildSummary,
 } from './chatFlow'
 
 const SESSION_KEY = 'pintae_session_id'
@@ -378,6 +378,64 @@ export function useChat() {
   }
 
   // ── Inicialização da conversa ───────────────────────────────────────────────
+  // Motor conversacional único (mesmo endpoint usado pelo WhatsApp): conduz a
+  // fase de descoberta ("o que a pessoa quer pintar") em linguagem livre.
+  // A garantia de captar todos os campos da regra de negócio não depende do
+  // texto do modelo — o servidor só devolve ready_for_summary quando o
+  // checklist determinístico (agent_flow_steps) está 100% completo.
+  async function runAiDiscoveryTurn(text: string, mediaUrls?: string[]) {
+    setCurrentState('ai_chat')
+    currentStateRef.current = 'ai_chat'
+    saveSessionState('ai_chat', dataRef.current).catch(console.error)
+    setLoading(true)
+    try {
+      const { data: turn, error } = await supabase.functions.invoke('agent-chat', {
+        body: {
+          session_id: sessionId.current,
+          message: text || '__init__',
+          action: 'chat_turn',
+          channel: 'web',
+          media_urls: mediaUrls?.length ? mediaUrls : undefined,
+        },
+      })
+      if (error || !turn) throw new Error('chat_turn failed')
+
+      const newData: CollectedData = { ...dataRef.current, ...(turn.collected_data as CollectedData) }
+      dataRef.current = newData
+      setCollectedData(newData)
+      setLoading(false)
+
+      if (turn.role === 'painter') {
+        agentMessage(turn.message as string)
+        await delay(400)
+        const steps = await getSteps()
+        const firstKey = branchSteps(steps, 'painter')[0]?.step_key ?? 'painter_done'
+        const resolvedStep = autoAdvance(steps, firstKey, newData, prefilledFieldsRef.current)
+        if (!resolvedStep) { await advanceToState('painter_done', newData); return }
+        setCurrentState(resolvedStep.step_key)
+        currentStateRef.current = resolvedStep.step_key
+        saveSessionState(resolvedStep.step_key, newData).catch(console.error)
+        agentMessage(
+          renderTemplate(resolvedStep, steps, newData, authUser?.name),
+          resolvedStep.quick_replies ?? undefined,
+          resolvedStep.multi_select ? { multiSelect: true } : undefined,
+        )
+        return
+      }
+
+      agentMessage(turn.message as string)
+
+      if (turn.ready_for_summary) {
+        await delay(700)
+        await advanceToState('show_summary', newData)
+      }
+    } catch {
+      setLoading(false)
+      agentMessage('Desculpe, tive um problema para processar isso. Pode repetir? 🙏')
+    }
+  }
+
+  // ── Inicialização da conversa ───────────────────────────────────────────────
   async function handleInit(text: string) {
     const steps = await getSteps()
     const data: CollectedData = { ...dataRef.current }
@@ -400,155 +458,47 @@ export function useChat() {
       prefilled.add('role')
     }
 
-    let transitionField: string | null = null
-    let transitionValue: string | null = null
-
-    if (text !== '__init__') {
-      const lower = text.toLowerCase()
-      const matchedChip = Object.entries(CHIP_TO_SERVICE).find(([k]) => lower.includes(k))
-      if (matchedChip) {
-        data.service_type = matchedChip[1]
-        data.role = 'client'
-        prefilled.add('service_type')
-        prefilled.add('role')
-        transitionField = 'service_type'
-        transitionValue = matchedChip[1]
-      } else if (text.trim().length > 20) {
-        // Mensagem substancial — extrai todos os campos via LLM antes de prosseguir
-        setLoading(true)
-        try {
-          const { data: ctxResult } = await supabase.functions.invoke('agent-chat', {
-            body: {
-              session_id: sessionId.current,
-              message: text,
-              history: [],
-              metadata: metadataRef.current,
-              action: 'extract_initial_context',
-            },
-          })
-          const extracted = ctxResult?.extracted as Record<string, unknown> | undefined
-          if (extracted) {
-            const CORE_FIELDS = ['name', 'service_type', 'area_m2', 'property_type', 'property_scope', 'neighborhood', 'surfaces', 'wall_condition', 'extras', 'deadline', 'material', 'whatsapp'] as const
-            for (const key of CORE_FIELDS) {
-              const val = extracted[key]
-              if (val !== undefined && val !== null) {
-                (data as unknown as Record<string, unknown>)[key] = val
-                prefilled.add(key)
-              }
-            }
-            if (extracted.role === 'painter') {
-              data.role = 'painter'; prefilled.add('role')
-            } else if (!data.role) {
-              data.role = 'client'; prefilled.add('role')
-            }
-            transitionField = extracted.service_type ? 'service_type' : null
-            transitionValue = extracted.service_type ? String(extracted.service_type) : text
-          } else {
-            transitionValue = text
-          }
-        } catch {
-          transitionValue = text
-        } finally {
-          setLoading(false)
-        }
-      } else {
-        transitionValue = text
-      }
-    }
-
     dataRef.current = data
     setCollectedData(data)
     prefilledFieldsRef.current = prefilled
 
-    // When property_type was extracted from the opening message, the autoAdvance
-    // loop skips its step (prefilled) and never fires the synthetic steps.
-    // Inject them here before the normal flow continues.
-    if (prefilled.has('property_type') && data.property_type && !data.site_visit_preference) {
-      const pv = String(data.property_type).toLowerCase()
-      const isCasa = pv.includes('casa') || pv.includes('residência') || pv.includes('residencia')
-      const isApt = pv.includes('apart') || pv.includes('apto')
-
-      const inferredScope = inferPropertyScope(data)
-      if (inferredScope && !data.property_scope) {
-        data.property_scope = inferredScope
-        prefilled.add('property_scope')
-        dataRef.current = data
-        setCollectedData(data)
-      }
-
-      if (isCasa && !data.property_scope) {
-        setCurrentState('property_scope')
-        saveSessionState('property_scope', data).catch(console.error)
-        const scopeStep = steps.find(s => s.step_key === 'property_scope')
-        let msg = scopeStep ? renderTemplate(scopeStep, steps, data, authUser?.name) : `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`
-        if (transitionValue !== null) {
-          setLoading(true)
-          try { msg = await callTransition({ previous_field: transitionField, previous_value: transitionValue, next_question: msg, collected_data: data, user_name: authUser?.name }) }
-          catch { msg = `Entendido! ${msg}` }
-          finally { setLoading(false) }
-        }
-        agentMessage(msg, scopeStep?.quick_replies || ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)'])
+    if (data.role === 'painter') {
+      const firstKey = branchSteps(steps, 'painter')[0]?.step_key ?? 'painter_done'
+      const resolvedStep = autoAdvance(steps, firstKey, data, prefilled)
+      if (!resolvedStep) {
+        await advanceToState('painter_done', data)
         return
       }
-      const hasExternal = /extern|ambas/i.test(String(data.property_scope ?? ''))
-      if (!isApt || hasExternal) {
-        setCurrentState('visit_preference')
-        saveSessionState('visit_preference', data).catch(console.error)
-        const visitStep = steps.find(s => s.step_key === 'visit_preference')
-        let msg = visitStep
-          ? renderTemplate(visitStep, steps, data, authUser?.name)
-          : `Para um orçamento mais preciso, prefere agendar uma **visita técnica** rápida ou receber uma estimativa **a distância**? 📋`
-        if (transitionValue !== null) {
-          setLoading(true)
-          try { msg = await callTransition({ previous_field: transitionField, previous_value: transitionValue, next_question: msg, collected_data: data, user_name: authUser?.name }) }
-          catch { msg = `Entendido! ${msg}` }
-          finally { setLoading(false) }
-        }
-        agentMessage(msg, visitStep?.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora'])
-        return
-      }
-    }
-
-    const firstKey = branchSteps(steps, 'client')[0]?.step_key ?? 'role_select'
-    const resolvedStep = autoAdvance(steps, firstKey, data, prefilled)
-    if (!resolvedStep) {
-      await advanceToState(data.role === 'painter' ? 'painter_done' : 'generating_briefing', data)
+      setCurrentState(resolvedStep.step_key)
+      saveSessionState(resolvedStep.step_key, data).catch(console.error)
+      agentMessage(
+        renderTemplate(resolvedStep, steps, data, authUser?.name),
+        resolvedStep.quick_replies ?? undefined,
+        resolvedStep.multi_select ? { multiSelect: true } : undefined,
+      )
       return
     }
 
-    setCurrentState(resolvedStep.step_key)
-    saveSessionState(resolvedStep.step_key, data).catch(console.error)
-
-    let message = renderTemplate(resolvedStep, steps, data, authUser?.name)
-
-    if (transitionValue !== null) {
-      setLoading(true)
-      try {
-        message = await callTransition({
-          previous_field: transitionField,
-          previous_value: transitionValue,
-          next_question: message,
-          collected_data: data,
-          user_name: authUser?.name,
-        })
-      } catch {
-        if (!transitionField) message = `Entendido! ${message}`
-      } finally {
-        setLoading(false)
-      }
-    } else {
-      const firstName = authUser?.name?.split(' ')[0]
-      if (firstName && prefilled.has('role') && !resolvedStep.question_template.includes('{{name}}')) {
-        message = `Oi ${firstName}! 👋 ${message}`
+    // Ainda não sabemos se é cliente ou pintor — pergunta determinística e
+    // instantânea (sem custo de LLM), como hoje.
+    if (text === '__init__' && !data.role) {
+      const roleStep = branchSteps(steps, 'client').find(s => s.field_key === 'role')
+      if (roleStep) {
+        setCurrentState(roleStep.step_key)
+        saveSessionState(roleStep.step_key, data).catch(console.error)
+        agentMessage(renderTemplate(roleStep, steps, data, authUser?.name), roleStep.quick_replies ?? undefined)
+        return
       }
     }
 
-    const hasRepliesToo = resolvedStep.step_type === 'quick_reply' || resolvedStep.step_type === 'media'
-    agentMessage(
-      message,
-      hasRepliesToo ? resolvedStep.quick_replies ?? undefined : undefined,
-      hasRepliesToo && resolvedStep.multi_select ? { multiSelect: true } : undefined,
-    )
+    if (!data.role) {
+      data.role = 'client'
+      prefilled.add('role')
+      dataRef.current = data
+      setCollectedData(data)
+    }
+
+    await runAiDiscoveryTurn(text === '__init__' ? '' : text)
   }
 
   // ── Steps de mídia (media_upload, final_notes, custom) ──────────────────────
@@ -613,31 +563,15 @@ export function useChat() {
     const fieldValue = computeFieldValue(step, rawText)
     let newData = setFieldValue(dataRef.current, step, fieldValue) as CollectedData
 
-    // Quando o usuário responde role_select com uma opção de serviço (role='client'),
-    // extrai e prefila o service_type para pular o step seguinte de tipo de serviço.
-    if (step.field_key === 'role' && fieldValue === 'client') {
-      const SERVICE_MAP: Record<string, string> = {
-        'pintura interna': 'Pintura interna',
-        'fachada': 'Fachada externa',
-        'pós-obra': 'Pós-obra',
-        'pos-obra': 'Pós-obra',
-        'textura': 'Textura / massa corrida',
-        'impermeabiliz': 'Impermeabilização',
-        'arte': 'Arte / mural',
-        'mural': 'Arte / mural',
-      }
-      const lower = rawText.toLowerCase()
-      for (const [key, val] of Object.entries(SERVICE_MAP)) {
-        if (lower.includes(key)) {
-          newData = setFieldValue(newData, { ...step, field_key: 'service_type', is_core_field: true }, val) as CollectedData
-          prefilledFieldsRef.current.add('service_type')
-          break
-        }
-      }
-    }
-
     dataRef.current = newData
     setCollectedData(newData)
+
+    // role_select respondido com "cliente" → motor conversacional único cuida
+    // do resto da descoberta (o que a pessoa quer pintar).
+    if (step.field_key === 'role' && fieldValue === 'client') {
+      await runAiDiscoveryTurn('')
+      return
+    }
 
     const inCorrection = correctionModeRef.current
     correctionModeRef.current = false
@@ -667,47 +601,6 @@ export function useChat() {
           await delay(500)
         }
       } catch { /* silencioso — fluxo continua normalmente */ }
-    }
-
-    // Casa → step sintético property_scope (interna / externa / ambas)
-    if (step.field_key === 'property_type' && !inCorrection) {
-      const val = String(fieldValue).toLowerCase()
-
-      const inferredScope = inferPropertyScope(newData)
-      if (inferredScope && !newData.property_scope) {
-        newData = { ...newData, property_scope: inferredScope }
-        dataRef.current = newData
-        setCollectedData(newData)
-      }
-
-      const isCasa = val.includes('casa') || val.includes('residênc') || val.includes('residenc')
-      if (isCasa && !newData.property_scope) {
-        setCurrentState('property_scope')
-        saveSessionState('property_scope', newData).catch(console.error)
-        await delay(500)
-        const scopeDbStep = steps.find(s => s.step_key === 'property_scope')
-        agentMessage(
-          scopeDbStep ? renderTemplate(scopeDbStep, steps, newData, authUser?.name) : `É uma **casa**! A pintura será interna, externa ou ambas? 🏡`,
-          scopeDbStep?.quick_replies || ['🛋️ Apenas interna', '🏗️ Apenas externa (fachada, muros)', '✅ Ambas (interna + externa)']
-        )
-        return
-      }
-
-      const isApt = val.includes('apart') || val.includes('apto')
-      const hasExternal = /extern|ambas/i.test(String(newData.property_scope ?? ''))
-      if ((!isApt || hasExternal) && !newData.site_visit_preference) {
-        setCurrentState('visit_preference')
-        saveSessionState('visit_preference', newData).catch(console.error)
-        await delay(600)
-        const visitDbStep = steps.find(s => s.step_key === 'visit_preference')
-        agentMessage(
-          visitDbStep
-            ? renderTemplate(visitDbStep, steps, newData, authUser?.name)
-            : `Para **${fieldValue}**, uma visita técnica rápida permite um orçamento muito mais preciso. 📋\n\nComo prefere prosseguir?`,
-          visitDbStep?.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
-        )
-        return
-      }
     }
 
     await advanceToState(nextKey, newData, { fromStep: step, fromValue: rawText })
@@ -914,62 +807,9 @@ export function useChat() {
       return
     }
 
-    // Escopo da pintura para Casa (step sintético: interna / externa / ambas)
-    if (currentState === 'property_scope') {
-      const scopeValue = text.includes('externa') && text.includes('interna')
-        ? 'Ambas (interna + externa)'
-        : /externa|fachada|muro/i.test(text)
-          ? 'Apenas externa'
-          : 'Apenas interna'
-      const newData: CollectedData = { ...dataRef.current, property_scope: scopeValue }
-      dataRef.current = newData
-      setCollectedData(newData)
-      saveSessionState('property_scope', newData).catch(console.error)
-
-      const steps = await getSteps()
-
-      // After property_scope, always ask about visit preference (house = large job)
-      const visitDbStep = steps.find(s => s.step_key === 'visit_preference')
-      if (visitDbStep && !newData.site_visit_preference) {
-        setCurrentState('visit_preference')
-        lastEnteredStateRef.current = 'visit_preference'
-        stateRepeatCountRef.current = 0
-        saveSessionState('visit_preference', newData).catch(console.error)
-        await delay(400)
-        agentMessage(
-          renderTemplate(visitDbStep, steps, newData, authUser?.name),
-          visitDbStep.quick_replies || ['📅 Quero agendar uma visita', '💻 Orçamento a distância por agora']
-        )
-        return
-      }
-
-      const propStep = steps.find(s => s.field_key === 'property_type' && s.branch === 'client')
-      const nextKey = propStep
-        ? resolveNext(steps, propStep, String(newData.property_type || ''), newData)
-        : 'generating_briefing'
-      await advanceToState(nextKey, newData, { fromStep: propStep, fromValue: text })
-      return
-    }
-
-    // Preferência de visita técnica (step sintético após property_type para imóveis maiores)
-    if (currentState === 'visit_preference') {
-      const wantsVisit = /visita|agendar|técnica/i.test(text)
-      const visitValue = wantsVisit ? 'Visita técnica agendada' : 'Orçamento a distância'
-      const newData: CollectedData = { ...dataRef.current, site_visit_preference: visitValue }
-      dataRef.current = newData
-      setCollectedData(newData)
-
-      const steps = await getSteps()
-      const propStep = steps.find(s => s.field_key === 'property_type' && s.branch === 'client')
-      const nextKey = propStep
-        ? resolveNext(steps, propStep, String(newData.property_type || ''), newData)
-        : 'generating_briefing'
-
-      if (wantsVisit) {
-        agentMessage('Ótimo! Anotei que prefere visita técnica. 📅 O pintor entrará em contato para agendar após a solicitação ser enviada.')
-        await delay(800)
-      }
-      await advanceToState(nextKey, newData, { fromStep: propStep, fromValue: text })
+    // Fase de descoberta conduzida pelo motor conversacional (chat_turn)
+    if (currentState === 'ai_chat') {
+      await runAiDiscoveryTurn(text, mediaUrls)
       return
     }
 
