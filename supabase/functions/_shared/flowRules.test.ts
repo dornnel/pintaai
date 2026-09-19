@@ -20,6 +20,17 @@ const BASE_STEPS: FlowStepRow[] = [
   step({ step_key: 'area_m2', field_key: 'area_m2', order_index: 4, skippable: true, question_template: 'Metragem?' }),
   step({ step_key: 'lead_name', field_key: 'name', order_index: 5, question_template: 'Nome?' }),
   step({ step_key: 'media_upload', field_key: 'media_urls', order_index: 6, step_type: 'media', skippable: true, question_template: 'Fotos?' }),
+  // Condicionais reais, espelhando a jornada em produção (migration 045 + admin)
+  step({
+    step_key: 'property_scope', field_key: 'property_scope', order_index: 2.5,
+    question_template: 'Interna, externa ou ambas?',
+    condition_key: 'property_type', condition_value: 'Casa,Prédio / Edifício',
+  }),
+  step({
+    step_key: 'visit_preference', field_key: 'site_visit_preference', order_index: 2.7,
+    question_template: 'Visita técnica ou a distância?',
+    condition_key: 'property_type', condition_value: '!Apartamento',
+  }),
 ]
 
 describe('conditionMet', () => {
@@ -47,6 +58,15 @@ describe('buildChecklist / missingRequired', () => {
     expect(items.find(i => i.field === 'name')).toBeUndefined()
   })
 
+  it('excludes role — it is resolved before chat_turn ever runs, never filled by it', () => {
+    const stepsWithRole = [
+      step({ step_key: 'role_select', field_key: 'role', order_index: 0, question_template: 'Cliente ou pintor?' }),
+      ...BASE_STEPS,
+    ]
+    const items = buildChecklist(stepsWithRole, {})
+    expect(items.find(i => i.field === 'role')).toBeUndefined()
+  })
+
   it('excludes media steps from the checklist', () => {
     const items = buildChecklist(BASE_STEPS, {})
     expect(items.find(i => i.field === 'media_urls')).toBeUndefined()
@@ -67,12 +87,16 @@ describe('buildChecklist / missingRequired', () => {
     expect(missing).not.toContain('area_m2') // optional
   })
 
-  it('adds the synthetic property_scope question only for Casa', () => {
-    const withCasa = buildChecklist(BASE_STEPS, { property_type: 'Casa' })
-    expect(withCasa.find(i => i.field === 'property_scope')).toBeDefined()
+  it('adds the property_scope question for Casa and Prédio / Edifício, not Apartamento', () => {
+    expect(buildChecklist(BASE_STEPS, { property_type: 'Casa' }).find(i => i.field === 'property_scope')).toBeDefined()
+    expect(buildChecklist(BASE_STEPS, { property_type: 'Prédio / Edifício' }).find(i => i.field === 'property_scope')).toBeDefined()
+    expect(buildChecklist(BASE_STEPS, { property_type: 'Apartamento' }).find(i => i.field === 'property_scope')).toBeUndefined()
+  })
 
-    const withApto = buildChecklist(BASE_STEPS, { property_type: 'Apartamento' })
-    expect(withApto.find(i => i.field === 'property_scope')).toBeUndefined()
+  it('does not decide the conditional item before property_type itself is known', () => {
+    const items = buildChecklist(BASE_STEPS, {})
+    expect(items.find(i => i.field === 'property_scope')).toBeUndefined()
+    expect(items.find(i => i.field === 'site_visit_preference')).toBeUndefined()
   })
 
   it('requires site_visit_preference for non-apartment properties', () => {
@@ -117,6 +141,20 @@ describe('isDiscoveryComplete', () => {
       neighborhood: 'Campeche',
     }
     expect(isDiscoveryComplete(BASE_STEPS, data)).toBe(true)
+  })
+
+  it('reaches completion even though data.role is never set by chat_turn itself', () => {
+    const stepsWithRole = [
+      step({ step_key: 'role_select', field_key: 'role', order_index: 0, question_template: 'Cliente ou pintor?' }),
+      ...BASE_STEPS,
+    ]
+    const data = {
+      service_type: 'Pintura interna',
+      property_type: 'Apartamento',
+      neighborhood: 'Campeche',
+      // note: no `role` key at all — matches how chat_turn actually receives data
+    }
+    expect(isDiscoveryComplete(stepsWithRole, data)).toBe(true)
   })
 
   it('never demands the optional area_m2 field', () => {

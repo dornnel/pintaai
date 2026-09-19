@@ -1,39 +1,35 @@
 import { test, expect, type Page } from '@playwright/test'
 
 // Regressão: os steps sintéticos property_scope/visit_preference vazavam
-// {{property_type}} cru e sequências \n\n literais no chat.
+// {{property_type}} cru e sequências \n\n literais no chat. Após a introdução
+// do motor conversacional único (chat_turn), a fase de descoberta não usa mais
+// chips fixos — dirige por texto livre e verifica que nenhum template cru
+// aparece em nenhuma resposta ao longo da conversa.
 test.describe('Koke template rendering', () => {
+  test.setTimeout(90_000)
 
   async function dismissCookieBanner(page: Page) {
     const accept = page.locator('button:has-text("Aceitar tudo")')
     if (await accept.isVisible({ timeout: 3000 }).catch(() => false)) await accept.click()
   }
 
-  async function clickChip(page: Page, label: string) {
-    const chip = page.locator(`button:has-text("${label}")`).last()
-    await chip.waitFor({ state: 'visible', timeout: 20_000 })
-    await chip.click()
-  }
-
-  test('property_scope question renders property_type, not a raw placeholder', async ({ page }) => {
+  test('no raw {{placeholder}} or literal \\n leaks anywhere in a full discovery conversation', async ({ page }) => {
     await page.goto('/chat')
     await page.waitForSelector('.animate-slide-up', { timeout: 20_000 })
     await dismissCookieBanner(page)
 
     const input = page.locator('textarea, input[placeholder*="Escreva"]').first()
-    await input.fill('quero pintar minha casa')
-    await input.press('Enter')
+    async function send(text: string) {
+      await input.fill(text)
+      await input.press('Enter')
+      await page.waitForTimeout(8000)
+    }
 
-    // fluxo guiado: serviço -> bairro -> chega em property_type=Casa -> property_scope sintético
-    await clickChip(page, '1ª pintura (imóvel novo)')
-    await page.waitForTimeout(1500)
-    await clickChip(page, 'Campeche')
-    await page.waitForTimeout(1500)
-    await clickChip(page, 'Casa')
+    await send('quero pintar a fachada da minha casa no campeche')
+    await send('paredes e portas')
+    await send('tem rachaduras e mofo')
 
-    await page.waitForSelector('text=/interna, externa ou ambas/i', { timeout: 20_000 })
     const body = await page.locator('body').innerText()
-
     expect(body, `placeholder cru encontrado:\n${body}`).not.toMatch(/\{\{\s*\w+\s*\}\}/)
     expect(body).not.toContain('\\n')
     expect(body).toMatch(/casa/i)

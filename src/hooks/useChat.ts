@@ -567,9 +567,12 @@ export function useChat() {
     setCollectedData(newData)
 
     // role_select respondido com "cliente" → motor conversacional único cuida
-    // do resto da descoberta (o que a pessoa quer pintar).
+    // do resto da descoberta (o que a pessoa quer pintar). Se a resposta foi
+    // texto livre substancial (não só o clique no quick-reply), repassa: pode
+    // já conter a descrição do serviço (ex.: "quero pintar meu carro").
     if (step.field_key === 'role' && fieldValue === 'client') {
-      await runAiDiscoveryTurn('')
+      const isPlainClick = /^(✅\s*)?sou cliente$/i.test(rawText.trim())
+      await runAiDiscoveryTurn(isPlainClick ? '' : rawText)
       return
     }
 

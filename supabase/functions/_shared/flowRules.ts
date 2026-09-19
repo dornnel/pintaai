@@ -27,18 +27,14 @@ export interface FlowStepRow {
 
 export type CollectedData = Record<string, unknown>
 
-// Campos coletados pela cauda determinística já existente (identidade, contato,
-// confirmação). O motor conversacional novo NUNCA pergunta por eles — quem
-// pergunta é o fluxo de auth/cadastro já testado.
-export const TAIL_FIELDS = new Set(['name', 'email', 'whatsapp', 'confirmed'])
+// Campos resolvidos FORA do motor conversacional: role é decidido pela lógica
+// determinística antes mesmo de entrar na descoberta (role_select / detecção
+// de intenção de pintor), e name/email/whatsapp/confirmed pela cauda de
+// auth/cadastro já existente. O motor de chat_turn nunca pergunta por eles.
+export const TAIL_FIELDS = new Set(['role', 'name', 'email', 'whatsapp', 'confirmed'])
 
 export function isFilled(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
-}
-
-export function isCasa(propertyType: unknown): boolean {
-  const v = String(propertyType ?? '').toLowerCase()
-  return v.includes('casa') || v.includes('resid')
 }
 
 export function isApartamento(propertyType: unknown): boolean {
@@ -51,17 +47,20 @@ export function scopeHasExterior(scope: unknown): boolean {
 }
 
 // condition_value pode ser uma lista separada por vírgula, cada item podendo
-// começar com "!" (negação). Todos os itens precisam ser satisfeitos (AND).
-// Espelha exatamente a semântica usada nas migrations (ex.: "!Apartamento,!Casa").
+// começar com "!" (negação). Cláusulas negadas são um AND de exclusões (ex.:
+// "!Apartamento,!Casa" → não pode ser nenhum dos dois); cláusulas positivas
+// são um OR de valores aceitos (ex.: "Casa,Prédio / Edifício" → qualquer um
+// dos dois serve) — espelha o uso real em agent_flow_steps.condition_value.
 export function conditionMet(step: FlowStepRow, data: CollectedData): boolean {
   if (!step.condition_key) return true
   const actual = String(data[step.condition_key] ?? '').toLowerCase()
   const clauses = (step.condition_value || '').split(',').map(s => s.trim()).filter(Boolean)
   if (clauses.length === 0) return true
-  return clauses.every(clause => {
-    if (clause.startsWith('!')) return actual !== clause.slice(1).toLowerCase()
-    return actual === clause.toLowerCase()
-  })
+  const negatives = clauses.filter(c => c.startsWith('!')).map(c => c.slice(1).toLowerCase())
+  const positives = clauses.filter(c => !c.startsWith('!')).map(c => c.toLowerCase())
+  if (negatives.includes(actual)) return false
+  if (positives.length > 0 && !positives.includes(actual)) return false
+  return true
 }
 
 export function discoverySteps(steps: FlowStepRow[]): FlowStepRow[] {
@@ -92,8 +91,10 @@ function cleanLabel(template: string): string {
 }
 
 // Monta o checklist completo (obrigatório + opcional) a partir da jornada
-// configurada no admin, mais os dois steps sintéticos de escopo/visita técnica
-// que dependem de property_type/property_scope já coletados.
+// configurada no admin, mais os steps condicionais (property_scope,
+// site_visit_preference) — estes ficam de fora de discoverySteps() por terem
+// condition_key, então são avaliados aqui via conditionMet() contra os dados
+// já coletados, exatamente como a jornada os define no admin.
 export function buildChecklist(steps: FlowStepRow[], data: CollectedData): ChecklistItem[] {
   const items: ChecklistItem[] = []
 
@@ -109,27 +110,36 @@ export function buildChecklist(steps: FlowStepRow[], data: CollectedData): Check
     })
   }
 
-  if (isFilled(data.property_type) && isCasa(data.property_type)) {
+  const conditionalSteps = steps.filter(s =>
+    s.branch === 'client' && s.active && (s.enabled ?? true) && s.is_core_field && s.condition_key,
+  )
+  for (const step of conditionalSteps) {
+    if (!isFilled(data[step.condition_key as string])) continue // condição ainda não decidível
+    if (!conditionMet(step, data)) continue
+    const value = data[step.field_key]
     items.push({
-      field: 'property_scope',
-      label: 'Área da pintura: interna, externa ou ambas',
-      required: true,
-      filled: isFilled(data.property_scope),
-      value: data.property_scope,
-      options: ['Apenas interna', 'Apenas externa', 'Ambas (interna + externa)'],
+      field: step.field_key,
+      label: cleanLabel(step.question_template),
+      required: !step.skippable,
+      filled: isFilled(value),
+      value,
+      options: step.quick_replies,
     })
   }
 
-  const needsVisitQuestion = isFilled(data.property_type)
-    && (!isApartamento(data.property_type) || scopeHasExterior(data.property_scope))
-  if (needsVisitQuestion) {
+  // Regra extra além da jornada configurada: um apartamento cuja área a pintar
+  // inclui a fachada/externa também precisa da pergunta de visita técnica,
+  // mesmo que o condition_key da DB (`!Apartamento`) normalmente a exclua.
+  const visitAlreadyListed = items.some(i => i.field === 'site_visit_preference')
+  if (!visitAlreadyListed && isApartamento(data.property_type) && scopeHasExterior(data.property_scope)) {
+    const visitStep = steps.find(s => s.field_key === 'site_visit_preference')
     items.push({
       field: 'site_visit_preference',
-      label: 'Prefere visita técnica ou orçamento a distância',
+      label: visitStep ? cleanLabel(visitStep.question_template) : 'Prefere visita técnica ou orçamento a distância',
       required: true,
       filled: isFilled(data.site_visit_preference),
       value: data.site_visit_preference,
-      options: ['Visita técnica agendada', 'Orçamento a distância'],
+      options: visitStep?.quick_replies || ['Visita técnica agendada', 'Orçamento a distância'],
     })
   }
 

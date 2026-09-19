@@ -85,7 +85,12 @@ Nunca prometa preço final ou faixa de preço — apenas um pintor avalia isso d
 
 async function loadActiveAgentConfig(sb: ReturnType<typeof createClient>) {
   const { data } = await sb.from('agent_configs').select('*').eq('active', true).limit(1).maybeSingle()
-  return data as { system_prompt?: string; model?: string; max_tokens?: number; temperature?: number } | null
+  const config = data as { system_prompt?: string; model?: string; max_tokens?: number; temperature?: number } | null
+  // O campo model é editável no admin e pode conter um valor obsoleto/inválido
+  // para a API da OpenAI (ex.: um nome de modelo de outro provedor) — nunca
+  // repassa isso cru para o SDK, só aceita nomes de modelo GPT reconhecidos.
+  if (config?.model && !/^gpt-/.test(config.model)) config.model = undefined
+  return config
 }
 
 async function loadFlowSteps(sb: ReturnType<typeof createClient>): Promise<FlowStepRow[]> {
@@ -110,17 +115,16 @@ Deno.serve(async (req: Request) => {
     const body = (await req.json()) as RequestBody
     const { session_id, message, history, media_urls, metadata, action, collected, previous_field, previous_value, next_question, collected_data, user_name, channel } = body
 
-    // Garante que a sessão existe e registra metadata — usa merge (nunca overwrite)
-    // para não apagar collected_data já persistido por uma chamada concorrente.
-    supabase.rpc('merge_session_collected_data', {
-      p_session_id: session_id,
-      p_patch: { _metadata: metadata || {} },
-    }).then(() => {}).catch(console.error)
-    supabase.from('conversation_sessions').update({
+    // Garante que a linha da sessão existe — conversation_sessions.user_identifier
+    // é NOT NULL sem default. Não inclui collected_data aqui: upsert só toca as
+    // colunas passadas, então não há risco de sobrescrever dados já salvos.
+    supabase.from('conversation_sessions').upsert({
+      session_id,
+      user_identifier: session_id,
       channel: channel || 'web',
       current_state: 'active',
       updated_at: new Date().toISOString(),
-    }).eq('session_id', session_id).then(() => {}).catch(console.error)
+    }, { onConflict: 'session_id', ignoreDuplicates: false }).then(() => {}).catch(console.error)
 
     // Verifica se o email já está cadastrado na plataforma
     if (action === 'check_email') {
@@ -390,8 +394,14 @@ Exemplos:
       let outOfScope = false
       let roleDetected: string | undefined
 
+      // Rede de segurança determinística: para os casos mais óbvios de fora de
+      // escopo (veículos, móveis, eletrônicos), nem depende do juízo do modelo —
+      // ele pode deixar de chamar a função certa em mensagens ambíguas.
+      const OUT_OF_SCOPE_PATTERN = /\b(carro|moto(cicleta)?|caminh[aã]o|bicicleta|barco|lancha|jet\s?ski|avi[aã]o|geladeira|fog[aã]o|sof[aá]|guarda[\s-]?roupa|celular|notebook|computador|televis[aã]o|\btv\b|cachorro|gato|pet)\b/i
+      if (OUT_OF_SCOPE_PATTERN.test(userText)) outOfScope = true
+
       // Passo 1 — extração estruturada (só roda se houver texto novo do usuário)
-      if (userText) {
+      if (userText && !outOfScope) {
         const knownSummary = Object.entries(data)
           .filter(([k, v]) => !k.startsWith('_') && isFilled(v))
           .map(([k, v]) => `${k}=${v}`).join(', ') || 'nenhum ainda'
@@ -449,7 +459,7 @@ Exemplos:
           temperature: 0,
           max_tokens: 300,
           tools: extractTools,
-          tool_choice: 'auto',
+          tool_choice: 'required',
           messages: [
             {
               role: 'system',
@@ -513,17 +523,17 @@ Exemplos:
 
 REGRAS INEGOCIÁVEIS DO MOTOR (sempre valem, independente do texto acima):
 - Você SÓ atende pintura de imóveis (casas, apartamentos, prédios, salas, lojas). Nunca aceite nem avance pedidos fora disso.
-- NUNCA pergunte de novo sobre um campo já preenchido na lista "Já sei" abaixo.
-- Faça UMA pergunta por vez, sempre sobre o PRIMEIRO item da lista "Ainda falta".
+- A lista "Já sei" é fechada e definitiva — cada item nela JÁ FOI RESPONDIDO. Proibido perguntar, confirmar ou insinuar dúvida sobre qualquer item dela, mesmo que pareça relevante para o que a pessoa acabou de dizer.
+- Sua ÚNICA pergunta nesta resposta deve ser sobre o item 1 da lista "Ainda falta" — nenhum outro assunto de coleta de dados.
 - Converse naturalmente — reaja brevemente ao que a pessoa acabou de dizer antes de perguntar o próximo item. Não pareça um formulário.
 - Se ainda não pediu fotos/vídeo do local nesta conversa, aproveite um momento oportuno para pedir gentilmente (não é obrigatório, pode ser pulado).
 - Nunca prometa preço final ou faixa de preço.
 - Máximo 2 frases por mensagem.
 
-Já sei:
+Já sei (NÃO pergunte sobre nada disto):
 ${filledLines}
 
-Ainda falta (pergunte sobre o item 1):
+Ainda falta — sua pergunta é OBRIGATORIAMENTE sobre o item 1:
 ${missingLines}`
 
           const respondResp = await openai.chat.completions.create({
@@ -545,7 +555,18 @@ ${missingLines}`
       turnHistory.push({ role: 'assistant', content: replyText })
       data._history = turnHistory.slice(-16)
 
-      await supabase.rpc('merge_session_collected_data', { p_session_id: session_id, p_patch: data })
+      // Upsert direto (não uma RPC) — já temos existingData + a extração desta
+      // rodada mescladas em memória em `data`, então não há necessidade de uma
+      // função de merge atômica no servidor: isto já É o merge.
+      const { error: persistErr } = await supabase.from('conversation_sessions').upsert({
+        session_id,
+        user_identifier: session_id,
+        channel: channel || 'web',
+        current_state: 'active',
+        collected_data: data,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'session_id' })
+      if (persistErr) console.error('chat_turn persist failed:', JSON.stringify(persistErr))
       supabase.from('messages').insert({
         session_id, channel: channel || 'web', direction: 'inbound', body: userText || '[init]',
         ai_intent: outOfScope ? 'out_of_scope' : 'chat_turn', metadata: { reply: replyText },
