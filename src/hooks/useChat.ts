@@ -423,7 +423,7 @@ export function useChat() {
         return
       }
 
-      agentMessage(turn.message as string)
+      agentMessage(turn.message as string, (turn.quick_replies as string[] | undefined) ?? undefined)
 
       if (turn.ready_for_summary) {
         await delay(700)
@@ -774,9 +774,15 @@ export function useChat() {
     let mediaUrls: string[] = []
     if (files && files.length > 0) {
       setLoading(true)
-      const urls = await Promise.all(files.map((f) => uploadMedia(f, sessionId.current)))
-      mediaUrls = urls.filter(Boolean) as string[]
-      setLoading(false)
+      try {
+        const urls = await Promise.all(files.map((f) => uploadMedia(f, sessionId.current)))
+        mediaUrls = urls.filter(Boolean) as string[]
+      } catch (err) {
+        console.error('Upload de mídia falhou:', err)
+        agentMessage('Não consegui enviar esse arquivo agora. 😕 Pode tentar de novo, ou seguir sem ele por enquanto?')
+      } finally {
+        setLoading(false)
+      }
     }
 
     if (text !== '__init__') {

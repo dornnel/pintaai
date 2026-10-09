@@ -1,7 +1,8 @@
 import OpenAI from 'npm:openai@4'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
-  type FlowStepRow, buildChecklist, missingRequired, inferPropertyScope, isFilled,
+  type FlowStepRow, buildChecklist, missingRequired, inferPropertyScope, isFilled, matchesOption,
+  canonicalizeEnumValue,
 } from '../_shared/flowRules.ts'
 
 const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY')! })
@@ -77,7 +78,38 @@ interface RequestBody {
   whatsapp_number?: string
 }
 
-const OUT_OF_SCOPE_REPLY = 'Cuidamos apenas de pintura de imóveis — casas, apartamentos, prédios, salas e lojas. 😊 Posso te ajudar com isso? Me conta o que você quer pintar aí.'
+// Usado só como fallback se a chamada de IA pra gerar a recusa falhar — o
+// texto normal vem do prompt do admin (ver out-of-scope dentro de chat_turn).
+const OUT_OF_SCOPE_FALLBACK = 'Cuidamos de pintura de imóveis em geral. 😊 Posso te ajudar com isso? Me conta o que você quer pintar aí.'
+
+// Sinônimos PT-BR que a extração precisa reconhecer sem depender só do
+// julgamento do modelo — portado do antigo prompt extract_initial_context.
+// Nunca inclui a regra de "tudo" aqui: ela só é segura para campos de
+// múltipla escolha (ver buildExtractionSynonyms) — aplicada cegamente a um
+// campo de escolha única, "Tudo" respondendo "que tipo de serviço?" virava
+// literalmente os 6 serviços concatenados, um valor sem sentido de negócio.
+const PROPERTY_TYPE_SYNONYMS = `Sinônimos obrigatórios para property_type:
+- "residência", "residencia", "minha casa", "imóvel residencial", "moradia" → "Casa"
+- "prédio", "edificio", "edifício", "condomínio", "condominio" → "Prédio / Edifício"
+- "kitnet", "studio", "flat", "apt", "apto", "apartamento" → "Apartamento"
+- "escritório", "escritorio", "sala comercial", "sala" → "Sala / Escritório"
+- "loja", "comércio", "comercio" → "Loja / Comércio"
+
+Para property_scope, pistas de localização da pintura:
+- "pintura externa", "fachada", "muros", "parte de fora" → "Apenas externa"
+- "pintura interna", "por dentro", "quartos/sala" → "Apenas interna"
+- "por dentro e por fora" → "Ambas (interna + externa)"`
+
+// A regra de "tudo"/"todas" só se aplica quando a pergunta atual é de
+// múltipla escolha (ex.: superfícies) — nunca para campos de escolha única
+// (tipo de serviço, tipo de imóvel, prazo, material), onde "tudo" não tem
+// significado de negócio e deve ficar sem preencher.
+function buildTudoInstruction(currentField: { multiSelect?: boolean; options?: string[] | null } | undefined): string {
+  if (currentField?.multiSelect && currentField.options?.length) {
+    return `\n\nA pergunta atual aceita MÚLTIPLAS respostas. Se a pessoa responder "tudo"/"todas"/"geral", preencha o campo com a lista de TODAS as opções sugeridas (${currentField.options.join(', ')}), separadas por " + ".`
+  }
+  return `\n\nA pergunta atual é de escolha ÚNICA. Se a pessoa responder algo vago como "tudo"/"qualquer um"/"não importa" sem indicar uma opção específica, NÃO chame update_lead_data pra esse campo — é melhor deixar sem preencher do que inventar um valor.`
+}
 
 const DEFAULT_DISCOVERY_PROMPT = `Você é o Koke, assistente da Pinte Rápido Floripa no chat web e WhatsApp.
 Tom: prático, simpático, local e objetivo. Frases curtas. Nunca pareça um formulário.
@@ -390,18 +422,40 @@ Exemplos:
 
       const turnHistory = (data._history as { role: string; content: string }[] | undefined) || []
       const userText = message === '__init__' ? '' : message.trim()
+      const lastQuestion = [...turnHistory].reverse().find(h => h.role === 'assistant')?.content
 
       let outOfScope = false
       let roleDetected: string | undefined
 
-      // Rede de segurança determinística: para os casos mais óbvios de fora de
-      // escopo (veículos, móveis, eletrônicos), nem depende do juízo do modelo —
-      // ele pode deixar de chamar a função certa em mensagens ambíguas.
-      const OUT_OF_SCOPE_PATTERN = /\b(carro|moto(cicleta)?|caminh[aã]o|bicicleta|barco|lancha|jet\s?ski|avi[aã]o|geladeira|fog[aã]o|sof[aá]|guarda[\s-]?roupa|celular|notebook|computador|televis[aã]o|\btv\b|cachorro|gato|pet)\b/i
-      if (OUT_OF_SCOPE_PATTERN.test(userText)) outOfScope = true
+      // Campo que a última pergunta se referia (se houver) — usado tanto pro
+      // curto-circuito determinístico quanto pra dar contexto à extração.
+      const checklistBeforeTurn = buildChecklist(steps, data)
+      const currentField = missingRequired(checklistBeforeTurn)[0]
 
-      // Passo 1 — extração estruturada (só roda se houver texto novo do usuário)
-      if (userText && !outOfScope) {
+      // Passo 0 — curto-circuito determinístico: se a resposta bate com uma
+      // das opções sugeridas pro campo que acabamos de perguntar (clique de
+      // botão, ou o texto digitado à mão), grava direto e NUNCA passa pelo
+      // modelo — elimina de vez o risco de "Urgente"/"Mofadas"/"Escritorio"
+      // virarem falso-positivo de fora-de-escopo por falta de contexto.
+      const shortCircuited = Boolean(userText && currentField && matchesOption(currentField.options, userText))
+      if (shortCircuited && currentField) {
+        // Múltipla escolha: preserva a frase composta como digitada (ex.:
+        // "paredes e portas") — canonicalizar colapsaria pra um único item.
+        data[currentField.field] = (currentField.options && !currentField.multiSelect)
+          ? canonicalizeEnumValue(currentField.options, userText)
+          : userText
+      }
+
+      // Rede de segurança determinística: pros casos mais óbvios de fora de
+      // escopo (veículos, móveis, eletrônicos), nem depende do juízo do
+      // modelo — só roda se o curto-circuito acima não já resolveu a mensagem.
+      const OUT_OF_SCOPE_PATTERN = /\b(carro|moto(cicleta)?|caminh[aã]o|bicicleta|barco|lancha|jet\s?ski|avi[aã]o|geladeira|fog[aã]o|sof[aá]|guarda[\s-]?roupa|celular|notebook|computador|televis[aã]o|\btv\b|cachorro|gato|pet)\b/i
+      if (!shortCircuited && OUT_OF_SCOPE_PATTERN.test(userText)) outOfScope = true
+
+      // Passo 1 — extração estruturada (só roda se sobrou texto livre novo
+      // pra interpretar, isto é, não foi resolvido pelo curto-circuito nem
+      // já sinalizado fora de escopo pelo regex)
+      if (userText && !shortCircuited && !outOfScope) {
         const knownSummary = Object.entries(data)
           .filter(([k, v]) => !k.startsWith('_') && isFilled(v))
           .map(([k, v]) => `${k}=${v}`).join(', ') || 'nenhum ainda'
@@ -418,9 +472,12 @@ Exemplos:
                   service_type: enumFromQuickReplies(steps, 'service_type')
                     ? { type: 'string', enum: enumFromQuickReplies(steps, 'service_type') }
                     : { type: 'string' },
-                  property_type: enumFromQuickReplies(steps, 'property_type')
-                    ? { type: 'string', enum: enumFromQuickReplies(steps, 'property_type') }
-                    : { type: 'string' },
+                  property_type: {
+                    ...(enumFromQuickReplies(steps, 'property_type')
+                      ? { type: 'string', enum: enumFromQuickReplies(steps, 'property_type') }
+                      : { type: 'string' }),
+                    description: 'Tipo de imóvel. Atenção a sinônimos em PT-BR (residência/moradia → Casa, prédio/edifício → Prédio / Edifício, etc. — ver instruções do sistema).',
+                  },
                   property_scope: { type: 'string', enum: ['Apenas interna', 'Apenas externa', 'Ambas (interna + externa)'] },
                   neighborhood: { type: 'string', description: 'Bairro de Florianópolis mencionado' },
                   surfaces: { type: 'string' },
@@ -444,7 +501,7 @@ Exemplos:
             type: 'function',
             function: {
               name: 'flag_out_of_scope',
-              description: 'Chame em vez de update_lead_data quando o pedido NÃO é sobre pintura de imóvel — ex.: carro, moto, barco, móveis, eletrônicos — ou é abusivo/impróprio.',
+              description: 'Chame em vez de update_lead_data SOMENTE quando o pedido claramente NÃO é sobre pintura de imóvel — ex.: carro, moto, barco, móveis, eletrônicos — ou é abusivo/impróprio. Na dúvida, prefira não chamar nenhuma função a chamar esta.',
               parameters: {
                 type: 'object',
                 properties: { reason: { type: 'string' } },
@@ -459,15 +516,26 @@ Exemplos:
           temperature: 0,
           max_tokens: 300,
           tools: extractTools,
-          tool_choice: 'required',
+          tool_choice: 'auto',
           messages: [
             {
               role: 'system',
-              content: 'Você extrai dados estruturados de pedidos de pintura residencial/comercial em Florianópolis. Só chame uma função; nunca responda em texto livre.',
+              content: `Você extrai dados estruturados de pedidos de pintura residencial/comercial em Florianópolis.
+
+IMPORTANTE: extraia QUALQUER campo que a mensagem mencionar claramente — bairro, tipo de imóvel, prazo, etc. — mesmo que não seja sobre "a pergunta atual" informada abaixo. A pergunta atual é só contexto pra interpretar respostas curtas/ambíguas (tipo "Urgente" sozinho); ela NUNCA deve te impedir de registrar outro dado óbvio que apareça na mesma mensagem (ex.: a pergunta atual pode ser sobre tipo de serviço, mas se a pessoa disser "Rio Tavares", isso É um bairro e deve ser extraído mesmo assim).
+
+${PROPERTY_TYPE_SYNONYMS}${buildTudoInstruction(currentField)}
+
+Só deixe de chamar função nenhuma quando a mensagem genuinamente não contiver nenhum dado novo reconhecível e não for claramente fora de escopo (ex.: só uma saudação) — nesse caso, é melhor não extrair nada do que arriscar um falso positivo de "fora de escopo".`,
             },
             {
               role: 'user',
-              content: `Dados já conhecidos: ${knownSummary}\n\nMensagem do usuário agora: "${userText}"`,
+              content: `Pergunta atual em aberto (contexto só pra respostas curtas/ambíguas — não limita o que pode ser extraído): "${lastQuestion || '(início da conversa)'}"
+${currentField?.options ? `Opções sugeridas para essa pergunta específica: ${currentField.options.join(', ')}` : ''}
+
+Dados já conhecidos: ${knownSummary}
+
+Mensagem do usuário agora: "${userText}"`,
             },
           ],
         })
@@ -481,10 +549,21 @@ Exemplos:
         } else if (updateCall) {
           try {
             const parsedArgs = JSON.parse(updateCall.function.arguments) as Record<string, unknown>
+            // A API da OpenAI não impõe o enum do schema de forma estrita — o
+            // modelo pode devolver "Escritorio" quando a opção real é "Sala /
+            // Escritório". Canonicaliza contra as opções reais antes de gravar.
+            const ENUM_FIELDS: Record<string, string[] | undefined> = {
+              service_type: enumFromQuickReplies(steps, 'service_type'),
+              property_type: enumFromQuickReplies(steps, 'property_type'),
+              deadline: enumFromQuickReplies(steps, 'deadline'),
+              material: enumFromQuickReplies(steps, 'material'),
+              property_scope: ['Apenas interna', 'Apenas externa', 'Ambas (interna + externa)'],
+              site_visit_preference: ['Visita técnica agendada', 'Orçamento a distância'],
+            }
             for (const [k, v] of Object.entries(parsedArgs)) {
               if (v === null || v === undefined || v === '') continue
               if (k === 'role') { roleDetected = String(v); continue }
-              data[k] = v
+              data[k] = typeof v === 'string' && ENUM_FIELDS[k] ? canonicalizeEnumValue(ENUM_FIELDS[k], v) : v
             }
           } catch { /* ignora extração malformada, segue sem novos campos */ }
         }
@@ -503,11 +582,34 @@ Exemplos:
 
       let replyText: string
       let readyForSummary = false
+      let quickReplies: string[] | undefined
 
       if (roleDetected === 'painter') {
         replyText = 'Você quer receber pedidos de clientes! 🎨 Deixa eu te cadastrar como pintor parceiro.'
       } else if (outOfScope) {
-        replyText = OUT_OF_SCOPE_REPLY
+        // Gera a recusa via IA (com o prompt do admin + histórico) em vez de uma
+        // string fixa, pra refletir o tom/texto que o admin já configurou —
+        // sem listar tipos de imóvel de forma fechada.
+        try {
+          const outOfScopeSystemPrompt = `${config?.system_prompt || DEFAULT_DISCOVERY_PROMPT}
+
+A pessoa acabou de pedir algo que não é pintura de imóvel (ex.: veículo, móvel, eletrônico, ou é abusivo/impróprio). Recuse com simpatia, seguindo o tom do texto acima, SEM listar tipos de imóvel de forma fechada (prefira algo como "pintura de imóveis em geral"), e pergunte o que a pessoa realmente quer pintar. Máximo 2 frases.`
+          const outOfScopeResp = await openai.chat.completions.create({
+            model: config?.model || 'gpt-4o',
+            max_tokens: 200,
+            temperature: config?.temperature ?? 0.7,
+            messages: [
+              { role: 'system', content: outOfScopeSystemPrompt },
+              ...turnHistory.slice(-6).map(h => ({
+                role: (h.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+                content: h.content,
+              })),
+            ],
+          })
+          replyText = outOfScopeResp.choices[0].message.content?.trim() || OUT_OF_SCOPE_FALLBACK
+        } catch {
+          replyText = OUT_OF_SCOPE_FALLBACK
+        }
       } else {
         const checklist = buildChecklist(steps, data)
         const missing = missingRequired(checklist)
@@ -516,16 +618,18 @@ Exemplos:
           replyText = 'Perfeito! 🎉 Já tenho tudo que preciso. Deixa eu confirmar os detalhes com você:'
           readyForSummary = true
         } else {
+          quickReplies = missing[0]?.options ?? undefined
           const filledLines = checklist.filter(i => i.filled).map(i => `- ${i.label}: ${i.value}`).join('\n') || '(nada ainda)'
           const missingLines = missing.map((i, idx) => `${idx + 1}. ${i.label}${i.options ? ` (opções: ${i.options.join(', ')})` : ''}`).join('\n')
 
           const respondSystemPrompt = `${config?.system_prompt || DEFAULT_DISCOVERY_PROMPT}
 
 REGRAS INEGOCIÁVEIS DO MOTOR (sempre valem, independente do texto acima):
-- Você SÓ atende pintura de imóveis (casas, apartamentos, prédios, salas, lojas). Nunca aceite nem avance pedidos fora disso.
+- Você SÓ atende pintura de imóveis em geral (casas, apartamentos, prédios, salas, lojas — entre outros). Nunca aceite nem avance pedidos fora disso.
 - A lista "Já sei" é fechada e definitiva — cada item nela JÁ FOI RESPONDIDO. Proibido perguntar, confirmar ou insinuar dúvida sobre qualquer item dela, mesmo que pareça relevante para o que a pessoa acabou de dizer.
 - Sua ÚNICA pergunta nesta resposta deve ser sobre o item 1 da lista "Ainda falta" — nenhum outro assunto de coleta de dados.
 - Converse naturalmente — reaja brevemente ao que a pessoa acabou de dizer antes de perguntar o próximo item. Não pareça um formulário.
+- Se for pintura externa de casa ou prédio, sugira ativamente (em algum momento oportuno) uma visita técnica rápida ou uma chamada de vídeo curta pra detalhar melhor o orçamento — sem prometer que isso já agenda algo automaticamente.
 - Se ainda não pediu fotos/vídeo do local nesta conversa, aproveite um momento oportuno para pedir gentilmente (não é obrigatório, pode ser pulado).
 - Nunca prometa preço final ou faixa de preço.
 - Máximo 2 frases por mensagem.
@@ -550,6 +654,13 @@ ${missingLines}`
           })
           replyText = respondResp.choices[0].message.content?.trim() || missingLines
         }
+      }
+
+      // Reconhece mídia recebida nesta rodada — hoje é só armazenada, nunca
+      // mencionada, já que os steps step_type:'media' (media_upload/
+      // final_notes) ficaram inalcançáveis pro cliente após o motor único.
+      if (media_urls && media_urls.length > 0) {
+        replyText = `📸 Recebi sua(s) foto(s)/vídeo(s), obrigado! ${replyText}`
       }
 
       turnHistory.push({ role: 'assistant', content: replyText })
@@ -580,6 +691,7 @@ ${missingLines}`
           ready_for_summary: readyForSummary,
           out_of_scope: outOfScope,
           role: roleDetected,
+          quick_replies: quickReplies,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )

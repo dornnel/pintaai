@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import {
   Save, Bot, Zap, FileText, TestTube, Loader2, CheckCircle,
   Plus, Trash2, Upload, MessageSquare, Copy, Check, HelpCircle,
-  Calculator, RefreshCw, AlertTriangle, Route, Target, ChevronDown,
+  Calculator, RefreshCw, AlertTriangle, Route, Target,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { JourneyBuilderTab } from './JourneyBuilderTab'
@@ -99,7 +99,6 @@ export function AgentConfigPage() {
   const [budgetMode, setBudgetMode] = useState('internal_only')
   const [budgetWarning, setBudgetWarning] = useState('')
   const [savingBudget, setSavingBudget] = useState(false)
-  const [showModeMenu, setShowModeMenu] = useState(false)
 
   useEffect(() => { loadConfig() }, [])
   useEffect(() => {
@@ -108,14 +107,10 @@ export function AgentConfigPage() {
   }, [activeTab])
 
   async function loadConfig() {
-    const [{ data }, { data: modeSetting }] = await Promise.all([
-      supabase.from('agent_configs').select('*').eq('active', true).single(),
-      supabase.from('platform_settings').select('value').eq('key', 'agent_conversation_mode').maybeSingle(),
-    ])
+    const { data } = await supabase.from('agent_configs').select('*').eq('active', true).single()
     if (data) {
       setConfig({
         ...data,
-        conversation_mode: modeSetting?.value || data.conversation_mode || 'journey',
         tools_enabled: data.tools_enabled || [],
         rag_documents: data.rag_documents || [],
         skills_enabled: data.skills_enabled || [],
@@ -280,41 +275,6 @@ export function AgentConfigPage() {
   if (loading) return <div className="p-6 text-sm text-gray-400">Carregando...</div>
   if (!config) return <div className="p-6 text-sm text-gray-500">Nenhuma configuração encontrada.</div>
 
-  const conversationMode = (config as AgentConfig & { conversation_mode?: string }).conversation_mode || 'journey'
-
-  const MODE_CFG = {
-    journey: {
-      label: 'Jornada estruturada',
-      desc: 'A sequência de perguntas vem da aba Jornada. O Prompt define tom e validações abertas.',
-      color: 'bg-green-50 border-green-200 text-green-900',
-      badge: 'bg-green-100 text-green-700',
-    },
-    ai_autonomous: {
-      label: 'IA autônoma',
-      desc: 'A IA decide quais perguntas fazer. A Jornada é ignorada. Mais flexível, menos previsível.',
-      color: 'bg-violet-50 border-violet-200 text-violet-900',
-      badge: 'bg-violet-100 text-violet-700',
-    },
-    hybrid: {
-      label: 'Híbrido',
-      desc: 'A Jornada define a sequência base, mas a IA pode avançar etapas se já souber a resposta.',
-      color: 'bg-blue-50 border-blue-200 text-blue-900',
-      badge: 'bg-blue-100 text-blue-700',
-    },
-  }
-  const modeCfg = MODE_CFG[conversationMode as keyof typeof MODE_CFG] || MODE_CFG.journey
-
-  async function setMode(mode: string) {
-    setShowModeMenu(false)
-    if (!config) return
-    // Persist in platform_settings (key-value table guaranteed to exist)
-    await supabase.from('platform_settings').upsert(
-      { key: 'agent_conversation_mode', value: mode, updated_at: new Date().toISOString() },
-      { onConflict: 'key' },
-    )
-    setConfig({ ...config, conversation_mode: mode } as AgentConfig & { conversation_mode?: string })
-  }
-
   return (
     <div className="p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
@@ -335,33 +295,15 @@ export function AgentConfigPage() {
         </motion.button>
       </div>
 
-      {/* Mode banner */}
-      <div className={`rounded-2xl border px-4 py-3 mb-5 flex items-center justify-between gap-4 ${modeCfg.color}`}>
-        <div className="flex items-start gap-2.5">
-          <Target className="w-4 h-4 mt-0.5 shrink-0" />
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold">Modo ativo:</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${modeCfg.badge}`}>{modeCfg.label}</span>
-            </div>
-            <p className="text-xs mt-0.5 opacity-80">{modeCfg.desc}</p>
-          </div>
-        </div>
-        <div className="relative shrink-0">
-          <button onClick={() => setShowModeMenu(v => !v)}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 bg-white/70 rounded-lg hover:bg-white transition-colors cursor-pointer border border-white/50">
-            Alterar modo <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-          {showModeMenu && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 min-w-48 overflow-hidden">
-              {Object.entries(MODE_CFG).map(([key, cfg]) => (
-                <button key={key} onClick={() => setMode(key)}
-                  className={`w-full text-left px-4 py-2.5 text-xs hover:bg-gray-50 transition-colors cursor-pointer ${key === conversationMode ? 'font-semibold text-brand' : 'text-gray-700'}`}>
-                  {cfg.label}
-                </button>
-              ))}
-            </div>
-          )}
+      {/* Motor único */}
+      <div className="rounded-2xl border px-4 py-3 mb-5 flex items-start gap-2.5 bg-green-50 border-green-200 text-green-900">
+        <Target className="w-4 h-4 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold">Motor único</p>
+          <p className="text-xs mt-0.5 opacity-80">
+            A sequência e os campos obrigatórios vêm da aba Jornada; a conversa em si é livre,
+            guiada pelo Prompt abaixo até coletar tudo o que a Jornada exige.
+          </p>
         </div>
       </div>
 
@@ -798,9 +740,6 @@ export function AgentConfigPage() {
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span>
               <strong>Reflete em novas conversas</strong> — mudanças na Jornada afetam apenas sessões iniciadas após salvar.
-              {conversationMode === 'ai_autonomous' && (
-                <span className="ml-1 text-violet-700 font-semibold">· Modo IA autônoma ativo: esta sequência está sendo ignorada.</span>
-              )}
             </span>
           </div>
           <JourneyBuilderTab />

@@ -37,6 +37,93 @@ export function isFilled(value: unknown): boolean {
   return value !== undefined && value !== null && value !== ''
 }
 
+function normalizeForMatch(s: string): string {
+  return s
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove acentos (residência → residencia)
+    .toLowerCase()
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/[️‍]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ') // pontuação/emoji residual vira espaço, pra separar palavras
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Duas palavras "casam" se são idênticas, ou (quando ambas têm 4+ letras)
+// compartilham os 3 primeiros caracteres — cobre flexões/erros de digitação
+// em PT-BR sem exigir acerto perfeito ("Mofadas" → "Mofo", "Escritorio" sem
+// acento → "Escritório").
+function wordsMatch(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.length < 4 || b.length < 4) return false
+  return a.slice(0, 3) === b.slice(0, 3)
+}
+
+// Decide, sem chamar LLM nenhum, se `text` é claramente a resposta a uma das
+// `options` de um campo (clique de botão, ou o texto do botão digitado à
+// mão, com ou sem acento/erro de digitação). Espelha o `matchesQuickReply`
+// já usado no cliente (src/hooks/useChat.ts) para que um clique em botão
+// NUNCA passe pela extração por IA — elimina de vez o risco de uma resposta
+// óbvia como "Urgente" ou "Mofadas" ser mal-interpretada como fora de escopo.
+//
+// Duas camadas, nessa ordem:
+// 1. Palavra idêntica em qualquer tamanho de frase (ex.: "casa" dentro de
+//    "é uma casa mesmo") — seguro mesmo em texto livre longo.
+// 2. Radical de 3 letras, mas só quando a resposta é curta (≤3 palavras) —
+//    um texto livre longo quase sempre compartilha radical com alguma opção
+//    por coincidência (ex.: "pintar" ~ "Pintura" em "quero pintar meu
+//    carro", que não tem nada a ver com o campo service_type), então essa
+//    camada fica restrita a respostas que já parecem clique de botão.
+export function matchesOption(options: string[] | null | undefined, text: string): boolean {
+  if (!options || options.length === 0) return false
+  const normalizedText = normalizeForMatch(text)
+  if (!normalizedText) return false
+  const textWords = normalizedText.split(' ').filter(Boolean)
+
+  for (const opt of options) {
+    const normalizedOpt = normalizeForMatch(opt)
+    if (!normalizedOpt) continue
+    if (normalizedText === normalizedOpt) return true
+    const optWords = normalizedOpt.split(' ').filter(Boolean)
+    if (textWords.some(tw => optWords.includes(tw))) return true
+  }
+
+  if (textWords.length > 3) return false
+
+  return options.some(opt => {
+    const optWords = normalizeForMatch(opt).split(' ').filter(Boolean)
+    return textWords.some(tw => optWords.some(ow => wordsMatch(tw, ow)))
+  })
+}
+
+// Resolve um valor extraído (que pode não bater exatamente com o enum, já
+// que a API da OpenAI não impõe o enum de forma estrita) pro texto canônico
+// de uma das `options` conhecidas, usando o mesmo casamento fuzzy de
+// matchesOption. Retorna o valor original se nada bater — nunca descarta
+// informação, só tenta normalizar pro rótulo oficial quando possível.
+export function canonicalizeEnumValue(options: string[] | null | undefined, value: string): string {
+  if (!options || options.length === 0) return value
+  const normalizedValue = normalizeForMatch(value)
+  if (!normalizedValue) return value
+  for (const opt of options) {
+    const normalizedOpt = normalizeForMatch(opt)
+    if (normalizedValue === normalizedOpt) return opt
+  }
+  const valueWords = normalizedValue.split(' ').filter(Boolean)
+  for (const opt of options) {
+    const optWords = normalizeForMatch(opt).split(' ').filter(Boolean)
+    if (valueWords.some(vw => optWords.includes(vw))) return opt
+  }
+  // Radical de 3 letras só pra valores curtos — mesmo motivo do matchesOption:
+  // um valor longo compartilha radical com alguma opção por coincidência.
+  if (valueWords.length <= 3) {
+    for (const opt of options) {
+      const optWords = normalizeForMatch(opt).split(' ').filter(Boolean)
+      if (valueWords.some(vw => optWords.some(ow => wordsMatch(vw, ow)))) return opt
+    }
+  }
+  return value
+}
+
 export function isApartamento(propertyType: unknown): boolean {
   const v = String(propertyType ?? '').toLowerCase()
   return v.includes('apart') || v.includes('apto')
@@ -79,6 +166,7 @@ export interface ChecklistItem {
   filled: boolean
   value?: unknown
   options?: string[] | null
+  multiSelect?: boolean
 }
 
 function cleanLabel(template: string): string {
@@ -107,6 +195,7 @@ export function buildChecklist(steps: FlowStepRow[], data: CollectedData): Check
       filled: isFilled(value),
       value,
       options: step.quick_replies,
+      multiSelect: step.multi_select ?? false,
     })
   }
 
@@ -124,6 +213,7 @@ export function buildChecklist(steps: FlowStepRow[], data: CollectedData): Check
       filled: isFilled(value),
       value,
       options: step.quick_replies,
+      multiSelect: step.multi_select ?? false,
     })
   }
 

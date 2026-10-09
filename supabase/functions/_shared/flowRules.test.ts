@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   conditionMet, buildChecklist, missingRequired, isDiscoveryComplete, inferPropertyScope,
+  matchesOption, canonicalizeEnumValue,
   type FlowStepRow,
 } from './flowRules'
 
@@ -164,5 +165,83 @@ describe('isDiscoveryComplete', () => {
       neighborhood: 'Campeche',
     }
     expect(isDiscoveryComplete(BASE_STEPS, data)).toBe(true)
+  })
+})
+
+describe('matchesOption', () => {
+  const deadlineOptions = ['🔴 Urgente – o quanto antes', '📅 Em 2 semanas', '🗓️ Próximo mês', '⏳ Sem pressa']
+  const wallOptions = ['Bom estado', 'Manchas / sujeira', 'Descascando', 'Rachaduras', 'Mofo', 'Pós-obra / novo']
+  const propertyOptions = ['Apartamento', 'Casa', 'Prédio / Edifício', 'Sala / Escritório', 'Loja / Comércio', 'Outro']
+
+  it('matches a short free-text reply against an emoji-prefixed option (real Sandro case: "Urgente")', () => {
+    expect(matchesOption(deadlineOptions, 'Urgente')).toBe(true)
+  })
+
+  it('matches "Mofadas" loosely against the "Mofo" wall_condition option', () => {
+    expect(matchesOption(wallOptions, 'Mofadas')).toBe(true)
+  })
+
+  it('matches "Escritorio" (no accent) against "Sala / Escritório"', () => {
+    expect(matchesOption(propertyOptions, 'Escritorio')).toBe(true)
+  })
+
+  it('matches the exact button label a click would send, emoji included', () => {
+    expect(matchesOption(deadlineOptions, '🔴 Urgente – o quanto antes')).toBe(true)
+  })
+
+  it('does not match an unrelated out-of-scope message', () => {
+    expect(matchesOption(propertyOptions, 'quero pintar meu carro')).toBe(false)
+  })
+
+  it('returns false when there are no options to match against', () => {
+    expect(matchesOption(null, 'Urgente')).toBe(false)
+    expect(matchesOption([], 'Urgente')).toBe(false)
+  })
+
+  it('returns false for an empty reply', () => {
+    expect(matchesOption(deadlineOptions, '   ')).toBe(false)
+  })
+
+  it('does not false-positive on unrelated words that happen to share a 3-letter prefix', () => {
+    expect(matchesOption(propertyOptions, 'cartão de crédito')).toBe(false) // "car..." vs "Casa"
+    expect(matchesOption(wallOptions, 'rapidinho por favor')).toBe(false)
+  })
+
+  it('REGRESSION: does not short-circuit a full sentence onto service_type just because "pintar" stems like "Pintura"', () => {
+    const serviceOptions = ['Pintura interna', 'Fachada / Externa', 'Repintura – mesma cor', 'Repintura – nova cor', 'Textura / Grafiato', '1ª pintura (imóvel novo)']
+    // Real bug: this message was being swallowed whole into service_type
+    // ("Pintura interna") before ever reaching the out-of-scope check or
+    // the LLM extraction — "pintar" and "Pintura" share a 3-letter stem.
+    expect(matchesOption(serviceOptions, 'quero pintar meu carro')).toBe(false)
+    expect(matchesOption(serviceOptions, 'quero pintar minha residência no campeche')).toBe(false)
+  })
+
+  it('matches a full free-text sentence that mentions one of the options by name', () => {
+    expect(matchesOption(propertyOptions, 'é uma casa mesmo')).toBe(true)
+  })
+})
+
+describe('canonicalizeEnumValue', () => {
+  const propertyOptions = ['Apartamento', 'Casa', 'Prédio / Edifício', 'Sala / Escritório', 'Loja / Comércio', 'Outro']
+
+  it('resolves a model output that drifted from the enum to the canonical option (real bug: "Escritorio")', () => {
+    expect(canonicalizeEnumValue(propertyOptions, 'Escritorio')).toBe('Sala / Escritório')
+  })
+
+  it('returns the value unchanged when it already matches an option exactly', () => {
+    expect(canonicalizeEnumValue(propertyOptions, 'Casa')).toBe('Casa')
+  })
+
+  it('returns the original value unchanged when nothing matches', () => {
+    expect(canonicalizeEnumValue(propertyOptions, 'Garagem de barco')).toBe('Garagem de barco')
+  })
+
+  it('returns the value unchanged when there are no options to canonicalize against', () => {
+    expect(canonicalizeEnumValue(null, 'Escritorio')).toBe('Escritorio')
+  })
+
+  it('REGRESSION: does not collapse a long free-text value onto an unrelated option via stem coincidence', () => {
+    const serviceOptions = ['Pintura interna', 'Fachada / Externa', 'Repintura – mesma cor', 'Repintura – nova cor', 'Textura / Grafiato', '1ª pintura (imóvel novo)']
+    expect(canonicalizeEnumValue(serviceOptions, 'quero pintar meu carro')).toBe('quero pintar meu carro')
   })
 })

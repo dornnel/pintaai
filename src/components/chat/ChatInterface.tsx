@@ -198,6 +198,18 @@ export function ChatInterface() {
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null)
   const recordIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // O <video> de prévia só existe no DOM depois que recordMode vira
+  // 'photo'/'video' (renderização condicional abaixo) — anexar o stream
+  // direto dentro de startPhoto()/startRecording() sempre falhava
+  // silenciosamente (ref ainda null nesse momento), deixando a prévia preta.
+  // Este efeito garante que o stream é anexado só depois do elemento montar.
+  useEffect(() => {
+    if ((recordMode === 'photo' || recordMode === 'video') && videoPreviewRef.current && streamRef.current) {
+      videoPreviewRef.current.srcObject = streamRef.current
+      videoPreviewRef.current.play().catch(() => {})
+    }
+  }, [recordMode])
+
   useEffect(() => {
     if (authLoading) return   // wait for auth before init to avoid role_select flash
     if (initFired.current) return
@@ -285,10 +297,8 @@ export function ChatInterface() {
         video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
       })
       streamRef.current = stream
-      if (videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = stream
-        videoPreviewRef.current.play().catch(() => {})
-      }
+      // O <video> ainda não existe no DOM aqui (monta só depois de setRecordMode
+      // abaixo) — o useEffect acima anexa o stream assim que ele montar.
       setRecordMode('photo')
     } catch {
       setSizeError('Não foi possível acessar a câmera. Verifique as permissões.')
@@ -323,11 +333,8 @@ export function ChatInterface() {
         : { audio: true }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       streamRef.current = stream
-      // Attach camera preview
-      if (kind === 'video' && videoPreviewRef.current) {
-        videoPreviewRef.current.srcObject = stream
-        videoPreviewRef.current.play().catch(() => {})
-      }
+      // A prévia (<video>) é anexada pelo useEffect acima assim que
+      // setRecordMode(kind) monta o elemento, mais abaixo nesta função.
       const mimeType = getSupportedMimeType(kind)
       const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       chunksRef.current = []
