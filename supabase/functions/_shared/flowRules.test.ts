@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   conditionMet, buildChecklist, missingRequired, isDiscoveryComplete, inferPropertyScope,
-  matchesOption, canonicalizeEnumValue,
+  matchesOption, canonicalizeEnumValue, interpolateQuestion, findStepForField,
   type FlowStepRow,
 } from './flowRules'
 
@@ -243,5 +243,45 @@ describe('canonicalizeEnumValue', () => {
   it('REGRESSION: does not collapse a long free-text value onto an unrelated option via stem coincidence', () => {
     const serviceOptions = ['Pintura interna', 'Fachada / Externa', 'Repintura – mesma cor', 'Repintura – nova cor', 'Textura / Grafiato', '1ª pintura (imóvel novo)']
     expect(canonicalizeEnumValue(serviceOptions, 'quero pintar meu carro')).toBe('quero pintar meu carro')
+  })
+})
+
+describe('interpolateQuestion', () => {
+  it('fills {{field}} placeholders from collected data', () => {
+    expect(interpolateQuestion('É uma **{{property_type}}**! Interna, externa ou ambas?', { property_type: 'Casa' }))
+      .toBe('É uma **Casa**! Interna, externa ou ambas?')
+  })
+
+  it('converts DB-escaped \\n into a real newline', () => {
+    expect(interpolateQuestion('Linha um\\n\\nLinha dois', {})).toBe('Linha um\n\nLinha dois')
+  })
+
+  it('leaves an unresolved placeholder empty rather than crashing', () => {
+    expect(interpolateQuestion('Para {{property_type}}, confirma?', {})).toBe('Para , confirma?')
+  })
+})
+
+describe('findStepForField', () => {
+  const steps: FlowStepRow[] = [
+    { branch: 'client', order_index: 1, active: true, enabled: true, question_template: 'Que serviço?', step_type: 'quick_reply', quick_replies: ['A', 'B'], field_key: 'service_type', validation_type: 'none', skippable: false, is_core_field: true, step_key: 'service_type' },
+    { branch: 'client', order_index: 4.5, active: true, enabled: true, question_template: 'Interna, externa ou ambas?', step_type: 'quick_reply', quick_replies: ['Apenas interna', 'Apenas externa'], field_key: 'property_scope', validation_type: 'none', skippable: false, is_core_field: true, step_key: 'property_scope', condition_key: 'property_type', condition_value: 'Casa' },
+    { branch: 'painter', order_index: 1, active: true, enabled: true, question_template: 'Nome?', step_type: 'text', quick_replies: null, field_key: 'service_type', validation_type: 'none', skippable: false, is_core_field: true, step_key: 'painter_dup' },
+  ]
+
+  it('finds a plain discovery step by field_key', () => {
+    expect(findStepForField(steps, 'service_type')?.step_key).toBe('service_type')
+  })
+
+  it('finds a conditional step (not filtered out like discoverySteps does)', () => {
+    expect(findStepForField(steps, 'property_scope')?.step_key).toBe('property_scope')
+  })
+
+  it('only considers the client branch, ignoring a same-named painter field', () => {
+    const r = findStepForField(steps, 'service_type')
+    expect(r?.branch).toBe('client')
+  })
+
+  it('returns undefined when no step matches', () => {
+    expect(findStepForField(steps, 'nonexistent_field')).toBeUndefined()
   })
 })

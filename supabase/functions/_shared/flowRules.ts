@@ -169,6 +169,27 @@ export interface ChecklistItem {
   multiSelect?: boolean
 }
 
+// Interpola {{campo}} contra os dados já coletados e desfaz \n escapado
+// (como vem salvo no banco). Usado pra renderizar a pergunta do próximo
+// campo faltante de forma determinística — o texto e as quick_replies vêm
+// sempre da MESMA linha de agent_flow_steps, então nunca podem ficar fora
+// de sincronia (bug relatado: pergunta sobre "tipo de imóvel" com botões de
+// "superfícies").
+export function interpolateQuestion(template: string, data: CollectedData): string {
+  const withNewlines = template.replace(/\\n/g, '\n')
+  return withNewlines.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    const value = data[key]
+    return value !== undefined && value !== null ? String(value) : ''
+  })
+}
+
+// Acha a linha real de agent_flow_steps (branch client) correspondente a um
+// field_key do checklist — inclui os condicionais (property_scope,
+// site_visit_preference), que ficam fora de discoverySteps().
+export function findStepForField(steps: FlowStepRow[], fieldKey: string): FlowStepRow | undefined {
+  return steps.find(s => s.branch === 'client' && s.field_key === fieldKey)
+}
+
 function cleanLabel(template: string): string {
   return template
     .replace(/\{\{.*?\}\}/g, '')

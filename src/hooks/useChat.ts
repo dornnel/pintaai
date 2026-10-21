@@ -423,7 +423,11 @@ export function useChat() {
         return
       }
 
-      agentMessage(turn.message as string, (turn.quick_replies as string[] | undefined) ?? undefined)
+      agentMessage(
+        turn.message as string,
+        (turn.quick_replies as string[] | undefined) ?? undefined,
+        turn.multi_select ? { multiSelect: true } : undefined,
+      )
 
       if (turn.ready_for_summary) {
         await delay(700)

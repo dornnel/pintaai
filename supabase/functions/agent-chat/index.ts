@@ -2,7 +2,7 @@ import OpenAI from 'npm:openai@4'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   type FlowStepRow, buildChecklist, missingRequired, inferPropertyScope, isFilled, matchesOption,
-  canonicalizeEnumValue,
+  canonicalizeEnumValue, findStepForField, interpolateQuestion,
 } from '../_shared/flowRules.ts'
 
 const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY')! })
@@ -133,6 +133,48 @@ async function loadFlowSteps(sb: ReturnType<typeof createClient>): Promise<FlowS
 function enumFromQuickReplies(steps: FlowStepRow[], fieldKey: string): string[] | undefined {
   const step = steps.find(s => s.field_key === fieldKey && s.branch === 'client')
   return step?.quick_replies && step.quick_replies.length > 0 ? step.quick_replies : undefined
+}
+
+// Reage brevemente ao que o usuário disse e emenda o `fixedText` (pergunta
+// determinística do próximo campo, ou a frase de fechamento) EXATAMENTE como
+// está — espelha a action generate_transition, já comprovada confiável na
+// cauda do fluxo (auth/contato). A IA nunca decide O QUE perguntar aqui, só
+// COMO introduzir — garante que o texto e os botões (que vêm separadamente
+// da mesma linha de agent_flow_steps) nunca fiquem fora de sincronia.
+async function generateReactionWrap(
+  config: { system_prompt?: string; model?: string; temperature?: number } | null,
+  userText: string,
+  fixedText: string,
+  extraHint: string | null,
+): Promise<string> {
+  try {
+    const prompt = `O usuário acabou de dizer: "${userText}"
+
+Gere UMA mensagem curta (1 frase, no máximo duas) que primeiro reaja de forma breve e natural ao que a pessoa disse, e depois emende, PALAVRA POR PALAVRA, o texto a seguir (delimitado por ---):
+---
+${fixedText}
+---
+${extraHint || ''}
+
+Não reescreva, resuma, parafraseie nem substitua esse texto por outra pergunta — copie-o exatamente como está, incluindo **negrito**, quebras de linha e emojis. Não envolva esse texto em aspas no resultado final. Responda só a mensagem final (reação + texto colado), texto puro, sem JSON, sem aspas ao redor de tudo.`
+
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 220,
+      temperature: 0.6,
+      messages: [
+        { role: 'system', content: `${config?.system_prompt || DEFAULT_DISCOVERY_PROMPT}\n\nTom: natural, simpático, PT-BR. Responda em texto puro, sem JSON.` },
+        { role: 'user', content: prompt },
+      ],
+    })
+    const result = resp.choices[0].message.content?.trim() || fixedText
+    // Rede de segurança: se o modelo colar aspas ao redor do texto emendado
+    // mesmo com a instrução contra isso, remove — nunca confia 100% em
+    // compliance de prompt pra algo puramente cosmético.
+    return result.replace(/^"([\s\S]*)"$/, '$1').replace(/\n"([\s\S]*?)"$/, '\n$1')
+  } catch {
+    return fixedText
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -583,6 +625,7 @@ Mensagem do usuário agora: "${userText}"`,
       let replyText: string
       let readyForSummary = false
       let quickReplies: string[] | undefined
+      let multiSelectNext = false
 
       if (roleDetected === 'painter') {
         replyText = 'Você quer receber pedidos de clientes! 🎨 Deixa eu te cadastrar como pintor parceiro.'
@@ -615,44 +658,32 @@ A pessoa acabou de pedir algo que não é pintura de imóvel (ex.: veículo, mó
         const missing = missingRequired(checklist)
 
         if (missing.length === 0) {
-          replyText = 'Perfeito! 🎉 Já tenho tudo que preciso. Deixa eu confirmar os detalhes com você:'
+          const closingLine = 'Perfeito! 🎉 Já tenho tudo que preciso. Deixa eu confirmar os detalhes com você:'
+          replyText = userText
+            ? await generateReactionWrap(config, userText, closingLine, null)
+            : closingLine
           readyForSummary = true
         } else {
-          quickReplies = missing[0]?.options ?? undefined
-          const filledLines = checklist.filter(i => i.filled).map(i => `- ${i.label}: ${i.value}`).join('\n') || '(nada ainda)'
-          const missingLines = missing.map((i, idx) => `${idx + 1}. ${i.label}${i.options ? ` (opções: ${i.options.join(', ')})` : ''}`).join('\n')
+          // A pergunta e as quick_replies SEMPRE vêm da MESMA linha de
+          // agent_flow_steps — nunca podem ficar fora de sincronia (bug
+          // relatado: texto pergunta "tipo de imóvel", botões mostram
+          // "superfícies"). A IA só adiciona uma reação curta por cima,
+          // exatamente como já funciona pra o resto da jornada
+          // (generate_transition) — ela NUNCA decide qual pergunta fazer.
+          const nextStep = findStepForField(steps, missing[0].field)
+          const deterministicQuestion = nextStep
+            ? interpolateQuestion(nextStep.question_template, data)
+            : missing[0].label
+          quickReplies = nextStep?.quick_replies ?? missing[0].options ?? undefined
+          multiSelectNext = nextStep?.multi_select ?? missing[0].multiSelect ?? false
 
-          const respondSystemPrompt = `${config?.system_prompt || DEFAULT_DISCOVERY_PROMPT}
+          const visitHint = missing[0].field === 'site_visit_preference'
+            ? ' Antes da pergunta, você pode mencionar rapidamente que isso ajuda a detalhar melhor o orçamento.'
+            : ''
 
-REGRAS INEGOCIÁVEIS DO MOTOR (sempre valem, independente do texto acima):
-- Você SÓ atende pintura de imóveis em geral (casas, apartamentos, prédios, salas, lojas — entre outros). Nunca aceite nem avance pedidos fora disso.
-- A lista "Já sei" é fechada e definitiva — cada item nela JÁ FOI RESPONDIDO. Proibido perguntar, confirmar ou insinuar dúvida sobre qualquer item dela, mesmo que pareça relevante para o que a pessoa acabou de dizer.
-- Sua ÚNICA pergunta nesta resposta deve ser sobre o item 1 da lista "Ainda falta" — nenhum outro assunto de coleta de dados.
-- Converse naturalmente — reaja brevemente ao que a pessoa acabou de dizer antes de perguntar o próximo item. Não pareça um formulário.
-- Se for pintura externa de casa ou prédio, sugira ativamente (em algum momento oportuno) uma visita técnica rápida ou uma chamada de vídeo curta pra detalhar melhor o orçamento — sem prometer que isso já agenda algo automaticamente.
-- Se ainda não pediu fotos/vídeo do local nesta conversa, aproveite um momento oportuno para pedir gentilmente (não é obrigatório, pode ser pulado).
-- Nunca prometa preço final ou faixa de preço.
-- Máximo 2 frases por mensagem.
-
-Já sei (NÃO pergunte sobre nada disto):
-${filledLines}
-
-Ainda falta — sua pergunta é OBRIGATORIAMENTE sobre o item 1:
-${missingLines}`
-
-          const respondResp = await openai.chat.completions.create({
-            model: config?.model || 'gpt-4o',
-            max_tokens: config?.max_tokens || 300,
-            temperature: config?.temperature ?? 0.7,
-            messages: [
-              { role: 'system', content: respondSystemPrompt },
-              ...turnHistory.slice(-12).map(h => ({
-                role: (h.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-                content: h.content,
-              })),
-            ],
-          })
-          replyText = respondResp.choices[0].message.content?.trim() || missingLines
+          replyText = userText
+            ? await generateReactionWrap(config, userText, deterministicQuestion, visitHint || null)
+            : deterministicQuestion
         }
       }
 
@@ -692,6 +723,7 @@ ${missingLines}`
           out_of_scope: outOfScope,
           role: roleDetected,
           quick_replies: quickReplies,
+          multi_select: multiSelectNext,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
