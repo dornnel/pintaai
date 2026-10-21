@@ -2,7 +2,7 @@ import OpenAI from 'npm:openai@4'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   type FlowStepRow, buildChecklist, missingRequired, inferPropertyScope, isFilled, matchesOption,
-  canonicalizeEnumValue, findStepForField, interpolateQuestion,
+  canonicalizeEnumValue, findStepForField, interpolateQuestion, isSelectAllPhrase,
 } from '../_shared/flowRules.ts'
 
 const openai = new OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY')! })
@@ -104,9 +104,18 @@ Para property_scope, pistas de localização da pintura:
 // múltipla escolha (ex.: superfícies) — nunca para campos de escolha única
 // (tipo de serviço, tipo de imóvel, prazo, material), onde "tudo" não tem
 // significado de negócio e deve ficar sem preencher.
+// Respostas tipo "tudo"/"todas" pra um campo de múltipla escolha já são
+// resolvidas de forma 100% determinística ANTES de chegar aqui (ver
+// isSelectAllPhrase mais abaixo) — este prompt não precisa mais instruir o
+// modelo a preencher "todas as opções" sozinho. Pelo contrário: um bug real
+// (achado por revisão independente) mostrou o modelo aplicando essa lógica
+// por conta própria a uma palavra que só ecoava uma resposta anterior
+// ("Interna" preenchendo TODAS as superfícies, porque "interna" lembrava
+// "Pintura interna" dita antes) — por isso a instrução agora é só cautelar,
+// na direção oposta.
 function buildTudoInstruction(currentField: { multiSelect?: boolean; options?: string[] | null } | undefined): string {
   if (currentField?.multiSelect && currentField.options?.length) {
-    return `\n\nA pergunta atual aceita MÚLTIPLAS respostas. Se a pessoa responder "tudo"/"todas"/"geral", preencha o campo com a lista de TODAS as opções sugeridas (${currentField.options.join(', ')}), separadas por " + ".`
+    return `\n\nA pergunta atual aceita MÚLTIPLAS respostas (opções: ${currentField.options.join(', ')}). Preencha SOMENTE os itens que a pessoa citar explicitamente. NUNCA preencha com todos os itens a menos que ela diga literalmente "tudo"/"todas"/"geral" (isso já é tratado antes de você ser chamado) — se a resposta for vaga ou parecer só confirmar algo dito antes (ex.: repetir uma palavra da pergunta anterior), não chame update_lead_data pra esse campo.`
   }
   return `\n\nA pergunta atual é de escolha ÚNICA. Se a pessoa responder algo vago como "tudo"/"qualquer um"/"não importa" sem indicar uma opção específica, NÃO chame update_lead_data pra esse campo — é melhor deixar sem preencher do que inventar um valor.`
 }
@@ -474,13 +483,23 @@ Exemplos:
       const checklistBeforeTurn = buildChecklist(steps, data)
       const currentField = missingRequired(checklistBeforeTurn)[0]
 
-      // Passo 0 — curto-circuito determinístico: se a resposta bate com uma
-      // das opções sugeridas pro campo que acabamos de perguntar (clique de
-      // botão, ou o texto digitado à mão), grava direto e NUNCA passa pelo
-      // modelo — elimina de vez o risco de "Urgente"/"Mofadas"/"Escritorio"
-      // virarem falso-positivo de fora-de-escopo por falta de contexto.
-      const shortCircuited = Boolean(userText && currentField && matchesOption(currentField.options, userText))
-      if (shortCircuited && currentField) {
+      // Passo 0 — curto-circuitos determinísticos, nunca passam pelo modelo:
+      //
+      // a) "tudo"/"todas" num campo de múltipla escolha → marca TODAS as
+      //    opções sugeridas. Resolvido aqui, não pelo modelo — um bug real
+      //    mostrou a IA aplicando essa lógica sozinha a uma palavra que só
+      //    ecoava uma resposta anterior ("Interna" preenchendo TODAS as
+      //    superfícies, por lembrar "Pintura interna" dita antes).
+      // b) a resposta bate com uma das opções sugeridas pro campo (clique de
+      //    botão, ou o texto digitado à mão) → grava direto — elimina de vez
+      //    o risco de "Urgente"/"Mofadas"/"Escritorio" virarem falso-positivo
+      //    de fora-de-escopo por falta de contexto.
+      let shortCircuited = false
+      if (userText && currentField?.multiSelect && currentField.options?.length && isSelectAllPhrase(userText)) {
+        data[currentField.field] = currentField.options.join(' + ')
+        shortCircuited = true
+      } else if (userText && currentField && matchesOption(currentField.options, userText)) {
+        shortCircuited = true
         // Múltipla escolha: preserva a frase composta como digitada (ex.:
         // "paredes e portas") — canonicalizar colapsaria pra um único item.
         data[currentField.field] = (currentField.options && !currentField.multiSelect)
@@ -539,18 +558,6 @@ Exemplos:
               },
             },
           },
-          {
-            type: 'function',
-            function: {
-              name: 'flag_out_of_scope',
-              description: 'Chame em vez de update_lead_data SOMENTE quando o pedido claramente NÃO é sobre pintura de imóvel — ex.: carro, moto, barco, móveis, eletrônicos — ou é abusivo/impróprio. Na dúvida, prefira não chamar nenhuma função a chamar esta.',
-              parameters: {
-                type: 'object',
-                properties: { reason: { type: 'string' } },
-                required: ['reason'],
-              },
-            },
-          },
         ]
 
         const extractResp = await openai.chat.completions.create({
@@ -568,7 +575,7 @@ IMPORTANTE: extraia QUALQUER campo que a mensagem mencionar claramente — bairr
 
 ${PROPERTY_TYPE_SYNONYMS}${buildTudoInstruction(currentField)}
 
-Só deixe de chamar função nenhuma quando a mensagem genuinamente não contiver nenhum dado novo reconhecível e não for claramente fora de escopo (ex.: só uma saudação) — nesse caso, é melhor não extrair nada do que arriscar um falso positivo de "fora de escopo".`,
+Se a mensagem não contiver nenhum dado novo reconhecível (ex.: só uma saudação, ou algo vago sem relação com pintura), não chame função nenhuma — é melhor não extrair nada do que inventar ou adivinhar um valor.`,
             },
             {
               role: 'user',
@@ -583,12 +590,9 @@ Mensagem do usuário agora: "${userText}"`,
         })
 
         const toolCalls = extractResp.choices[0].message.tool_calls || []
-        const outOfScopeCall = toolCalls.find(c => c.function.name === 'flag_out_of_scope')
         const updateCall = toolCalls.find(c => c.function.name === 'update_lead_data')
 
-        if (outOfScopeCall) {
-          outOfScope = true
-        } else if (updateCall) {
+        if (updateCall) {
           try {
             const parsedArgs = JSON.parse(updateCall.function.arguments) as Record<string, unknown>
             // A API da OpenAI não impõe o enum do schema de forma estrita — o

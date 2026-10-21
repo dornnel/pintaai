@@ -318,8 +318,17 @@ export function useChat() {
       return
     }
 
-    // Auth gate: intercept email step for unauthenticated users
-    if (resolvedStep.field_key === 'email' && !authUser) {
+    // Auth gate: intercept email step for unauthenticated users — client branch
+    // only. painter_email reuses field_key:'email' (same as the client tail's
+    // lead_email), so without the branch check this hijacked the painter flow
+    // the moment it reached the email question: it showed the client auth-gate
+    // message, and its "Preencher meus dados agora" fallback jumps to the
+    // CLIENT branch's name step — which autoAdvance then silently skips
+    // (data.name already filled, painter_name shares that field_key too) and
+    // chains straight back to this same intercept — an infinite loop with no
+    // escape, since this branch returns before ever reaching the anti-loop
+    // safety net below.
+    if (resolvedStep.field_key === 'email' && resolvedStep.branch === 'client' && !authUser) {
       setCurrentState('auth_gate')
       currentStateRef.current = 'auth_gate'
       saveSessionState('auth_gate', data).catch(console.error)

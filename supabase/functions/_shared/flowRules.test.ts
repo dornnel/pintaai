@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   conditionMet, buildChecklist, missingRequired, isDiscoveryComplete, inferPropertyScope,
-  matchesOption, canonicalizeEnumValue, interpolateQuestion, findStepForField,
+  matchesOption, canonicalizeEnumValue, interpolateQuestion, findStepForField, isSelectAllPhrase,
   type FlowStepRow,
 } from './flowRules'
 
@@ -283,5 +283,26 @@ describe('findStepForField', () => {
 
   it('returns undefined when no step matches', () => {
     expect(findStepForField(steps, 'nonexistent_field')).toBeUndefined()
+  })
+})
+
+describe('isSelectAllPhrase', () => {
+  it('matches the common PT-BR "select all" phrasings', () => {
+    expect(isSelectAllPhrase('Tudo')).toBe(true)
+    expect(isSelectAllPhrase('todas')).toBe(true)
+    expect(isSelectAllPhrase('Tudo isso')).toBe(true)
+    expect(isSelectAllPhrase('qualquer uma')).toBe(true)
+  })
+
+  it('REGRESSION: does not match a word that only echoes a prior answer, even if related', () => {
+    // Real bug: answering "Interna" to "quais superfícies?" (right after
+    // having said "Pintura interna" as the service type) silently selected
+    // every single surface option.
+    expect(isSelectAllPhrase('Interna')).toBe(false)
+    expect(isSelectAllPhrase('Paredes')).toBe(false)
+  })
+
+  it('does not match a full sentence, only the closed set of exact phrases', () => {
+    expect(isSelectAllPhrase('quero pintar tudo da minha casa')).toBe(false)
   })
 })

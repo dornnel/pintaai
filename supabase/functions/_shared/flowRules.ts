@@ -124,6 +124,22 @@ export function canonicalizeEnumValue(options: string[] | null | undefined, valu
   return value
 }
 
+// Frases fechadas de "selecionar tudo" pra um campo de múltipla escolha
+// (ex.: "quais superfícies?" → "tudo"). Lista fechada e curta de propósito:
+// um bug real (achado por revisão independente) mostrou o modelo aplicando
+// essa lógica por conta própria a uma palavra que só ecoava uma resposta
+// anterior ("Interna" preenchendo TODAS as superfícies, por lembrar
+// "Pintura interna" dita antes) — resolver isso aqui, de forma 100%
+// determinística, elimina esse risco por completo.
+const SELECT_ALL_PHRASES = new Set([
+  'tudo', 'todas', 'todos', 'geral', 'tudo isso', 'tudo junto', 'tudo mesmo',
+  'todas as opcoes', 'tudo acima', 'qualquer uma', 'qualquer um',
+])
+
+export function isSelectAllPhrase(text: string): boolean {
+  return SELECT_ALL_PHRASES.has(normalizeForMatch(text))
+}
+
 export function isApartamento(propertyType: unknown): boolean {
   const v = String(propertyType ?? '').toLowerCase()
   return v.includes('apart') || v.includes('apto')
